@@ -131,3 +131,12 @@ Supabase URL、Publishable Key 与 Worker URL 均已配置。
 
 V2.2 当前稳定入口已部署，自动化测试与部署工作流均通过。若修改账号配置、积分规则、Worker API 或数据库迁移，仍应回归测试注册、邮箱确认、登录/登出、开始按钮与计时、不同难度获胜奖励、综合积分排序、皮肤购买、额外悔棋、管理员权限边界、审计日志与游客隔离。
 
+
+
+## V3.0 好友真人 PVP（测试版）
+
+- **在线入口：** https://nkfff.github.io/gomoku-skill-evaluator/v3.0/
+- **实时对战服务：** https://gomoku-v3-api.1395598907.workers.dev
+- 使用现有账号体系，真人 Elo 段位与 AI 积分分开统计；服务端校验落子、时钟和胜负。
+- 当前为测试版，正式邀请好友对局前请先确认登录、创建房间和重连流程正常。
+- Supabase Authentication 的 Redirect URLs 需要允许：`https://nkfff.github.io/gomoku-skill-evaluator/v3.0/`。
