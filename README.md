@@ -1,8 +1,8 @@
 # 五子棋棋力评估 · Gomoku Skill Evaluator
 
-**当前稳定版：V2.2** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 预览版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🐾 V3.0 PVP 测试版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
+**当前稳定版：V2.2** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 预览版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 测试版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-> **最近更新：2026-10-28** · V2.3 预览版已发布；本地即时对局、猫猫主题、落子音效、终局云端结算与部署状态已同步记录。
+> **最近更新：2026-10-28** · V3.1 UI 优化测试版已发布；开始下棋按钮与 AI 棋盘按页面状态显示。
 
 一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V2.3 为已部署的预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 前端 Pages、Cloudflare Worker 与 D1 迁移均已部署，自动化检查通过；完整真实浏览器验收仍待完成。
 
@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | **V2.2 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.2/ | 当前稳定入口；前端与 Worker 部署成功，自动化测试通过（2026-10-28） |
 | **V2.3 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.3/ | 已部署：本地即时对局、猫猫主题棋盘/棋子、落子音效与终局云端结算；仍需真实浏览器验收 |
+| **V3.1 UI 优化版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.1/ | 基于 V3.0；开始下棋按钮仅在对弈页显示，AI 棋盘仅在对弈/复盘页显示 |
 | **V3.0 PVP 测试版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.0/ | 以当前 V2.3 页面、主题系统、账号与本地棋力引擎为基础，新增好友真人 PVP 与独立 Elo；测试版，待真实双账号对局验收 |
 | V2.1 旧版主页 | https://nkfff.github.io/gomoku-skill-evaluator/ | 保留兼容，不作为当前版本入口 |
 | V2.1 预览快照 | https://nkfff.github.io/gomoku-skill-evaluator/v2.1/ | 旧预览备份 |
@@ -155,3 +156,14 @@ V3.0 **直接继承当前 V2.3 预览版的页面、全局皮肤主题、账号�
 - **数据隔离：** 真人 Elo 与 AI 积分分开保存，不改变 V2.3 的 AI 结算逻辑。
 - **验收状态：** GitHub Pages 部署与自动化检查通过；请使用两个账号实测注册/登录、创建/加入房间、连续落子、结束结算及重连。尚未宣称通过真实双人完整对局验收。
 
+
+
+## V3.1 UI 优化版（2026-10-28）
+
+V3.1 基于 V3.0 创建独立入口，不覆盖 V3.0、V2.3 或稳定版。
+
+- **开始下棋按钮**：只在「对弈」页面显示；复盘、商店、排行榜、好友 PVP 和账号管理页面不显示。
+- **AI 棋盘与操作区**：仅在「对弈」和「复盘」页面显示；其他页面隐藏 AI 棋盘区域，避免挤占可用空间。
+- **好友 PVP**：真人棋盘独立保留，不受 AI 棋盘显示规则影响；猫猫主题、账号、AI 引擎和棋力评估均继承 V3.0。
+- **在线入口：** https://nkfff.github.io/gomoku-skill-evaluator/v3.1/
+- **验收状态：** 自动化检查覆盖按钮/棋盘显示规则与资源引用；部署完成后仍建议实际切换各个页面验收。
