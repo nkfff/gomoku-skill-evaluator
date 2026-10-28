@@ -1,10 +1,10 @@
 # 五子棋棋力评估 · Gomoku Skill Evaluator
 
-**当前稳定版：V2.2** | [🎮 V2.2 在线版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
+**当前稳定版：V2.2** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 预览版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-> **最近更新：2026-10-28** · V2.2 综合积分榜、邮箱验证反馈、手动开始计时及云端部署验收。
+> **最近更新：2026-10-28** · V2.3 预览版已发布；本地即时对局、猫猫主题、落子音效、终局云端结算与部署状态已同步记录。
 
-一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 为当前稳定版本**，使用独立入口发布；V2.1 根路径保留为旧版入口，不影响现有链接。V2.2 前端 Pages 与 Cloudflare Worker 部署均已成功，自动化回归测试通过。
+一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V2.3 为已部署的预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 前端 Pages、Cloudflare Worker 与 D1 迁移均已部署，自动化检查通过；完整真实浏览器验收仍待完成。
 
 ## 在线版本
 
@@ -23,7 +23,7 @@ V2.3 已部署至独立预览入口，**V2.2 稳定版与 V2.1 兼容入口保�
 - **低延迟**：AI 落子、计时与棋谱在浏览器本地执行，不再逐手等待网络响应。
 - **终局结算**：登录对局在结束后提交棋谱，由 Cloudflare Worker 验证并结算；断网时暂存本地，可重试同步。
 - **猫猫主题**：奶油粉猫咪咖啡馆棋盘、猫爪装饰、动漫猫猫头棋子，以及可开关的落子音效。
-- **部署与检查**：[Worker 部署及线上健康检查](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158103)、[自动化测试](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158258)、[GitHub Pages 发布](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670091107)。
+- **部署与检查**：[Worker 部署及线上健康检查](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158103)、[自动化测试](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158258)、[GitHub Pages 发布](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670508182)。
 
 注意：自动化测试和部署检查已通过；胜负结算、断网重试及移动端外观仍建议在真实浏览器中做一次人工验收。
 
