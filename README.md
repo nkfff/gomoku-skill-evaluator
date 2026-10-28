@@ -1,10 +1,10 @@
-# 五子棋 V2.2 · 账号与个性化大升级（开发版）
+# 五子棋 V2.2 · 稳定版与账号个性化升级
 
-**[🎮 在线游客预览](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/)** · [V2.1 稳定主页](https://nkfff.github.io/gomoku-skill-evaluator/) · [GitHub Actions 部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions)
+**[🎮 V2.2 稳定版在线入口](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/)** · [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) · [GitHub Actions 部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions)
 
-> 本分支是 V2.2 开发源代码，尚未合并为 `main` 根目录正式版。独立游客预览快照已部署到 `main/v2.2/`，V2.1 稳定主页保持不变。**Supabase、Cloudflare Worker 与 D1 已部署**；本次综合积分排名、邮箱验证反馈和手动开始计时已更新代码，需运行测试并重新部署 Worker 后端，再完成线上回归。
+> **最近更新：2026-10-28。** 本分支保留 V2.2 稳定版源代码；独立入口已部署，V2.1 根路径继续作为兼容旧版。GitHub Actions 自动化测试、GitHub Pages 前端部署与 Cloudflare Worker 部署均已成功。
 
-## 六大升级
+## V2.2 功能清单与本轮更新
 
 1. **注册与管理员管理**：邮箱注册、密码登录、找回/修改密码；登录后可在账号中心自定义 2–24 个字符的显示名称，并同步到棋盘顶部、云端排行榜和管理员列表。管理员可查询账号、增减可消费积分（包括本人）、封禁/解封、重置游戏数据并查看审计日志；为避免失去管理权限，不能封禁或重置本人账号。后端使用已验证的 JWT `sub` 作为玩家 ID，**不再信任用户随意提交的 playerId**。
 2. **棋盘预览**：在商店内点击“试穿”预览颜色，不消耗积分。
@@ -24,9 +24,9 @@
 
 > **不要将游客积分同步为云端正式积分。** 游客数据仅用于体验和升级前保存。云端功能未配置时，账号页面明确显示不可用，而不会伪装注册成功。
 
-## 创建真正的账号系统
+## 账号系统配置与部署记录
 
-> Supabase Project URL 与 Publishable Key 已配置在开发分支的 config.js 和 V2.2 预览配置中。Cloudflare Worker 与 D1 已部署；账号基础流程已测试稳定。本次更新后需重新验证排行榜排序与管理员自调积分。
+> Supabase Project URL、Publishable Key 与 Worker URL 已配置；Cloudflare Worker 与 D1 已部署。2026-10-28 更新后的综合积分榜、邮箱验证反馈、手动开始计时均已纳入代码；自动化测试及 Worker 部署工作流通过。
 
 1. 在 Supabase Authentication → Providers 启用 Email/Password；在 Authentication → URL Configuration 的 Redirect URLs 中加入 https://nkfff.github.io/gomoku-skill-evaluator/v2.2/，建议开启邮箱验证。
 2. 在 Supabase JWT Signing Keys 确认用户访问令牌使用 Worker 支持的非对称 ES256 或 RS256 签名密钥。参考 https://supabase.com/docs/guides/auth/signing-keys。
@@ -45,7 +45,7 @@
 6. 在 GitHub Actions → Deploy V2.2 Cloudflare Worker → Run workflow 中选择源分支 feature/v2.2-accounts-customization。工作流会安装依赖、运行测试、执行 0001_init.sql 和 0002_accounts.sql 迁移并部署 Worker。
 7. Worker 已部署，地址为 https://gomoku-v2-api.1395598907.workers.dev；main/v2.2/config.js 与开发分支 config.js 已写入该地址，Supabase Project URL 和 Publishable Key 也已配置。
 8. 首次部署后，通过预览页注册并验证管理员邮箱。在 Supabase Authentication → Users 复制自己的 User ID，将其添加为 GitHub Actions secret ADMIN_USER_ID，再运行一次 Worker 部署工作流。只有服务端配置的 UUID 才拥有管理员权限。
-9. 更新后完整测试注册、邮件验证、登录/登出、胜局积分、皮肤购买、额外悔棋、排行榜胜率与排序、管理员调整本人及其他用户积分、禁止自我封禁/重置、审计日志与游客隔离。完成端到端测试后再考虑合并到 main。
+9. 稳定版回归清单：注册与邮箱确认、登录/登出、开始按钮与计时、三档 AI 获胜奖励、综合积分排序与原始胜率、皮肤购买、额外悔棋、管理员权限边界、审计日志与游客隔离。自动化测试和部署工作流已通过；若后续修改代码或云端配置，应再次执行此清单。
 
 前端只允许包含 Supabase Project URL 和 Publishable Key。绝不能把 service_role、数据库密码或 Cloudflare API Token 放入 config.js 或其他公开文件。
 
@@ -72,9 +72,9 @@
 
 ## 在线预览与本地开发
 
-在线 V2.2 预览：<https://nkfff.github.io/gomoku-skill-evaluator/v2.2/>。Supabase 与 Cloudflare Worker/D1 已首次部署，前端已配置 Worker 地址；请继续完成账号注册、邮箱验证、积分和管理员流程的端到端测试。游客本地积分不应当作正式排行数据。
+V2.2 稳定版在线入口：<https://nkfff.github.io/gomoku-skill-evaluator/v2.2/>。截至 2026-10-28，GitHub Pages 与 Cloudflare Worker 部署成功，自动化回归测试通过。游客本地积分仅用于本机体验，不应当作云端正式成绩。
 
-V2.1 稳定主页：<https://nkfff.github.io/gomoku-skill-evaluator/>。
+V2.1 旧版主页（兼容保留）：<https://nkfff.github.io/gomoku-skill-evaluator/>。
 
 ## 本地开发与测试
 
@@ -95,7 +95,7 @@ npm run check
 - `src/engine.js` / `src/assessment.js`：棋局引擎与复盘
 - `worker/index.js`：受认证保护的云端玩家、积分、管理员 API
 - `migrations/0002_accounts.sql`：账号与积分审计表升级
-- `config.js`：三个公开配置；Supabase URL 和 Publishable Key 已配置，Worker URL 待部署后填写
+- `config.js`：三个公开配置；Supabase URL、Publishable Key 与 Worker URL 均已配置
 - `test/v2.2-ui.test.js`：提示、综合积分排名、原始胜率、手动计时、邮箱验证反馈和管理员自调积分规则验收
 
-正式上线仍需单独部署认证和数据库，未经安全验证不要把开发中的管理员 API 暴露给公众。
+当前 V2.2 稳定入口为独立路径 `/v2.2/`；根路径仍保留 V2.1 旧版。自动化测试与部署成功不替代后续安全维护；请勿将 service_role、数据库密码或 Cloudflare API Token 放入公开代码。
