@@ -10,11 +10,17 @@ V2.3 是在 V2.2 稳定版基础上的独立预览目录。V2.2 原目录保持�
 - 新增猫咪咖啡馆棋盘、猫猫头棋子、落子音效开关和柔和的粉色动漫主题。
 - 游客数据继续保存在本地；只有服务端成功验证的登录对局才更新云端排行榜。
 
-## 部署顺序
+## 发布状态
 
-1. 先合并后端开发分支中的 `worker/index.js` 改动。
-2. 在 GitHub Actions 中运行 `Deploy V2.2 Cloudflare Worker`，源分支选择 `feature/v2.2-accounts-customization`（该分支合并后应包含 V2.3 Worker 代码）。
-3. 确认 Worker 已支持 `POST /api/submit`，再发布此目录的前端。
-4. 执行 `npm run check`、`npm test`，验证注册登录、AI 难度、胜负结算、积分榜、悔棋、皮肤兑换、待同步队列和音效开关。
+- **Cloudflare Worker 后端：已部署。** [部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40669847860)
+- **自动化检查：已通过。** [最新测试记录](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40669847728)
+- **前端：通过 PR #3 合并到 `main` 后发布至 GitHub Pages 的 `/v2.3/` 路径。**
 
-**注意：** 在 Worker 后端升级并部署之前，不要将 V2.3 作为正式入口。V2.2 稳定版仍然可用。
+## 发布后验收
+
+1. 打开 `https://nkfff.github.io/gomoku-skill-evaluator/v2.3/`，检查猫猫棋盘、猫头棋子、试穿/装备和落子音效。
+2. 验证游客本地对局、登录账号对局、胜负积分结算和排行榜。
+3. 检查断网后成绩进入待同步队列，恢复网络后只结算一次。
+4. 验证 V2.2 稳定入口 `/v2.2/` 仍然可用。
+
+**注意：** 自动化测试通过不替代真实浏览器的端到端验收；V2.2 稳定入口保持不变。
