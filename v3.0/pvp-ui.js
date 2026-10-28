@@ -272,8 +272,8 @@ async function joinRoom() {
     const result = await api("/api/pvp/rooms/join", "POST", {inviteCode: code});
     roomId = result.room.id;
     inviteCode = "";
-    await connectSocket(roomId);
     await refreshRoomState();
+    await connectSocket(roomId);
     notice("已加入好友房间，等待双方准备。");
   } catch (error) { notice(error.message, true); }
 }
