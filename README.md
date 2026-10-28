@@ -1,144 +1,84 @@
-# 五子棋棋力评估 V2.1（独立开发分支）
+# 五子棋 V2.2 · 账号与个性化大升级（开发版）
 
-> V2.1 从 V2 分支衍生，当前为开发版；V1 的 main 线上站点没有改变。V2 的静态游戏和基础测试已写完，但跨玩家云端排行榜尚未部署，浏览器端尚未完成全面验收。
+> 此分支尚未合并到 `main`；现有 V2.1 正式版保持不变。V2.2 的游客玩法可以独立运行，注册账号和共享排行榜需配置 Supabase Auth、Cloudflare Workers、D1。
 
-## V2.1 新评分设计
+## 六大升级
 
-V2.1 采用**有限两层搜索估计**，每手比较实际落子与已搜索候选着法的局面价值。棋力得分与皮肤兑换积分是两套独立数字。
+1. **注册与管理员管理**：邮箱注册、密码登录、找回/修改密码；管理员专属查询账号、增减可消费积分、封禁/解封、重置游戏数据和审计日志。后端使用已验证的 JWT `sub` 作为玩家 ID，**不再信任用户随意提交的 playerId**。
+2. **棋盘预览**：在商店内点击“试穿”预览颜色，不消耗积分。
+3. **棋子独立皮肤**：棋盘与棋子分开兑换、自由搭配。棋子：经典玉石、水晶冰魄、水墨丹青、霓虹宇宙、黑曜珍珠。
+4. **悔棋规则**：每局前 3 次免费，第四次起每次 10 积分。结束后无法悔棋；云端悔棋需要服务器校验且记录费用。
+5. **主动点击才显示提示**：只有点击“落子提示”，棋盘才显示三个编号候选点；下一手、新开局、悔棋、切换页面立即清除。异步旧结果不可重新出现。候选顺序是启发式优先级，**不是已校准的胜率**。
+6. **有趣的本局小结**：按胜负、评分与关键机会生成有趣的局内描述，保留真实统计但避免机械堆砌术语。
 
-- **加权落子准确度**：按决策复杂度加权计算单步准确度的平均值，而不是累计好手次数。普通局面权重 1、中等 1.5、高复杂度 2、关键战术 2.5。复杂度按候选价值差距近似衡量，属于需要验证的启发式指标。
-- **关键攻防机会**：出现可直接获胜点为进攻机会；需要且有办法挡住对手直接成五为防守机会。分别统计把握率；没有机会就显示“未测得”，不当作零分或满分。
-- **无法挽救的局面**：当对手已有多个无法同时化解的直接胜点，该步不强行判定漏防，标记为“不可避免”，不纳入综合分。
-- **严重失误率**：统计可评估着法中漏杀、漏防或搜索损失高于阈值的比例。
-- **Top-1 / Top-3**：只作为透明展示的辅助指标，不再直接加分。排名仅针对搜索过的候选着法。
-- **可信度**：根据有效样本量、关键战术机会数量分级；长度不直接加减单局分数。仍不能代表专业棋力评级。
+## 运行模式
 
-若本局有关键攻防机会，综合评分为：
+| 模式 | 是否需配置 | 身份 / 积分 / 商店 | 排行榜 |
+|---|---|---|---|
+| 游客模式 | 不需要 | 本浏览器 localStorage，积分可在本机修改 | 仅本人模拟数据 |
+| 正式账号 | Supabase + Worker + D1 均已部署 | 服务器积分、账号 ID、皮肤 | 跨账号累计获胜积分榜 |
 
-`75% × 加权落子准确度 + 15% × 关键攻防成功率(百分制) + 10% × (100 − 严重失误率百分值)`
+> **不要将游客积分同步为云端正式积分。** 游客数据仅用于体验和升级前保存。云端功能未配置时，账号页面明确显示不可用，而不会伪装注册成功。
 
-若全局没有关键攻防机会，战术项不计分，并将权重重新归一：
+## 创建真正的账号系统
 
-`90% × 加权落子准确度 + 10% × (100 − 严重失误率百分值)`
+1. 创建 Supabase 项目，在 **Authentication → Providers** 启用 Email/Password；配置站点网址和允许的回调地址，例如 `https://nkfff.github.io/gomoku-skill-evaluator/`，建议开启邮件验证。
+2. 在 Supabase 的 JWT Signing Keys 启用并激活**非对称 ES256 或 RS256 签名密钥**。Worker 通过项目 JWKS 验签，不支持旧 HS256 token。参见 [Supabase JWT Signing Keys](https://supabase.com/docs/guides/auth/signing-keys)。
+3. 安装依赖 `npm install`，使用 `npx wrangler login` 登录 Cloudflare。
+4. 使用 `npx wrangler d1 create gomoku-v2` 创建 D1 数据库，将返回的 `database_id` 写入 `wrangler.toml`，替换示例占位符。
+5. 运行 `npx wrangler d1 migrations apply gomoku-v2 --remote` 执行 `0001_init.sql`、`0002_accounts.sql`。
+6. 在 **Worker 环境配置** 设置 `SUPABASE_URL`（项目 URL）、`ADMIN_USER_ID`（管理员在 Supabase Auth 中的 UUID），并保持 `FRONTEND_ORIGIN = "https://nkfff.github.io"`。管理员应先正常注册，再将自己真实的用户 ID 配为 `ADMIN_USER_ID`。
+7. 运行 `npx wrangler deploy`。拿到公开的 Worker URL 后，在前端 `config.js` 填入 Worker URL、Supabase Project URL、Supabase **publishable** key。
+8. 用独立 V2.2 预览环境完整测试：注册、邮件验证、登录、登出、胜利计分、扣分、管理员操作、游客隔离、悔棋和商店兑换。验收后才合并到 `main`。
 
-最终四舍五入并限制 0–100 分。**这是可解释的启发式参考分，不是 Elo 或段位；仍存在有限搜索产生误判的风险。**
+```js
+// config.js：仅可公开的项目配置。不要放 service_role / secret 密钥。
+window.GOMOKU_API_URL = "https://your-worker.your-subdomain.workers.dev";
+window.GOMOKU_SUPABASE_URL = "https://your-project.supabase.co";
+window.GOMOKU_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_xxx";
+```
 
-## 版本与链接
+### 安全说明
 
-- V2.1 分支：https://github.com/nkfff/gomoku-skill-evaluator/tree/feature/v2.1-scoring
-- V2 分支：https://github.com/nkfff/gomoku-skill-evaluator/tree/feature/v2-major-upgrade
-- 稳定 V1：https://nkfff.github.io/gomoku-skill-evaluator/
+- GitHub Pages 不能自行存储玩家账号或执行数据库写入，因此真实用户管理必须依赖可验证身份的后端。
+- **管理员角色由 Worker 的 `ADMIN_USER_ID` 校验，不能由浏览器传入**；普通用户不能直接修改积分。
+- 密码由 Supabase Auth 管理，不在 D1 保存明文密码；管理员无法读取密码，用户可通过邮箱找回。
+- 每次管理员操作应有审计日志，分数更改另有积分流水；积分排行榜按 `earned_points`，买皮肤不影响累计获胜积分。
+- IP 不等于唯一用户 ID：同一网络可有多人，移动网络 IP 也会变化。使用登录账户的 UUID 关联跨对局记录。
+- 云端开放前，仍建议加 Cloudflare Turnstile、速率限制、滥用监控和更严格的数据库事务与端到端测试。
 
-下面保留原 V2 基础功能、隐私、云端后端和部署说明。
+## 游戏规则和经济
 
----
+| 项目 | 规则 |
+|---|---|
+| 新手 AI 胜利 | +10 积分 |
+| 进阶 AI 胜利 | +30 积分 |
+| 大师 AI 胜利 | +80 积分 |
+| 免费悔棋 | 每局前 3 次 |
+| 额外悔棋 | 每次 10 积分 |
+| 棋盘兑换 | 0 / 60 / 150 / 260 / 500 积分 |
+| 棋子兑换 | 0 / 45 / 85 / 140 / 220 积分 |
 
-## V2 基础版本说明
+## 本地开发与测试
 
-> **当前稳定线上版本仍为 V1（main）。V2 位于 feature/v2-major-upgrade，尚未上线。**
-
-- V1 在线版：https://nkfff.github.io/gomoku-skill-evaluator/
-- V2 开发分支：https://github.com/nkfff/gomoku-skill-evaluator/tree/feature/v2-major-upgrade
-
-## V2 已实现（开发预览）
-
-| 模块 | V2 功能 | 状态 |
-| --- | --- | --- |
-| 复盘 | 玩家和 AI 每手落点、耗时、推荐候选，任意步快进/快退 | 开发完成，待浏览器验收 |
-| 终局计时 | 结束时记录固定时间，之后不继续增长 | 开发完成，待验收 |
-| 终局悔棋 | 终局禁用悔棋（无法通过悔棋修改结算） | 开发完成，待验收 |
-| 三档难度 | 新手、进阶、大师，使用启发式与有限 Alpha-Beta 搜索 | 开发完成，待引擎基准测试 |
-| 皮肤商店 | 五套棋盘及配套棋子配色，兑换成本 0/60/150/260/500 | 本地可用；云端需部署 |
-| 胜局积分 | 新手 +10、进阶 +30、大师 +80 | 本地可用；云端需部署 |
-| 排行榜 | D1 存储玩家总积分和胜负数，排名前 30 | **服务端代码已写，尚未部署** |
-| 玩家标识 | 浏览器内生成 UUID，跨对局持久保存 | 本地/云端都能使用 |
-
-注意：启发式复盘提示不等于经过专业求解器认证的最佳着；“大师”难度也不是职业段位水平。
-
-## 本地运行
-
-项目使用 ES modules，需要通过本地 HTTP 服务（不能仅双击 V2 的 index.html）：
-
-~~~bash
+```bash
 python3 -m http.server 8080
 # 浏览器访问 http://localhost:8080/
-~~~
-
-V2 默认使用本地模式，不依赖服务器。积分、昵称和已购皮肤保存在 localStorage，不能充当可信全球排行榜积分；刷新页面仍能保留这些资料，但更换浏览器或清理数据后可能丢失。
-
-## 多人排行榜部署（Cloudflare Workers + D1）
-
-GitHub Pages 是静态托管，不能独立实现跨用户排行榜。因此服务端位于 \`worker/index.js\`，使用 D1 数据库处理服务器对局、积分、兑换和排行榜。
-
-部署时需拥有 Cloudflare 账号，且可能产生相应服务使用费（视额度和访问量而定）。
-
-1. 安装依赖：\`npm install\`
-2. 登录：\`npx wrangler login\`
-3. 创建 D1 数据库：\`npx wrangler d1 create gomoku-v2\`
-4. 把输出的真实 \`database_id\` 填到 \`wrangler.toml\`（替换占位字符串）。
-5. 执行迁移：\`npx wrangler d1 migrations apply gomoku-v2 --remote\`
-6. 部署 Worker：\`npx wrangler deploy\`
-7. 将 Worker 地址写入 \`config.js\`，例如：
-   \`window.GOMOKU_API_URL = "https://gomoku-v2-api.<your-subdomain>.workers.dev";\`
-8. 将本分支发布到独立预览环境（不要直接覆盖 main）以便测试。
-
-Worker 必须限制前端 Origin（当前为 \`https://nkfff.github.io\`），不应当开放任意来源的写入；在公开上线前还应增加速率限制、滥用监控和强身份验证。
-
-### API
-
-- \`GET /api/health\`
-- \`GET /api/leaderboard\`
-- \`POST /api/profile\`
-- \`POST /api/name\`
-- \`POST /api/start\`
-- \`POST /api/move\`（AI 决策在服务端，胜负也在服务端判定）
-- \`POST /api/shop\`
-
-**云端模式下禁用悔棋**，避免本地撤销与服务端已结算对局分歧；若要实现云端悔棋，需要增加服务端撤销协议和明确的积分结算规则。
-
-### 身份与 IP 的说明
-
-不能把 IP 当成“唯一玩家 ID”：
-- 同一 Wi-Fi / 公司 / 校园网可能有多位玩家共享公网 IP。
-- 一位玩家的 IP 可能变化（移动网络、VPN、IPv6 等）。
-- IP 是个人数据，直接保存、展示 IP 会带来隐私和合规风险。
-
-本版使用浏览器 localStorage 中持久匿名 UUID 来归并同一浏览器的多局战绩。它不能识别清除浏览数据后的同一人，也不能保证跨设备身份一致。**云端 UUID 仍属于轻量身份，不能防恶意伪造；公开积分排名上线前推荐用 OAuth/Passkey/账号登录，服务端绑定凭据，并加入限流与风控。** 当前后端不保存原始 IP，也不把 IP 显示在排行榜里。
-
-## 测试
-
-~~~bash
 npm test
-~~~
+npm run check
+```
 
-测试涵盖五连判断、直接取胜/防守、开局候选、复盘状态重建与非法重复落子。还需要实机检查浏览器交互和云端接口部署。
+`npm test` 测试五连判断、初级搜索、V2.1 评分、V2.2 HTML 按钮接线与点击提示显示规则；`npm run check` 检查语法。**自动测试通过不等同于 Supabase/Cloudflare 线上集成验证通过。**
 
-## 文件
+## 项目文件
 
-~~~text
-index.html                 V2 主页面
-config.js                  API 地址配置（空为本地模式）
-src/style.css              界面皮肤与响应式样式
-src/app.js                 对弈、复盘、商店和云端连接
-src/engine.js              纯棋局逻辑和 AI
-worker/index.js            Cloudflare Worker 排行榜/对局后端
-migrations/0001_init.sql   D1 数据库结构
-wrangler.toml              Worker 部署配置
-test/engine.test.js        Node 引擎测试
-~~~
+- `index.html`：V2.2 页面（账号、提示、皮肤预览）
+- `src/app.js`：游戏、悔棋、提示、商店与娱乐小结
+- `src/account.js`：注册登录和管理员界面
+- `src/engine.js` / `src/assessment.js`：棋局引擎与复盘
+- `worker/index.js`：受认证保护的云端玩家、积分、管理员 API
+- `migrations/0002_accounts.sql`：账号与积分审计表升级
+- `config.js`：三个公开配置，默认空值
+- `test/v2.2-ui.test.js`：提示与 UI 结构验收
 
-## 合并建议
-
-先完成测试与云端防作弊增强，在独立 V2 预览站点验收后，再向 \`main\` 发 PR。不要用本地可修改的积分直接同步到云端排名。
-
-
-## V2 搜索评估升级
-
-每手落子由独立 Web Worker 在后台进行**候选着法 + 对方最佳回应**的有限两层搜索，报告双方的推荐着、搜索排名、Top-1 / Top-3、落子损失（优势分差）与严重失误标记。当前每次最多评估 9 个优先候选，始终包含实际落子；如果候选集合不完整，排名是**被搜索候选中的排名**，并不是全盘全部合法位置排名。
-
-综合分采用玩家已评估着法的比例，避免通过下很长的棋局无限累加：
-`score = round(0.55 × 平均单步准确度 + 20 × Top1率 + 10 × Top3率 + 15 × (1 − 严重失误率))`，限制到 0–100 分。
-单步准确度：`clamp(round(100 − 1.2 × 落子损失), 0, 100)`。
-落子损失是自定义启发式优势分差（0–200），**不是国际象棋式厘兵分值，也不是胜率**。直胜点、漏杀和漏防优先标注；其余损失达到 55 为“严重失误（搜索估计）”，达到 25 为“明显偏差”，达到 8 为“小幅偏差”。未完成后台分析时不输出最终综合分。
-
-现阶段这是**小深度估计器**，不是专业五子棋求解器；不能保证识别完整 VCF/VCT。评分未纳入对手强度和悔棋惩罚，思考时间单独呈现，不能把 100 分当成真实段位。
+正式上线仍需单独部署认证和数据库，未经安全验证不要把开发中的管理员 API 暴露给公众。
