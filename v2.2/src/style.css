@@ -13,3 +13,6 @@ label input{display:block;width:100%;margin:5px 0}
 .audit{max-height:180px;overflow:auto;font-size:11px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;background:#0d1628;padding:10px;border-radius:9px}
 fieldset input:disabled{cursor:not-allowed}
 @media(max-width:520px){.skin{flex-wrap:wrap}.skin .controls{width:100%}}
+
+.auth-feedback{margin:12px 0;padding:12px 15px;border-radius:10px;border:1px solid #2d9b73;background:#173a32;color:#baf4d5;line-height:1.55;font-weight:600}
+.auth-feedback.error{border-color:#b95a52;background:#45262b;color:#ffd0ca}
