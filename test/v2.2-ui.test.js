@@ -25,3 +25,16 @@ test("V2.2 economy has server-side three-free-undo rule and auth checks",()=>{
  assert.match(worker,/await authenticate\(request,env\)/);
  assert.match(worker,/adminOrThrow\(env,user\)/);
 });
+test("leaderboard displays win rate and ranks by adjusted rate, games and earned points",()=>{
+ assert.match(html,/<th>总对局<\\/th><th>胜率<\\/th><th>累计获胜积分<\\/th>/);
+ assert.match(app,/p\\.games_played/);
+ assert.match(app,/p\\.win_rate/);
+ assert.match(worker,/AS win_rate/);
+ assert.match(worker,/ORDER BY adjusted_win_rate DESC,games_played DESC,earned_points DESC/);
+ assert.match(worker,/wins\\+2\\.5/);
+ assert.match(worker,/AND \\(wins\\+losses\\+draws\\)>0/);
+});
+test("admins can adjust their own points but cannot ban or reset themselves",()=>{
+ assert.match(worker,/target===user\\.id&&url\\.pathname!==/);
+ assert.match(worker,/管理员可以调整自己的积分，但不能封禁或重置自己的账号/);
+});
