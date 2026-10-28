@@ -2,14 +2,14 @@
 
 **稳定版：V2.1** | [🎮 在线下棋](https://nkfff.github.io/gomoku-skill-evaluator/) | **[V2.2 游客预览](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/)** | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。V2.1 保持为稳定主页；V2.2 已发布到独立预览路径，账号后端仍需配置。
+一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。V2.1 保持为稳定主页；V2.2 已发布到独立预览路径，Supabase 与 Cloudflare Worker/D1 已配置并完成首次部署，正在进行账号功能端到端验收。
 
 ## 在线版本
 
 | 版本 | 在线地址 | 状态 |
 | --- | --- | --- |
 | **V2.1 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/ | 原正式入口，保持不变 |
-| **V2.2 游客预览** | https://nkfff.github.io/gomoku-skill-evaluator/v2.2/ | 已部署，可体验前端功能；云端账号未连接 |
+| **V2.2 游客预览** | https://nkfff.github.io/gomoku-skill-evaluator/v2.2/ | 已部署，前端已接入 Supabase 与 Worker；账号流程待端到端验收 |
 | V2.1 预览快照 | https://nkfff.github.io/gomoku-skill-evaluator/v2.1/ | 旧预览备份 |
 | V1 历史版 | https://nkfff.github.io/gomoku-skill-evaluator/v1/ | 保留的旧版页面 |
 
@@ -30,9 +30,9 @@
 - **悔棋经济**：每局前 3 次免费，第 4 次起每次 10 积分；对局结束后不能悔棋。
 - **点击才显示落子提示**：点击“落子提示”后显示最多 3 个候选位置；落子、新开局、悔棋或离开对弈页后清除。
 - **娱乐化本局小结**：以更轻松的文字总结胜负、落子表现和关键机会。
-- **账号与管理员界面**：邮箱注册/登录、找回密码、用户查询、积分调整、封禁及审计日志的代码已开发，等待云端服务配置。
+- **账号与管理员界面**：邮箱注册/登录、找回密码、用户查询、积分调整、封禁及审计日志界面已开发；云端服务已部署，管理员账号与完整业务流程仍待验收。
 
-> **当前 V2.2 只完成了独立游客预览部署。** `v2.2/config.js` 已配置 Supabase Project URL 与 Publishable Key；Worker URL 和 D1 数据库尚未配置。账号注册、云端积分、管理员操作和跨玩家排行榜目前仍不可用；游客积分存储在本浏览器中，不应视为正式成绩。
+> **V2.2 云端基础设施已首次部署。** `v2.2/config.js` 已配置 Supabase Project URL、Publishable Key 和 Worker URL；Cloudflare D1 迁移已成功。仍需实测邮箱注册/验证、登录、积分交易、管理员授权与排行榜。游客积分仍保存在本地浏览器中，不应视为正式成绩。
 
 ## V2.1 评分说明
 
@@ -60,7 +60,7 @@
 
 ## V2.2 云端账号系统部署
 
-V2.2 使用 **Supabase Auth + Cloudflare Workers + Cloudflare D1**。当前 Supabase Project URL 与 Publishable Key 已写入 `v2.2/config.js`；账号注册仍未启用，因为 Worker URL 和 D1 数据库尚未部署。
+V2.2 使用 **Supabase Auth + Cloudflare Workers + Cloudflare D1**。Supabase Project URL、Publishable Key 与 Worker URL 已写入 `v2.2/config.js`；首次 Worker 部署和 D1 迁移已成功。
 
 ### 1. 配置 Supabase
 
@@ -86,17 +86,17 @@ V2.2 使用 **Supabase Auth + Cloudflare Workers + Cloudflare D1**。当前 Supa
 
 ### 3. 运行自动部署
 
-在 GitHub 的 **Actions → Deploy V2.2 Cloudflare Worker → Run workflow** 中选择源分支 `feature/v2.2-accounts-customization`。工作流会运行测试、执行 D1 迁移并部署 Worker。
+首次部署已成功完成：GitHub Actions 运行测试、执行 D1 迁移并部署了 Worker。Worker 地址：https://gomoku-v2-api.1395598907.workers.dev。如需重新部署，在 GitHub 的 **Actions → Deploy V2.2 Cloudflare Worker → Run workflow** 中选择源分支 `feature/v2.2-accounts-customization`。
 
-部署成功后，从 Actions 日志复制 Worker 的 `workers.dev` URL，写入 `v2.2/config.js`：
+Worker 已部署，地址为 `https://gomoku-v2-api.1395598907.workers.dev`。前端配置已写入该地址；后续重新部署时可参考以下配置格式：
 
 ```js
-window.GOMOKU_API_URL = "https://your-worker.your-subdomain.workers.dev";
+window.GOMOKU_API_URL = "https://gomoku-v2-api.1395598907.workers.dev";
 window.GOMOKU_SUPABASE_URL = "https://khnlxucuvagtpdbooexa.supabase.co";
 window.GOMOKU_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_...";
 ```
 
-Supabase URL 和 Publishable Key 已配置；这里只需替换 Worker URL。提交后等待 GitHub Pages 部署成功。
+Supabase URL、Publishable Key 与 Worker URL 均已配置。
 
 ### 4. 启用管理员
 
