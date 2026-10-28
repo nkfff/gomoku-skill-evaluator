@@ -23,6 +23,6 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Check JavaScript syntax
-        run: npm run check
+        run: npm run check && node --check v3.0/pvp-ui.js
       - name: Run tests
         run: npm test
