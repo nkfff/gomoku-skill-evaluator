@@ -3,7 +3,7 @@ const $=id=>document.getElementById(id);
 const apiBase=()=>String(window.GOMOKU_API_URL||"").replace(/\/$/,"");
 const SUPABASE_URL=String(window.GOMOKU_SUPABASE_URL||"").replace(/\/$/,"");
 const PUBLISHABLE_KEY=String(window.GOMOKU_SUPABASE_PUBLISHABLE_KEY||"");
-let client=null,session=null,ready=false,onChange=()=>{};
+let client=null,session=null,ready=false,onChange=()=>{},onProfileChange=()=>{};
 export const cloudConfigured=()=>!!(SUPABASE_URL&&PUBLISHABLE_KEY&&apiBase());
 export const loggedIn=()=>!!session?.access_token;
 export async function bearer(){
@@ -36,6 +36,7 @@ async function refresh(){
  if(!loggedIn())return;
  try{
   const {profile}=await call("profile");
+  if(profile){const field=$("accountDisplayName");if(field)field.value=profile.name||"匿名棋手";onProfileChange(profile);}
   if(profile?.isAdmin){$("adminPanel").hidden=false;await searchUsers();}
   $("identityStatus").textContent=profile?.isAdmin?"管理员 · 已验证":"已登录 · 云端账号";
  }catch(e){setMessage(e.message,true);}
@@ -74,8 +75,9 @@ async function adminPost(path,data){
   $("selectedUser").textContent=name+" · 最新积分 "+result.profile.points;
  }catch(e){setMessage(e.message,true);}
 }
-export async function initAccount(onAuthChange){
+export async function initAccount(onAuthChange,onRemoteProfileChange){
  onChange=onAuthChange||(()=>{});
+ onProfileChange=onRemoteProfileChange||(()=>{});
  $("authForm").hidden=false;$("loggedPanel").hidden=true;
  if(!cloudConfigured()){
   setMessage("账号系统尚未连接 Supabase / Cloudflare；可继续游客对弈。需要部署后才能注册和管理。");
@@ -134,6 +136,19 @@ $("login").onclick=()=>authTask("login");
 $("recover").onclick=()=>authTask("recover");
 $("changePassword").onclick=()=>authTask("change");
 $("logout").onclick=async()=>{if(!client)return;await client.auth.signOut();session=null;showState();setMessage("已退出账号");await onChange(false);};
+$("saveDisplayName").onclick=async()=>{
+ const field=$("accountDisplayName"),name=field.value.trim();
+ if(name.length<2||name.length>24||/[<>]/.test(name)){setMessage("显示名称需为 2–24 个字符，且不能包含 < 或 >",true);return;}
+ const button=$("saveDisplayName");button.disabled=true;
+ try{
+  const {profile}=await call("name",{name});
+  if(!profile)throw Error("服务器未返回账号资料");
+  field.value=profile.name||name;
+  onProfileChange(profile);
+  setMessage("显示名称已保存，并已同步到排行榜。");
+ }catch(e){setMessage("保存显示名称失败："+e.message,true);}
+ finally{button.disabled=false;}
+};
 $("adminFind").onclick=searchUsers;
 $("adminAdjust").onclick=async()=>{
  const delta=Number($("adminDelta").value);
