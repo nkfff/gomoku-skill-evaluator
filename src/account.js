@@ -118,8 +118,9 @@ async function authTask(task){
    if(error)throw error;
    setMessage("已发送密码重置请求；如邮箱存在，请查收邮件。");
   }else if(task==="change"){
-   if(password.length<10)throw Error("新密码至少 10 位");
-   const {error}=await client.auth.updateUser({password});
+   const newPassword=$("newPassword").value;
+   if(newPassword.length<10)throw Error("新密码至少 10 位");
+   const {error}=await client.auth.updateUser({password:newPassword});
    if(error)throw error;
    setMessage("密码已更新");
   }
