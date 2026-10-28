@@ -142,3 +142,5 @@ body[data-board-theme] .miniPreview{border:1px solid var(--border);box-shadow:va
 #panel-pvp .tableWrap{max-width:100%;overflow-x:auto}
 #panel-pvp .controls button{flex:0 1 auto}
 #panel-pvp .hint{overflow-wrap:anywhere}
+
+body[data-board-theme] .pvp-board{border:1px solid var(--board-frame);box-shadow:0 8px 22px var(--accent-glow)}
