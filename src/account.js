@@ -1,6 +1,11 @@
 // Optional Supabase Auth UI. The worker exclusively verifies JWT and administrator rights.
 const $=id=>document.getElementById(id);
 const apiBase=()=>String(window.GOMOKU_API_URL||"").replace(/\/$/,"");
+const callbackHash=new URLSearchParams(window.location.hash.replace(/^#/,""));
+const callbackQuery=new URLSearchParams(window.location.search);
+const authCallbackType=callbackHash.get("type")||callbackQuery.get("type")||"";
+const authCallbackError=callbackHash.get("error_description")||callbackQuery.get("error_description")||"";
+const hasAuthCallback=!!(callbackHash.get("access_token")||callbackQuery.get("code")||callbackQuery.get("token_hash")||authCallbackError);
 const SUPABASE_URL=String(window.GOMOKU_SUPABASE_URL||"").replace(/\/$/,"");
 const PUBLISHABLE_KEY=String(window.GOMOKU_SUPABASE_PUBLISHABLE_KEY||"");
 let client=null,session=null,ready=false,onChange=()=>{},onProfileChange=()=>{};
@@ -24,6 +29,13 @@ async function call(path,payload=null,method="POST"){
  return value;
 }
 function setMessage(text,bad=false){$("authNotice").textContent=text;$("authNotice").style.color=bad?"#ffc2bb":"#b3e7cc";}
+function setGlobalFeedback(text,bad=false){
+ const box=$("authFeedback");
+ if(!box)return;
+ box.textContent=text;
+ box.classList.toggle("error",bad);
+ box.hidden=false;
+}
 function showState(){
  $("authForm").hidden=loggedIn();
  $("loggedPanel").hidden=!loggedIn();
@@ -101,6 +113,13 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
   setMessage(loggedIn()?"已恢复账号登录":"请选择注册或登录；游客对局不会进入云端排行榜。");
   await refresh();
   if(session)await onChange(true);
+  if(authCallbackError){
+   const message="邮箱验证失败："+authCallbackError;
+   setMessage(message,true);setGlobalFeedback(message,true);
+  }else if(authCallbackType==="signup"||authCallbackType==="email"||(hasAuthCallback&&authCallbackType!=="recovery")){
+   const message=loggedIn()?"邮箱验证成功！账号已激活并自动登录，现在可以开始下棋。":"邮箱验证链接已打开。请进入「账号 / 管理」查看状态；如果未自动登录，请使用注册邮箱登录。";
+   setMessage(message,!loggedIn());setGlobalFeedback(message,!loggedIn());
+  }
  }catch(e){setMessage("登录模块加载失败："+e.message,true);}
 }
 async function authTask(task){
