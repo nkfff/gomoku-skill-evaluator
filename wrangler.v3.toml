@@ -1,0 +1,22 @@
+name = "gomoku-v3-api"
+main = "worker/v3.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+FRONTEND_ORIGIN = "https://nkfff.github.io"
+
+# Create a separate V3.0 D1 database before deployment.
+# Apply migrations/0001_init.sql, 0002_accounts.sql, and 0003_pvp.sql.
+[[d1_databases]]
+binding = "DB"
+database_name = "gomoku-v3"
+database_id = "REPLACE_WITH_V3_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[[durable_objects.bindings]]
+name = "PVP_ROOMS"
+class_name = "PvpRoom"
+
+[[migrations]]
+tag = "v3-pvp-v1"
+new_sqlite_classes = ["PvpRoom"]
