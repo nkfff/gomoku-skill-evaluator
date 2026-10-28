@@ -1,0 +1,41 @@
+*{box-sizing:border-box}body{margin:0;font:15px system-ui,"PingFang SC",sans-serif;background:#0c1020;color:#eff3fa}button,select,input{font:inherit}a{color:#8bbdff}button{background:#24354e;color:#fff;border:1px solid #53637c;padding:10px 12px;border-radius:9px;cursor:pointer}button:disabled{opacity:.4;cursor:default}button.active,button.primary{background:#3477dd;border-color:#3477dd}main{max-width:1230px;margin:auto;padding:22px}header{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}h1{margin:0;font-size:26px}h2{font-size:19px;margin:10px 0 16px}p,.muted{color:#b1c0d4;line-height:1.6}.tabs,.actions,.controls{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.layout{display:grid;grid-template-columns:minmax(0,670px) minmax(300px,1fr);gap:18px}.panel{background:#161e31;border:1px solid #34415b;border-radius:17px;padding:16px;min-width:0}.board{width:100%;max-width:640px;display:block;margin:auto;aspect-ratio:1;cursor:crosshair;border-radius:10px;touch-action:manipulation}.stats{display:grid;grid-template-columns:1fr 1fr;gap:9px}.stat{background:#222c41;padding:10px;border-radius:10px}.stat small{display:block;color:#aabbd1}.stat strong{font-size:18px}.history{display:flex;gap:6px;flex-wrap:wrap;max-height:210px;overflow:auto}.move{font-size:12px;padding:7px}.selected{outline:2px solid #e5b15a}.note{font-size:13px;color:#b5c4d6}.skin{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #3c4660}.skin div{flex:1}.skin small{display:block;color:#abbbcc;margin-top:3px}.swatch{height:42px;width:42px;border:4px solid}.skin button{min-width:84px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:10px;border-bottom:1px solid #34415b}input,select{border:1px solid #53637c;background:#222c41;border-radius:8px;color:#fff;padding:9px}.hint{background:#26344e;border-radius:10px;padding:13px;line-height:1.7;min-height:65px}@media(max-width:950px){.layout{grid-template-columns:1fr}main{padding:12px}}
+/* V2.2 account, cosmetics and tactical prompts */
+fieldset{border:0;padding:0;margin:0}fieldset[disabled]{opacity:.55}
+label{display:block;margin:8px 0;color:#c8d6ea}
+label input{display:block;width:100%;margin:5px 0}
+#panel-account .controls button{flex:1 1 auto}
+.miniPreview{width:100%;max-width:360px;display:block;margin:10px auto;border-radius:9px}
+.skin .swatch{flex-shrink:0}
+.skin .controls{margin:0}
+.skin .controls button{min-width:66px}
+#hintPanel{margin:10px 0;border:1px solid #6886ba;background:#263754}
+.tableWrap{max-width:100%;overflow-x:auto}
+.audit{max-height:180px;overflow:auto;font-size:11px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;background:#0d1628;padding:10px;border-radius:9px}
+fieldset input:disabled{cursor:not-allowed}
+@media(max-width:520px){.skin{flex-wrap:wrap}.skin .controls{width:100%}}
+
+.auth-feedback{margin:12px 0;padding:12px 15px;border-radius:10px;border:1px solid #2d9b73;background:#173a32;color:#baf4d5;line-height:1.55;font-weight:600}
+.auth-feedback.error{border-color:#b95a52;background:#45262b;color:#ffd0ca}
+
+/* V2.3 pastel cat theme */
+.cat-theme{background:#fff5f8;color:#4a3445}
+.cat-theme .panel{background:#fffafd;border-color:#f0c4d5;box-shadow:0 10px 28px #d58aa31a}
+.cat-theme .stat{background:#fff0f5;color:#4a3445}
+.cat-theme .stat small,.cat-theme p,.cat-theme .muted,.cat-theme label{color:#7c6172}
+.cat-theme button{background:#fff0f5;color:#6c3d55;border-color:#e8b4c8}
+.cat-theme button.active,.cat-theme button.primary{background:#e985ae;color:#fff;border-color:#e985ae}
+.cat-theme button:disabled{opacity:.45}
+.cat-theme input,.cat-theme select{background:#fff;color:#563b4c;border-color:#e5b3c7}
+.cat-theme .hint{background:#fff0f6;border-color:#edb9cd;color:#714b60}
+.cat-theme th,.cat-theme td{border-color:#f0d2df}
+.cat-theme .auth-feedback{background:#e7f8ef;color:#23694b;border-color:#9bd9b7}
+.cat-theme .audit{background:#fff3f7;color:#65485a}
+#retrySync{font-size:12px;padding:5px 8px}
+
+/* V3.0 friend PVP panel */
+.layout.pvp-mode{grid-template-columns:minmax(0,1fr)}
+.layout.pvp-mode>section:first-child{display:none}
+.pvp-board{display:block;width:min(100%,600px);height:auto;aspect-ratio:1;margin:16px auto;background:#e5c58d;border-radius:10px;touch-action:manipulation;cursor:crosshair}
+#panel-pvp .tableWrap{max-width:100%;overflow-x:auto}
+#panel-pvp .controls button{flex:0 1 auto}
+#panel-pvp .hint{overflow-wrap:anywhere}
