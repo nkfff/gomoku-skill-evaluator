@@ -1,6 +1,16 @@
 name: Deploy V2.3 Cloudflare Worker
 
 on:
+  push:
+    branches:
+      - feature/v2.3-local-first-cat-theme
+    paths:
+      - ".github/workflows/deploy-v2.3-worker.yml"
+      - "worker/index.js"
+      - "src/engine.js"
+      - "migrations/**"
+      - "wrangler.toml"
+      - "package.json"
   workflow_dispatch:
     inputs:
       source_branch:
