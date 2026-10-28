@@ -162,6 +162,10 @@ export class PvpRoom {
     await this.ready;
     if (!this.room) return;
     const now = nowMs();
+    if (this.room.status === "finished" && this.room.settlementPending && this.room.match) {
+      await this.finishMatch(this.room.match.endReason || "five_in_row");
+      return;
+    }
     if (["waiting", "ready"].includes(this.room.status) && now >= this.room.expiresAt) {
       this.room.status = "expired";
       await this.ctx.storage.put("room", this.room);
@@ -337,28 +341,36 @@ export class PvpRoom {
     match.endReason = reason;
     match.finalRatings = {[black]: elo.blackAfter, [white]: elo.whiteAfter};
     this.room.status = "finished";
+    this.room.settlementPending = true;
     await this.ctx.storage.put("room", this.room);
-    await this.env.DB.batch([
-      this.env.DB.prepare("UPDATE pvp_matches SET status='finished',result=?,end_reason=?,final_black_rating=?,final_white_rating=?,ended_at=datetime('now') WHERE id=? AND status='active'")
-        .bind(match.result, reason, elo.blackAfter, elo.whiteAfter, match.matchId),
-      this.env.DB.prepare("INSERT OR IGNORE INTO pvp_rating_events(id,match_id,player_id,outcome,rating_before,rating_after,delta) VALUES(?,?,?,?,?,?,?)")
-        .bind(crypto.randomUUID(), match.matchId, black, blackOutcome, initialBlack, elo.blackAfter, elo.deltaBlack),
-      this.env.DB.prepare("UPDATE pvp_ratings SET rating=?,rated_games=rated_games+1,wins=wins+?,losses=losses+?,draws=draws+?,peak_rating=MAX(peak_rating,?),updated_at=datetime('now') WHERE player_id=? AND changes()=1")
-        .bind(elo.blackAfter, blackOutcome === "win" ? 1 : 0, blackOutcome === "loss" ? 1 : 0, blackOutcome === "draw" ? 1 : 0, elo.blackAfter, black),
-      this.env.DB.prepare("INSERT OR IGNORE INTO pvp_rating_events(id,match_id,player_id,outcome,rating_before,rating_after,delta) VALUES(?,?,?,?,?,?,?)")
-        .bind(crypto.randomUUID(), match.matchId, white, whiteOutcome, initialWhite, elo.whiteAfter, elo.deltaWhite),
-      this.env.DB.prepare("UPDATE pvp_ratings SET rating=?,rated_games=rated_games+1,wins=wins+?,losses=losses+?,draws=draws+?,peak_rating=MAX(peak_rating,?),updated_at=datetime('now') WHERE player_id=? AND changes()=1")
-        .bind(elo.whiteAfter, whiteOutcome === "win" ? 1 : 0, whiteOutcome === "loss" ? 1 : 0, whiteOutcome === "draw" ? 1 : 0, elo.whiteAfter, white),
-      this.env.DB.prepare("DELETE FROM pvp_active_players WHERE match_id=?").bind(match.matchId),
-      this.env.DB.prepare("UPDATE pvp_rooms SET status='finished',ended_at=datetime('now') WHERE id=?")
-        .bind(this.room.roomId)
-    ]);
-    await this.ctx.storage.deleteAlarm();
+    try {
+      await this.env.DB.batch([
+        this.env.DB.prepare("UPDATE pvp_matches SET status='finished',result=?,end_reason=?,final_black_rating=?,final_white_rating=?,ended_at=datetime('now') WHERE id=? AND status='active'")
+          .bind(match.result, reason, elo.blackAfter, elo.whiteAfter, match.matchId),
+        this.env.DB.prepare("INSERT OR IGNORE INTO pvp_rating_events(id,match_id,player_id,outcome,rating_before,rating_after,delta) VALUES(?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), match.matchId, black, blackOutcome, initialBlack, elo.blackAfter, elo.deltaBlack),
+        this.env.DB.prepare("UPDATE pvp_ratings SET rating=?,rated_games=rated_games+1,wins=wins+?,losses=losses+?,draws=draws+?,peak_rating=MAX(peak_rating,?),updated_at=datetime('now') WHERE player_id=? AND changes()=1")
+          .bind(elo.blackAfter, blackOutcome === "win" ? 1 : 0, blackOutcome === "loss" ? 1 : 0, blackOutcome === "draw" ? 1 : 0, elo.blackAfter, black),
+        this.env.DB.prepare("INSERT OR IGNORE INTO pvp_rating_events(id,match_id,player_id,outcome,rating_before,rating_after,delta) VALUES(?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), match.matchId, white, whiteOutcome, initialWhite, elo.whiteAfter, elo.deltaWhite),
+        this.env.DB.prepare("UPDATE pvp_ratings SET rating=?,rated_games=rated_games+1,wins=wins+?,losses=losses+?,draws=draws+?,peak_rating=MAX(peak_rating,?),updated_at=datetime('now') WHERE player_id=? AND changes()=1")
+          .bind(elo.whiteAfter, whiteOutcome === "win" ? 1 : 0, whiteOutcome === "loss" ? 1 : 0, whiteOutcome === "draw" ? 1 : 0, elo.whiteAfter, white),
+        this.env.DB.prepare("DELETE FROM pvp_active_players WHERE match_id=?").bind(match.matchId),
+        this.env.DB.prepare("UPDATE pvp_rooms SET status='finished',ended_at=datetime('now') WHERE id=?")
+          .bind(this.room.roomId)
+      ]);
+      this.room.settlementPending = false;
+      await this.ctx.storage.put("room", this.room);
+      await this.ctx.storage.deleteAlarm();
+    } catch {
+      await this.ctx.storage.setAlarm(nowMs() + 5000);
+      throw new Error("SETTLEMENT_PENDING");
+    }
   }
-
   async scheduleNextAlarm() {
     if (!this.room) return;
     const deadlines = [];
+    if (this.room.settlementPending) deadlines.push(nowMs() + 5000);
     if (["waiting", "ready"].includes(this.room.status)) deadlines.push(this.room.expiresAt);
     if (this.room.status === "active" && this.room.match) {
       const match = this.room.match;
@@ -418,7 +430,13 @@ export class PvpRoom {
   }
 
   broadcast(message) {
-    for (const socket of this.ctx.getWebSockets()) this.sendTo(socket, message);
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = socket.deserializeAttachment() || {};
+      const payload = message.room && attachment.playerId
+        ? {...message, room: this.snapshot(attachment.playerId)}
+        : message;
+      this.sendTo(socket, payload);
+    }
   }
 
   errorText(code) {
