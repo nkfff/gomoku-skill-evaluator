@@ -16,3 +16,18 @@ fieldset input:disabled{cursor:not-allowed}
 
 .auth-feedback{margin:12px 0;padding:12px 15px;border-radius:10px;border:1px solid #2d9b73;background:#173a32;color:#baf4d5;line-height:1.55;font-weight:600}
 .auth-feedback.error{border-color:#b95a52;background:#45262b;color:#ffd0ca}
+
+/* V2.3 pastel cat theme */
+.cat-theme{background:#fff5f8;color:#4a3445}
+.cat-theme .panel{background:#fffafd;border-color:#f0c4d5;box-shadow:0 10px 28px #d58aa31a}
+.cat-theme .stat{background:#fff0f5;color:#4a3445}
+.cat-theme .stat small,.cat-theme p,.cat-theme .muted,.cat-theme label{color:#7c6172}
+.cat-theme button{background:#fff0f5;color:#6c3d55;border-color:#e8b4c8}
+.cat-theme button.active,.cat-theme button.primary{background:#e985ae;color:#fff;border-color:#e985ae}
+.cat-theme button:disabled{opacity:.45}
+.cat-theme input,.cat-theme select{background:#fff;color:#563b4c;border-color:#e5b3c7}
+.cat-theme .hint{background:#fff0f6;border-color:#edb9cd;color:#714b60}
+.cat-theme th,.cat-theme td{border-color:#f0d2df}
+.cat-theme .auth-feedback{background:#e7f8ef;color:#23694b;border-color:#9bd9b7}
+.cat-theme .audit{background:#fff3f7;color:#65485a}
+#retrySync{font-size:12px;padding:5px 8px}
