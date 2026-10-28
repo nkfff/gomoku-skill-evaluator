@@ -2,8 +2,8 @@ import {createRemoteJWKSet,jwtVerify} from "jose";
 import {LEVELS,CELLS,winLine,chooseAI,rankedMoves,coord} from "../src/engine.js";
 
 const award={easy:10,normal:30,hard:80};
-const boards={classic:0,jade:60,night:150,cherry:260,gold:500};
-const pieces={classic:0,crystal:45,ink:85,neon:140,pearl:220};
+const boards={classic:0,jade:60,night:150,cherry:260,catcafe:480,gold:500};
+const pieces={classic:0,crystal:45,ink:85,neon:140,pearl:220,cat:680};
 const reply=(x,status=200,cors={})=>new Response(JSON.stringify(x),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store",...cors}});
 const invalid=(s,status=400)=>({error:s,status});
 const uuid=s=>typeof s==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -39,6 +39,44 @@ function validMoves(moves){
  }
  return b;
 }
+export function validateSubmittedTimeline(events,level,reportedResult,reportedUndoCount){
+ if(!Array.isArray(events)||events.length<2||events.length>500)throw invalid("终局事件数量不合法");
+ const b=Array(CELLS).fill(0),moves=[];
+ let pendingAI=false,terminal=0,seenEnd=false,undoCount=0;
+ for(let n=0;n<events.length;n++){
+  const event=events[n];
+  if(!event||typeof event!=="object"||seenEnd)throw invalid("终局事件顺序不合法",409);
+  if(event.type==="move"){
+   if(terminal||!Number.isInteger(event.i)||event.i<0||event.i>=CELLS||b[event.i])throw invalid("棋谱包含非法落子",409);
+   if(event.p===1){
+    if(pendingAI||moves.length%2!==0)throw invalid("玩家落子顺序不合法",409);
+    moves.push({i:event.i,p:1});b[event.i]=1;
+    if(winLine(b,event.i,1).length)terminal=1;
+    else if(moves.length===CELLS)terminal=3;
+    else pendingAI=true;
+   }else if(event.p===2){
+    if(!pendingAI||moves.length%2!==1)throw invalid("AI 落子顺序不合法",409);
+    if(!rankedMoves(b,2,LEVELS[level].width).includes(event.i))throw invalid("AI 落子不在当前难度的候选范围内",409);
+    moves.push({i:event.i,p:2});b[event.i]=2;pendingAI=false;
+    if(winLine(b,event.i,2).length)terminal=2;
+    else if(moves.length===CELLS)terminal=3;
+   }else throw invalid("棋子颜色不合法",409);
+  }else if(event.type==="undo"){
+   if(terminal||pendingAI||moves.length<2)throw invalid("悔棋事件不合法",409);
+   const removed=moves.slice(-2).map(m=>coord(m.i));
+   if(!Array.isArray(event.removed)||JSON.stringify(event.removed)!==JSON.stringify(removed))throw invalid("悔棋记录与棋谱不一致",409);
+   moves.splice(-2);b.fill(0);for(const move of moves)b[move.i]=move.p;
+   undoCount++;
+   const paid=undoCount>3,cost=paid?10:0;
+   if(event.paid!==paid||event.cost!==cost)throw invalid("悔棋扣分记录不合法",409);
+  }else if(event.type==="end"){
+   if(!terminal||event.result!==terminal||n!==events.length-1)throw invalid("终局结果与棋谱不一致",409);
+   seenEnd=true;
+  }else throw invalid("未知对局事件",409);
+ }
+ if(!seenEnd||pendingAI||terminal!==reportedResult||undoCount!==reportedUndoCount)throw invalid("终局棋谱尚未结束或结果不一致",409);
+ return {moves,undoCount,result:terminal};
+}
 async function audit(env,actor,target,action,detail){
  await env.DB.prepare("INSERT INTO admin_audit(id,admin_id,target_id,action,detail) VALUES(?,?,?,?,?)")
  .bind(crypto.randomUUID(),actor,target,action,JSON.stringify(detail)).run();
@@ -60,7 +98,7 @@ export default {
   const origin=request.headers.get("Origin");
   if(origin&&!cors["Access-Control-Allow-Origin"])return reply({error:"Origin 不允许"},403,cors);
   const url=new URL(request.url);
-  if(url.pathname==="/api/health")return reply({ok:true,version:"2.2",configured:!!env.SUPABASE_URL},200,cors);
+  if(url.pathname==="/api/health")return reply({ok:true,version:"2.3",configured:!!env.SUPABASE_URL},200,cors);
   try{
    if(url.pathname==="/api/leaderboard"&&request.method==="GET"){
     const {results}=await env.DB.prepare("WITH base AS (SELECT name,COALESCE(earned_points,0) AS earned_points,wins,losses,draws,(wins+losses+draws) AS games_played,ROUND(100.0*wins/(wins+losses+draws),1) AS win_rate,100.0*(wins+2.5)/(wins+losses+draws+5) AS adjusted_win_rate FROM players WHERE banned=0 AND (wins+losses+draws)>0) SELECT name,earned_points,wins,losses,draws,games_played,win_rate,ROUND(adjusted_win_rate,1) AS adjusted_win_rate,MAX(0,ROUND(earned_points+(adjusted_win_rate-50)*MIN(games_played,20)/10.0)) AS rank_points FROM base ORDER BY rank_points DESC,earned_points DESC,wins DESC,games_played DESC LIMIT 30").all();
@@ -84,6 +122,7 @@ export default {
    if(request.method!=="POST")throw invalid("路径不存在",404);
    if(Number(request.headers.get("Content-Length")||0)>25000)throw invalid("请求过大",413);
    const body=await request.json();
+   if(JSON.stringify(body).length>25000)throw invalid("请求过大",413);
    if(url.pathname==="/api/profile")return reply({profile:await profile(env,user.id)},200,cors);
    if(url.pathname==="/api/name"){
     const name=clean(body.name);
@@ -135,11 +174,46 @@ export default {
     await env.DB.prepare("UPDATE players SET "+(kind==="board"?"selected_board":"selected_piece")+"=? WHERE id=?").bind(item,user.id).run();
     return reply({profile:await profile(env,user.id)},200,cors);
    }
+   if(url.pathname==="/api/submit"){
+    if(!uuid(body.gameId)||!LEVELS[body.level]||![1,2,3].includes(body.result)||!Number.isInteger(body.undoCount)||body.undoCount<0||body.undoCount>112)throw invalid("对局提交参数不合法");
+    const validated=validateSubmittedTimeline(body.events,body.level,body.result,body.undoCount);
+    const finalMoves=JSON.stringify(validated.moves),cleanEvents=body.events.map(event=>event.type==="move"?{type:"move",i:event.i,p:event.p}:event.type==="undo"?{type:"undo",removed:event.removed,paid:event.paid,cost:event.cost}:{type:"end",result:event.result}),eventJson=JSON.stringify(cleanEvents);
+    const existing=await env.DB.prepare("SELECT player_id,level,moves,status,events,settled_at FROM games WHERE id=?").bind(body.gameId).first();
+    if(!existing)throw invalid("云端对局会话不存在，请重试同步",409);
+    if(existing.player_id!==user.id)throw invalid("对局 ID 已被使用",409);
+    if(existing.level!==body.level)throw invalid("对局难度与会话不一致",409);
+    if(existing.status==="finished"&&existing.settled_at&&existing.moves===finalMoves&&existing.events===eventJson)
+     return reply({alreadySubmitted:true,profile:await profile(env,user.id)},200,cors);
+    if(existing.status!=="active")throw invalid("该对局已结束或状态异常",409);
+    const undoCost=Math.max(0,validated.undoCount-3)*10;
+    const reward=validated.result===1?award[body.level]:0;
+    const netDelta=reward-undoCost;
+    const statements=[
+     env.DB.prepare("UPDATE games SET moves=?,turn=0,status='finished',revision=revision+1,ended_at=datetime('now'),undo_count=?,events=? WHERE id=? AND player_id=? AND level=? AND status='active' AND (SELECT points FROM players WHERE id=?)>=?")
+      .bind(finalMoves,validated.undoCount,eventJson,body.gameId,user.id,body.level,user.id,undoCost),
+     env.DB.prepare("UPDATE players SET points=points+?,earned_points=earned_points+?,wins=wins+?,losses=losses+?,draws=draws+? WHERE id=? AND points>=? AND EXISTS(SELECT 1 FROM games WHERE id=? AND player_id=? AND status='finished' AND settled_at IS NULL AND events=? AND moves=?)")
+      .bind(netDelta,reward,validated.result===1?1:0,validated.result===2?1:0,validated.result===3?1:0,user.id,undoCost,body.gameId,user.id,eventJson,finalMoves)
+    ];
+    if(reward>0)statements.push(env.DB.prepare("INSERT INTO point_ledger(id,player_id,delta,reason,note) SELECT ?,?,?,'win_reward',? WHERE EXISTS(SELECT 1 FROM games WHERE id=? AND player_id=? AND status='finished' AND settled_at IS NULL AND events=? AND moves=?)")
+      .bind(crypto.randomUUID(),user.id,reward,body.gameId,body.gameId,user.id,eventJson,finalMoves));
+    if(undoCost>0)statements.push(env.DB.prepare("INSERT INTO point_ledger(id,player_id,delta,reason,note) SELECT ?,?,?,'paid_undo',? WHERE EXISTS(SELECT 1 FROM games WHERE id=? AND player_id=? AND status='finished' AND settled_at IS NULL AND events=? AND moves=?)")
+      .bind(crypto.randomUUID(),user.id,-undoCost,body.gameId,body.gameId,user.id,eventJson,finalMoves));
+    statements.push(env.DB.prepare("UPDATE games SET settled_at=datetime('now') WHERE id=? AND player_id=? AND status='finished' AND settled_at IS NULL AND events=? AND moves=?")
+      .bind(body.gameId,user.id,eventJson,finalMoves));
+    const result=await env.DB.batch(statements);
+    if(result[0].meta.changes!==1||result[1].meta.changes!==1||result[result.length-1].meta.changes!==1)
+     throw invalid("云端积分不足或成绩已被处理，请重试同步",409);
+    return reply({alreadySubmitted:false,profile:await profile(env,user.id)},200,cors);
+   }
    if(url.pathname==="/api/start"){
     if(!LEVELS[body.level])throw invalid("未知难度");
-    const gameId=crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO games(id,player_id,level,moves,turn,status,revision,started_at) VALUES(?,?,?,'[]',1,'active',0,datetime('now'))").bind(gameId,user.id,body.level).run();
-    return reply({gameId,revision:0},200,cors);
+    const gameId=body.gameId===undefined?crypto.randomUUID():body.gameId;
+    if(!uuid(gameId))throw invalid("对局 ID 不合法");
+    await env.DB.prepare("INSERT OR IGNORE INTO games(id,player_id,level,moves,turn,status,revision,started_at) VALUES(?,?,?,'[]',1,'active',0,datetime('now'))")
+     .bind(gameId,user.id,body.level).run();
+    const session=await env.DB.prepare("SELECT player_id,level,status,revision FROM games WHERE id=?").bind(gameId).first();
+    if(!session||session.player_id!==user.id||session.level!==body.level)throw invalid("对局会话冲突",409);
+    return reply({gameId,revision:session.revision,status:session.status},200,cors);
    }
    if(!["/api/move","/api/undo","/api/hint"].includes(url.pathname))throw invalid("路径不存在",404);
    if(!uuid(body.gameId)||!Number.isInteger(body.revision))throw invalid("对局 ID 或版本不合法");

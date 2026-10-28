@@ -1,0 +1,28 @@
+name: V2.3 checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feature/v2.3-local-first-cat-theme]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install
+      - name: Check JavaScript syntax
+        run: npm run check
+      - name: Run tests
+        run: npm test

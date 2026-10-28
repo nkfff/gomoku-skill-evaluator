@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {validateSubmittedTimeline} from "../worker/index.js";
 const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
 const app=readFileSync(new URL("../src/app.js",import.meta.url),"utf8");
 const account=readFileSync(new URL("../src/account.js",import.meta.url),"utf8");
@@ -54,4 +55,44 @@ test("email confirmation shows a visible message outside the account tab",()=>{
  assert.ok(account.includes("setGlobalFeedback"));
  assert.ok(account.includes("邮箱验证成功！账号已激活并自动登录"));
  assert.ok(account.includes("hasAuthCallback"));
+});
+
+test("V2.3 AI matches are local-first and only submit the completed game",()=>{
+ assert.match(app,/function startGame\(\)/);
+ const start=app.slice(app.indexOf("function startGame"),app.indexOf("function drop"));
+ assert.match(start,/api\("start"/);
+ assert.doesNotMatch(start,/await\s+api\("start"/);
+ assert.match(app,/api\("submit"/);
+ assert.match(app,/await api\("start",\{level:entry\.payload\.level,gameId:entry\.payload\.gameId\}\)/);
+ assert.match(worker,/url\.pathname==="\/api\/submit"/);
+ assert.match(worker,/validateSubmittedTimeline/);
+});
+test("V2.3 provides a cat-themed board, cat-head pieces and optional move sound",()=>{
+ assert.ok(app.includes('id:"catcafe"'));assert.ok(app.includes('id:"cat"'));
+ assert.match(app,/function drawCatPiece/);assert.match(app,/function playMoveSound/);
+ assert.ok(html.includes('id="soundToggle"'));assert.ok(html.includes('id="retrySync"'));
+});
+
+test("V2.3 creates a server session without blocking the local first move",()=>{
+ const start=app.slice(app.indexOf("function startGame"),app.indexOf("function drop"));
+ assert.match(start,/api\("start",\{level,gameId\}\)\.catch/);
+ assert.doesNotMatch(start,/await\s+api\("start"/);
+ assert.match(worker,/INSERT OR IGNORE INTO games/);
+});
+test("V2.3 settlement is idempotent and only settles a registered session once",()=>{
+ assert.match(worker,/settled_at/);
+ assert.match(worker,/status='active' AND \(SELECT points FROM players/);
+ assert.match(worker,/SET settled_at=datetime\('now'\)/);
+ assert.match(worker,/existing\.status==="finished"&&existing\.settled_at/);
+});
+
+test("V2.3 server validator rejects a forged AI reply",()=>{
+ assert.throws(
+  ()=>validateSubmittedTimeline([
+   {type:"move",i:112,p:1},
+   {type:"move",i:0,p:2},
+   {type:"end",result:1}
+  ],"easy",1,0),
+  error=>error&&error.status===409
+ );
 });

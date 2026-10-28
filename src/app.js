@@ -7,6 +7,7 @@ const skins=[
 {id:"jade",name:"翡翠棋盘",cost:60,bg:"#a8c8b2",grid:"#42725b",black:"#175246",white:"#eefff5"},
 {id:"night",name:"暗夜星河",cost:150,bg:"#24283b",grid:"#65729b",black:"#0d1024",white:"#b9c9ff"},
 {id:"cherry",name:"樱花庭院",cost:260,bg:"#f0c8cd",grid:"#a96a76",black:"#73334f",white:"#fff1f6"},
+{id:"catcafe",name:"猫咪咖啡馆",cost:480,bg:"#fff1f6",grid:"#c7789a",black:"#29243a",white:"#fff9fc",cat:true},
 {id:"gold",name:"曜金棋局",cost:500,bg:"#3c3131",grid:"#ac884a",black:"#171414",white:"#efd19a"}
 ];
 const pieceSkins=[
@@ -14,12 +15,17 @@ const pieceSkins=[
  {id:"crystal",name:"水晶冰魄",cost:45,black:"#2367b3",white:"#d5faff",ring:"#86d3ff",gloss:true},
  {id:"ink",name:"水墨丹青",cost:85,black:"#14262c",white:"#f5e9d8",ring:"#c28d5e",gloss:false},
  {id:"neon",name:"霓虹宇宙",cost:140,black:"#bb35fe",white:"#42f7ed",ring:"#f0a4ff",gloss:true},
- {id:"pearl",name:"黑曜珍珠",cost:220,black:"#2c182a",white:"#ffdcf0",ring:"#d7a0b9",gloss:true}
+ {id:"pearl",name:"黑曜珍珠",cost:220,black:"#2c182a",white:"#ffdcf0",ring:"#d7a0b9",gloss:true},
+ {id:"cat",name:"猫猫软糖",cost:680,black:"#30273f",white:"#fff8fc",ring:"#ee8db2",gloss:true,cat:true}
 ];
 const STORE="gomoku-v2-local-player";
+const PENDING_STORE="gomoku-v2-pending-submissions";
+const SOUND_STORE="gomoku-v2-sound";
+let soundEnabled=localStorage.getItem(SOUND_STORE)!=="off";
+let audioContext=null;
 const API_URL=(window.GOMOKU_API_URL||"").replace(/\/$/,"");
 const cloudMode=()=>cloudConfigured()&&loggedIn();
-let remoteGame=null,remoteBusy=false;
+let remoteGame=null,remoteBusy=false,syncingPending=false;
 async function api(path,payload){const token=await bearer();if(!token)throw Error("请先登录以使用云端功能");
  const r=await fetch(API_URL+"/api/"+path,{method:payload?"POST":"GET",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:payload?JSON.stringify(payload):undefined});
  const v=await r.json();if(!r.ok)throw Error(v.error||"Cloud API unavailable");return v;
@@ -49,9 +55,79 @@ function requestAnalysis(before,move){
  else move.analysisError="当前浏览器不支持后台分析";
 }
 function save(){localStorage.setItem(STORE,JSON.stringify(profile));}
+function playMoveSound(p){
+ if(!soundEnabled)return;
+ try{
+  const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+  if(!AudioContextClass)return;
+  audioContext=audioContext||new AudioContextClass();
+  if(audioContext.state==="suspended")audioContext.resume();
+  const now=audioContext.currentTime,osc=audioContext.createOscillator(),gain=audioContext.createGain();
+  osc.type="sine";osc.frequency.setValueAtTime(p===1?560:760,now);
+  osc.frequency.exponentialRampToValueAtTime(p===1?350:510,now+0.055);
+  gain.gain.setValueAtTime(0.0001,now);gain.gain.exponentialRampToValueAtTime(0.065,now+0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001,now+0.095);
+  osc.connect(gain);gain.connect(audioContext.destination);osc.start(now);osc.stop(now+0.1);
+ }catch{}
+}
+function updateSoundToggle(){
+ const button=$("soundToggle");
+ if(button)button.textContent="落子音效："+(soundEnabled?"开":"关");
+}
+function readPendingSubmissions(){
+ try{
+  const queue=JSON.parse(localStorage.getItem(PENDING_STORE)||"[]");
+  return Array.isArray(queue)?queue.filter(x=>x&&x.playerId&&x.payload&&x.payload.gameId):[];
+ }catch{return [];}
+}
+function submissionPayload(g){
+ return {gameId:g.id,level:g.level,result:g.result,undoCount:g.undo,
+  events:g.events.map(event=>{
+   if(event.type==="move")return {type:"move",i:event.i,p:event.p};
+   if(event.type==="undo")return {type:"undo",removed:event.removed,paid:event.paid,cost:event.cost};
+   if(event.type==="end")return {type:"end",result:event.result};
+   return null;
+  }).filter(Boolean)};
+}
+async function syncPendingSubmissions(){
+ if(!cloudMode()||syncingPending)return;
+ syncingPending=true;
+ try{
+  let queue=readPendingSubmissions();
+  for(const entry of [...queue]){
+   if(entry.playerId!==profile.id)continue;
+   try{
+    // Idempotently create/recover the server session before submitting its final event log.
+    await api("start",{level:entry.payload.level,gameId:entry.payload.gameId});
+    const result=await api("submit",entry.payload);
+    if(result.profile)applyRemoteProfile(result.profile);
+    queue=queue.filter(item=>item.payload.gameId!==entry.payload.gameId);
+    localStorage.setItem(PENDING_STORE,JSON.stringify(queue));
+    if(game&&game.id===entry.payload.gameId){game.syncState="synced";render();}
+    $("cloudBanner").textContent="云端成绩已验证并同步";
+   }catch(e){
+    if(game&&game.id===entry.payload.gameId){game.syncState="failed";render();}
+    $("cloudBanner").textContent="成绩已暂存本地，上传失败："+e.message;
+    $("retrySync").hidden=false;return;
+   }
+  }
+  queue=readPendingSubmissions();
+  $("retrySync").hidden=!queue.some(entry=>entry.playerId===profile.id);
+  await localRank();render();
+ }finally{syncingPending=false;}
+}
+async function submitFinishedGame(g){
+ const payload=submissionPayload(g),queue=readPendingSubmissions();
+ if(!queue.some(entry=>entry.payload.gameId===payload.gameId)){
+  queue.push({playerId:g.playerId,payload});
+  localStorage.setItem(PENDING_STORE,JSON.stringify(queue));
+ }
+ $("retrySync").hidden=false;
+ await syncPendingSubmissions();
+}
 async function newGame(){
  clearTimeout(task);task=null;turnToken++;
- game={id:crypto.randomUUID(),b:Array(CELLS).fill(0),moves:[],events:[],level:$("difficulty").value,turn:1,started:0,turnStart:0,ended:0,result:0,undo:0,startedGame:false};
+ game={id:crypto.randomUUID(),b:Array(CELLS).fill(0),moves:[],events:[],level:$("difficulty").value,turn:1,started:0,turnStart:0,ended:0,result:0,undo:0,startedGame:false,cloudSession:false,playerId:null,syncState:"idle"};
  hints=[];hintVisible=false;hintRequest++;$("hintPanel").hidden=true;
  endedAt=0;replayStep=0;lastResult=null;remoteGame=null;remoteBusy=false;
  $("startGame").disabled=false;$("startGame").textContent="开始下棋";
@@ -59,27 +135,28 @@ async function newGame(){
  $("recommend").textContent="选一手落子后，这里将显示推荐与棋形解释。";
  activate("game");render();formatTime();
 }
-async function startGame(){
+function startGame(){
  if(!game||game.startedGame||game.result)return;
- const gameId=game.id,now=performance.now();
+ const now=performance.now();
+ game.cloudSession=cloudMode();game.playerId=game.cloudSession?profile.id:null;game.syncState="idle";
  game.started=now;game.turnStart=now;game.startedGame=true;
- if(cloudMode()){
-  remoteBusy=true;render();
-  try{
-   const v=await api("start",{level:game.level});
-   if(game.id===gameId&&game.startedGame)remoteGame={gameId:v.gameId,revision:v.revision};
-  }catch(e){
-   if(game.id===gameId)$("cloudBanner").textContent="云端暂不可用，当前使用本地对局："+e.message;
-  }finally{
-   if(game.id===gameId)remoteBusy=false;
-  }
+ remoteGame=null;remoteBusy=false;
+ $("cloudBanner").textContent=game.cloudSession?"本地即时对局 · 云端会话后台准备中":"游客模式 · 对局在本地运行";
+ if(game.cloudSession){
+  const gameId=game.id,level=game.level;
+  api("start",{level,gameId}).catch(e=>{
+   if(game&&game.id===gameId){
+    game.startSyncError=e.message;
+    $("cloudBanner").textContent="本地对局不受网络影响；终局同步时将重试云端会话。";
+   }
+  });
  }
  render();formatTime();
 }
 function drop(i,p,elapsed,analysis=null){
  const before=game.b.slice();
  hints=[];hintVisible=false;hintRequest++;$("hintPanel").hidden=true;
- game.b[i]=p;
+ game.b[i]=p;playMoveSound(p);
  const record={id:crypto.randomUUID(),i,p,coord:coord(i),seconds:+elapsed.toFixed(2),at:new Date().toISOString(),analysis,quality:null};
  game.moves.push(record);game.events.push({type:"move",id:record.id,i,p,coord:record.coord,seconds:record.seconds,at:record.at,analysis});
  requestAnalysis(before,record);
@@ -90,10 +167,21 @@ function finish(result){
  game.result=result;game.turn=0;game.ended=performance.now();endedAt=game.ended;clearTimeout(task);task=null;
  game.events.push({type:"end",result,at:new Date().toISOString()});
  $("undo").disabled=true;$("review").disabled=false;
- if(!remoteGame){if(result===1){profile.wins++;profile.points+=LEVELS[game.level].reward;profile.earnedPoints+=LEVELS[game.level].reward;}
- else if(result===2)profile.losses++;else profile.draws++;save();}
- render();
- localRank();
+ if(!game.cloudSession){
+  if(result===1){profile.wins++;profile.points+=LEVELS[game.level].reward;profile.earnedPoints+=LEVELS[game.level].reward;}
+  else if(result===2)profile.losses++;else profile.draws++;
+  save();
+ }else{
+  game.syncState="pending";
+  $("cloudBanner").textContent="对局结束 · 正在验证棋谱并结算成绩";
+  const finishedGame=game;
+  submitFinishedGame(finishedGame).catch(e=>{
+   if(game&&game.id===finishedGame.id)game.syncState="failed";
+   $("cloudBanner").textContent="成绩已暂存本地，稍后可重试："+e.message;
+   $("retrySync").hidden=false;render();
+  });
+ }
+ render();localRank();
 }
 async function human(i){
  if(!game.startedGame||game.turn!==1||game.b[i]||game.result||remoteBusy)return;
@@ -131,7 +219,8 @@ async function human(i){
 async function undo(){
  if(!game.startedGame||!game.moves.length||game.result||game.turn!==1||remoteBusy)return;
  const paid=game.undo>=3;
- if(paid&&profile.points<10){alert("免费悔棋已用尽；再悔棋需要 10 积分。当前积分不足。");return;}
+ const spendable=profile.points-(game.cloudSession?Math.max(0,game.undo-3)*10:0);
+ if(paid&&spendable<10){alert("免费悔棋已用尽；再悔棋需要 10 积分。当前可用积分不足。");return;}
  if(paid&&!confirm("免费悔棋已用完，本次扣除 10 积分，确定吗？"))return;
  clearTimeout(task);turnToken++;hints=[];hintVisible=false;hintRequest++;$("hintPanel").hidden=true;
  if(remoteGame){
@@ -150,7 +239,7 @@ async function undo(){
   const removed=game.moves.splice(-count);
   for(const m of removed)game.b[m.i]=0;
   game.undo++;
-  if(paid){profile.points-=10;save();}
+  if(paid&&!game.cloudSession){profile.points-=10;save();}
   game.events.push({type:"undo",paid,cost:paid?10:0,removed:removed.map(m=>m.coord),at:new Date().toISOString()});
  }
  game.turn=1;game.turnStart=performance.now();render();
@@ -187,20 +276,55 @@ function activate(tab){
  }
  render();
 }
+function drawPaw(ctx,x,y,scale=1,color="#d78eac"){
+ ctx.save();ctx.globalAlpha=0.22;ctx.fillStyle=color;
+ ctx.beginPath();ctx.ellipse(x,y+4*scale,5*scale,4*scale,0,0,Math.PI*2);ctx.fill();
+ for(const [dx,dy] of [[-5,-3],[-2,-7],[2,-7],[5,-3]]){ctx.beginPath();ctx.arc(x+dx*scale,y+dy*scale,2.3*scale,0,Math.PI*2);ctx.fill();}
+ ctx.restore();
+}
+function drawCatPiece(ctx,x,y,p,piece,isLast=false){
+ ctx.save();ctx.translate(x,y);
+ const fill=p===1?piece.black:piece.white,outline=p===1?"#f7c0d7":piece.ring;
+ ctx.beginPath();ctx.moveTo(-10,-7);ctx.lineTo(-13,-15);ctx.quadraticCurveTo(-14,-18,-10,-16);
+ ctx.lineTo(-4,-11);ctx.quadraticCurveTo(0,-13,4,-11);ctx.lineTo(10,-16);ctx.quadraticCurveTo(14,-18,13,-14);
+ ctx.lineTo(10,-6);ctx.quadraticCurveTo(16,0,11,9);ctx.quadraticCurveTo(6,15,0,15);
+ ctx.quadraticCurveTo(-6,15,-11,9);ctx.quadraticCurveTo(-16,0,-10,-7);ctx.closePath();
+ ctx.fillStyle=fill;ctx.shadowColor="#4c304522";ctx.shadowBlur=3;ctx.fill();ctx.shadowBlur=0;
+ ctx.strokeStyle=outline;ctx.lineWidth=1.5;ctx.stroke();
+ ctx.beginPath();ctx.moveTo(-9,-13);ctx.lineTo(-7,-8);ctx.lineTo(-5,-11);ctx.closePath();
+ ctx.moveTo(9,-13);ctx.lineTo(7,-8);ctx.lineTo(5,-11);ctx.closePath();ctx.fillStyle=p===1?"#e98ab3":"#f0b1ca";ctx.fill();
+ const eye=p===1?"#fff8fc":"#49384d";ctx.fillStyle=eye;
+ ctx.beginPath();ctx.ellipse(-4.8,-1,1.65,2.5,-0.12,0,Math.PI*2);ctx.fill();
+ ctx.beginPath();ctx.ellipse(4.8,-1,1.65,2.5,0.12,0,Math.PI*2);ctx.fill();
+ ctx.beginPath();ctx.moveTo(-1.5,3);ctx.lineTo(1.5,3);ctx.lineTo(0.2,4.8);ctx.closePath();ctx.fillStyle="#e982a8";ctx.fill();
+ ctx.strokeStyle=eye;ctx.lineWidth=0.8;ctx.lineCap="round";ctx.beginPath();
+ ctx.moveTo(-1,5);ctx.quadraticCurveTo(-3,7,-4,5.5);ctx.moveTo(1,5);ctx.quadraticCurveTo(3,7,4,5.5);
+ ctx.moveTo(-8,3);ctx.lineTo(-13,2);ctx.moveTo(-8,5);ctx.lineTo(-12,7);
+ ctx.moveTo(8,3);ctx.lineTo(13,2);ctx.moveTo(8,5);ctx.lineTo(12,7);ctx.stroke();
+ ctx.fillStyle="#ff9cbe66";ctx.beginPath();ctx.ellipse(-7,4,2.1,1.3,0,0,Math.PI*2);ctx.fill();
+ ctx.beginPath();ctx.ellipse(7,4,2.1,1.3,0,0,Math.PI*2);ctx.fill();
+ if(isLast){ctx.beginPath();ctx.arc(0,0,17.2,0,Math.PI*2);ctx.strokeStyle="#f34c42";ctx.lineWidth=1.8;ctx.stroke();}
+ ctx.restore();
+}
 function draw(b,last=-1){
  const canvas=$("board"),ctx=canvas.getContext("2d");
  const skin=skins.find(x=>x.id===profile.boardSkin)||skins[0];
  const piece=pieceSkins.find(x=>x.id===profile.pieceSkin)||pieceSkins[0];
  const cell=40,offset=32;
  ctx.clearRect(0,0,640,640);ctx.fillStyle=skin.bg;ctx.fillRect(0,0,640,640);
+ if(skin.cat){drawPaw(ctx,16,16,1.1);drawPaw(ctx,624,16,1.1);drawPaw(ctx,16,624,1.1);drawPaw(ctx,624,624,1.1);}
+ document.body.classList.toggle("cat-theme",!!(skin.cat||piece.cat));
  ctx.strokeStyle=skin.grid;ctx.lineWidth=1.3;
  for(let k=0;k<15;k++){const x=offset+cell*k;ctx.beginPath();ctx.moveTo(offset,x);ctx.lineTo(592,x);ctx.moveTo(x,offset);ctx.lineTo(x,592);ctx.stroke();}
  for(const r of [3,7,11])for(const c of [3,7,11]){ctx.fillStyle=skin.grid;ctx.beginPath();ctx.arc(offset+c*cell,offset+r*cell,3.5,0,7);ctx.fill();}
  for(let i=0;i<CELLS;i++)if(b[i]){
   const x=offset+i%15*cell,y=offset+Math.floor(i/15)*cell;
-  ctx.beginPath();ctx.arc(x,y,16.5,0,7);ctx.fillStyle=b[i]===1?piece.black:piece.white;ctx.shadowColor="#0005";ctx.shadowBlur=4;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=piece.ring;ctx.lineWidth=piece.gloss?2.6:.8;ctx.stroke();
-  if(piece.gloss){ctx.beginPath();ctx.arc(x-4,y-5,4,0,7);ctx.fillStyle="#ffffff66";ctx.fill();}
-  if(i===last){ctx.beginPath();ctx.arc(x,y,4.5,0,7);ctx.fillStyle="#f34c42";ctx.fill();}
+  if(piece.cat){drawCatPiece(ctx,x,y,b[i],piece,i===last);}
+  else{
+   ctx.beginPath();ctx.arc(x,y,16.5,0,7);ctx.fillStyle=b[i]===1?piece.black:piece.white;ctx.shadowColor="#0005";ctx.shadowBlur=4;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=piece.ring;ctx.lineWidth=piece.gloss?2.6:.8;ctx.stroke();
+   if(piece.gloss){ctx.beginPath();ctx.arc(x-4,y-5,4,0,7);ctx.fillStyle="#ffffff66";ctx.fill();}
+   if(i===last){ctx.beginPath();ctx.arc(x,y,4.5,0,7);ctx.fillStyle="#f34c42";ctx.fill();}
+  }
  }
  if(activeTab==="game"&&hintVisible&&game.turn===1&&!game.result){
   hints.forEach((i,j)=>{if(b[i])return;
@@ -217,7 +341,13 @@ function render(){
  $("points").textContent=profile.points;
  $("scoreboard").textContent="胜 "+profile.wins+" / 负 "+profile.losses+" / 平 "+profile.draws;
  $("undoCount").textContent=game.undo;
- $("status").textContent=game.result?({1:"胜利！获得 "+LEVELS[game.level].reward+" 积分",2:"电脑获胜",3:"平局"}[game.result]):!game.startedGame?"准备就绪 · 点击「开始下棋」后开始计时":game.turn===1?"轮到你（黑棋）":"电脑思考中";
+ $("status").textContent=game.result
+  ?(game.cloudSession
+    ?(game.syncState==="synced"
+      ?({1:"胜利！成绩已验证，获得 "+LEVELS[game.level].reward+" 积分",2:"电脑获胜 · 成绩已同步",3:"平局 · 成绩已同步"}[game.result])
+      :game.syncState==="failed"?"本局已结束 · 成绩待同步":"本局已结束 · 正在验证成绩")
+    :({1:"胜利！获得 "+LEVELS[game.level].reward+" 积分",2:"电脑获胜",3:"平局"}[game.result]))
+  :!game.startedGame?"准备就绪 · 点击「开始下棋」后开始计时":game.turn===1?"轮到你（黑棋）":"电脑思考中";
  $("startGame").disabled=!!game.result||game.startedGame;
  $("startGame").textContent=game.result?"本局已结束":game.startedGame?"计时已开始":"开始下棋";
  $("undo").disabled=!game.startedGame||!!game.result||!game.moves.length||game.turn!==1||remoteBusy;
@@ -277,14 +407,18 @@ function drawSkinPreview(){
  const piece=pieceSkins.find(x=>x.id===previewPiece)||pieceSkins[0];
  const c=$("skinPreview"),ctx=c.getContext("2d");
  ctx.clearRect(0,0,360,200);ctx.fillStyle=board.bg;ctx.fillRect(0,0,360,200);
+ if(board.cat){drawPaw(ctx,16,16,0.8);drawPaw(ctx,344,16,0.8);drawPaw(ctx,16,184,0.8);drawPaw(ctx,344,184,0.8);}
  ctx.strokeStyle=board.grid;ctx.lineWidth=1;
  for(let x=20;x<=340;x+=40){ctx.beginPath();ctx.moveTo(x,15);ctx.lineTo(x,185);ctx.stroke();}
  for(let y=20;y<=180;y+=40){ctx.beginPath();ctx.moveTo(15,y);ctx.lineTo(345,y);ctx.stroke();}
  for(const [x,y,p] of [[140,100,1],[180,100,2],[220,100,1],[180,60,2],[140,140,2],[220,140,1]]){
-  ctx.beginPath();ctx.arc(x,y,16,0,7);ctx.fillStyle=p===1?piece.black:piece.white;
-  ctx.shadowColor="#0008";ctx.shadowBlur=6;ctx.fill();ctx.shadowBlur=0;
-  ctx.lineWidth=piece.gloss?3:1;ctx.strokeStyle=piece.ring;ctx.stroke();
-  if(piece.gloss){ctx.beginPath();ctx.arc(x-5,y-5,4,0,7);ctx.fillStyle="#ffffff88";ctx.fill();}
+  if(piece.cat){drawCatPiece(ctx,x,y,p,piece,false);}
+  else{
+   ctx.beginPath();ctx.arc(x,y,16,0,7);ctx.fillStyle=p===1?piece.black:piece.white;
+   ctx.shadowColor="#0008";ctx.shadowBlur=6;ctx.fill();ctx.shadowBlur=0;
+   ctx.lineWidth=piece.gloss?3:1;ctx.strokeStyle=piece.ring;ctx.stroke();
+   if(piece.gloss){ctx.beginPath();ctx.arc(x-5,y-5,4,0,7);ctx.fillStyle="#ffffff88";ctx.fill();}
+  }
  }
  $("skinPreviewTitle").textContent=board.name+" + "+piece.name;
 }
@@ -350,7 +484,7 @@ function renderShop(){
  drawSkinPreview();
 }
 function formatTime(){if(!game)return;if(!game.startedGame){$("totalTime").textContent="00:00";$("thinkTime").textContent="未开始";return;}const now=game.ended||performance.now(),total=Math.max(0,Math.floor((now-game.started)/1000));$("totalTime").textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");$("thinkTime").textContent=game.result?"已停止":game.turn===1?((performance.now()-game.turnStart)/1000).toFixed(1)+"s":"AI 行棋";}
-function download(){const payload={version:"2.2",identity:profile.id,level:game.level,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v2.2-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
+function download(){const payload={version:"2.3",identity:profile.id,level:game.level,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v2.3-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
 async function localRank(){
  const rankPoints=(earned,wins,losses,draws)=>{
   const games=wins+losses+draws;
@@ -390,6 +524,12 @@ $("board").addEventListener("click",e=>{
 });
 $("newGame").onclick=newGame;
 $("startGame").onclick=startGame;
+$("soundToggle").onclick=()=>{
+ soundEnabled=!soundEnabled;localStorage.setItem(SOUND_STORE,soundEnabled?"on":"off");
+ updateSoundToggle();if(soundEnabled)playMoveSound(1);
+};
+$("retrySync").onclick=()=>syncPendingSubmissions();
+window.addEventListener("online",()=>syncPendingSubmissions());
 $("undo").onclick=undo;
 $("hint").onclick=hintMove;
 $("review").onclick=()=>{replayStep=game.moves.length;activate("replay");};
@@ -401,12 +541,13 @@ $("export").onclick=download;
 $("setName").onclick=setName;
 $("difficulty").onchange=()=>{if(game.startedGame&&!game.result){$("difficulty").value=game.level;alert("请先结束或新开一局再更改难度。");}};
 $("cloudBanner").textContent=cloudConfigured()?"账号服务可连接，未登录时使用游客模式":"游客模式 · 账号服务尚未配置";
-newGame();
+newGame();updateSoundToggle();
 initAccount(async signedIn=>{
  if(signedIn&&cloudConfigured()){
   try{const v=await api("profile",{});applyRemoteProfile(v.profile);$("cloudBanner").textContent="云端账号已连接";}
   catch(e){$("cloudBanner").textContent="云端身份验证失败："+e.message;}
  }else {profile=loadProfile();$("cloudBanner").textContent="游客模式 · 数据保存在此浏览器";}
  await newGame();await localRank();render();
+ if(signedIn)await syncPendingSubmissions();
 },remoteProfile=>{applyRemoteProfile(remoteProfile);if(document.activeElement!==$("nickname"))$("nickname").value=remoteProfile.name||"";render();localRank();}).catch(e=>$("cloudBanner").textContent="账号组件错误："+e.message);
 localRank();setInterval(formatTime,150);
