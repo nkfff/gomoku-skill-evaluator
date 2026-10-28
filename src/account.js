@@ -87,15 +87,18 @@ export async function initAccount(onAuthChange){
   client=createClient(SUPABASE_URL,PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   const result=await client.auth.getSession();
   session=result.data?.session||null;
+  let lastUserId=session?.user?.id||null;
   client.auth.onAuthStateChange((event,next)=>{
-   session=next;
-   showState();
-   // Avoid requesting Supabase directly inside its auth state callback.
-   Promise.resolve().then(()=>onChange(!!session)).catch(()=>{});
+   session=next;showState();
+   const nextUserId=next?.user?.id||null;
+   if(nextUserId===lastUserId)return; // Token refresh should not reset an active game.
+   lastUserId=nextUserId;
+   Promise.resolve().then(()=>onChange(!!nextUserId)).catch(()=>{});
   });
   ready=true;
   setMessage(loggedIn()?"已恢复账号登录":"请选择注册或登录；游客对局不会进入云端排行榜。");
   await refresh();
+  if(session)await onChange(true);
  }catch(e){setMessage("登录模块加载失败："+e.message,true);}
 }
 async function authTask(task){
