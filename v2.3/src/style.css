@@ -116,7 +116,7 @@ body[data-board-theme] .board{border:1px solid var(--board-frame);box-shadow:0 8
 body[data-board-theme] .hint{background:var(--hint-bg);border:1px solid var(--hint-border);color:var(--hint-text)}
 body[data-board-theme] #hintPanel{background:var(--hint-bg);border-color:var(--hint-border);color:var(--hint-text)}
 body[data-board-theme] .skin{border-bottom-color:var(--border);border-radius:10px;padding:12px;margin:5px 0}
-body[data-board-theme] .skin .swatch{border-color:var(--accent)!important;box-shadow:0 3px 10px var(--accent-glow)}
+body[data-board-theme] .skin .swatch{box-shadow:0 3px 10px var(--accent-glow)}
 body[data-board-theme] .skin button{min-width:66px}
 body[data-board-theme] .selected{outline:2px solid var(--accent);outline-offset:1px}
 body[data-board-theme] table{color:var(--text);border-color:var(--border)}
