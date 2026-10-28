@@ -1,0 +1,53 @@
+name: V3.0 PVP Pages checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "v3.0/**"
+      - ".github/workflows/v3-pvp-pages-check.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "v3.0/**"
+      - ".github/workflows/v3-pvp-pages-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check JavaScript syntax
+        run: |
+          node --check v3.0/src/app.js
+          node --check v3.0/src/account.js
+          node --check v3.0/src/assessment.js
+          node --check v3.0/src/engine.js
+          node --check v3.0/src/analysis.worker.js
+          node --check v3.0/pvp-ui.js
+      - name: Verify deployed page wiring
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path("v3.0/index.html").read_text(encoding="utf-8")
+          config = Path("v3.0/config.js").read_text(encoding="utf-8")
+          required_ids = ["tab-pvp", "panel-pvp", "pvpBoard", "pvpCreateRoom", "pvpJoinRoom", "pvpInviteCode", "pvpReady", "pvpResign", "pvpRankRows", "pvpHistoryRows"]
+          missing = [item for item in required_ids if f'id="{item}"' not in html]
+          if missing:
+              raise SystemExit(f"Missing PVP UI elements: {missing}")
+          for item in ["./src/style.css", "./src/app.js", "./pvp-ui.js"]:
+              if item not in html:
+                  raise SystemExit(f"Missing page asset reference: {item}")
+          for item in ["GOMOKU_API_URL", "GOMOKU_PVP_API_URL", "GOMOKU_SUPABASE_PUBLISHABLE_KEY"]:
+              if item not in config:
+                  raise SystemExit(f"Missing config value: {item}")
+          if 'from "./src/account.js"' not in Path("v3.0/pvp-ui.js").read_text(encoding="utf-8"):
+              raise SystemExit("PVP client account import path is incorrect.")
+          print("V3.0 page and config wiring OK")
+          PY
