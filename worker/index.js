@@ -2,8 +2,8 @@ import {createRemoteJWKSet,jwtVerify} from "jose";
 import {LEVELS,CELLS,winLine,chooseAI,rankedMoves,coord} from "../src/engine.js";
 
 const award={easy:10,normal:30,hard:80};
-const boards={classic:0,jade:60,night:150,cherry:260,gold:500};
-const pieces={classic:0,crystal:45,ink:85,neon:140,pearl:220};
+const boards={classic:0,jade:60,night:150,cherry:260,catcafe:480,gold:500};
+const pieces={classic:0,crystal:45,ink:85,neon:140,pearl:220,cat:680};
 const reply=(x,status=200,cors={})=>new Response(JSON.stringify(x),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store",...cors}});
 const invalid=(s,status=400)=>({error:s,status});
 const uuid=s=>typeof s==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -38,6 +38,44 @@ function validMoves(moves){
   b[m.i]=m.p;
  }
  return b;
+}
+function validateSubmittedTimeline(events,level,reportedResult,reportedUndoCount){
+ if(!Array.isArray(events)||events.length<2||events.length>500)throw invalid("终局事件数量不合法");
+ const b=Array(CELLS).fill(0),moves=[];
+ let pendingAI=false,terminal=0,seenEnd=false,undoCount=0;
+ for(let n=0;n<events.length;n++){
+  const event=events[n];
+  if(!event||typeof event!=="object"||seenEnd)throw invalid("终局事件顺序不合法",409);
+  if(event.type==="move"){
+   if(terminal||!Number.isInteger(event.i)||event.i<0||event.i>=CELLS||b[event.i])throw invalid("棋谱包含非法落子",409);
+   if(event.p===1){
+    if(pendingAI||moves.length%2!==0)throw invalid("玩家落子顺序不合法",409);
+    moves.push({i:event.i,p:1});b[event.i]=1;
+    if(winLine(b,event.i,1).length)terminal=1;
+    else if(moves.length===CELLS)terminal=3;
+    else pendingAI=true;
+   }else if(event.p===2){
+    if(!pendingAI||moves.length%2!==1)throw invalid("AI 落子顺序不合法",409);
+    if(chooseAI(b,level).index!==event.i)throw invalid("AI 棋步与当前难度引擎不一致",409);
+    moves.push({i:event.i,p:2});b[event.i]=2;pendingAI=false;
+    if(winLine(b,event.i,2).length)terminal=2;
+    else if(moves.length===CELLS)terminal=3;
+   }else throw invalid("棋子颜色不合法",409);
+  }else if(event.type==="undo"){
+   if(terminal||pendingAI||moves.length<2)throw invalid("悔棋事件不合法",409);
+   const removed=moves.slice(-2).map(m=>coord(m.i));
+   if(!Array.isArray(event.removed)||JSON.stringify(event.removed)!==JSON.stringify(removed))throw invalid("悔棋记录与棋谱不一致",409);
+   moves.splice(-2);b.fill(0);for(const move of moves)b[move.i]=move.p;
+   undoCount++;
+   const paid=undoCount>3,cost=paid?10:0;
+   if(event.paid!==paid||event.cost!==cost)throw invalid("悔棋扣分记录不合法",409);
+  }else if(event.type==="end"){
+   if(!terminal||event.result!==terminal||n!==events.length-1)throw invalid("终局结果与棋谱不一致",409);
+   seenEnd=true;
+  }else throw invalid("未知对局事件",409);
+ }
+ if(!seenEnd||pendingAI||terminal!==reportedResult||undoCount!==reportedUndoCount)throw invalid("终局棋谱尚未结束或结果不一致",409);
+ return {moves,undoCount,result:terminal};
 }
 async function audit(env,actor,target,action,detail){
  await env.DB.prepare("INSERT INTO admin_audit(id,admin_id,target_id,action,detail) VALUES(?,?,?,?,?)")
@@ -134,6 +172,32 @@ export default {
     }
     await env.DB.prepare("UPDATE players SET "+(kind==="board"?"selected_board":"selected_piece")+"=? WHERE id=?").bind(item,user.id).run();
     return reply({profile:await profile(env,user.id)},200,cors);
+   }
+   if(url.pathname==="/api/submit"){
+    if(!uuid(body.gameId)||!LEVELS[body.level]||![1,2,3].includes(body.result)||!Number.isInteger(body.undoCount)||body.undoCount<0||body.undoCount>112)throw invalid("对局提交参数不合法");
+    const validated=validateSubmittedTimeline(body.events,body.level,body.result,body.undoCount);
+    const finalMoves=JSON.stringify(validated.moves),eventJson=JSON.stringify(body.events);
+    const existing=await env.DB.prepare("SELECT player_id,level,moves,status,events FROM games WHERE id=?").bind(body.gameId).first();
+    if(existing){
+     if(existing.player_id!==user.id)throw invalid("对局 ID 已被使用",409);
+     if(existing.status==="finished"&&existing.level===body.level&&existing.moves===finalMoves&&existing.events===eventJson)
+      return reply({alreadySubmitted:true,profile:await profile(env,user.id)},200,cors);
+     throw invalid("该对局 ID 已提交过不同内容",409);
+    }
+    const undoCost=Math.max(0,validated.undoCount-3)*10,reward=validated.result===1?award[body.level]:0,netDelta=reward-undoCost;
+    const statements=[
+     env.DB.prepare("INSERT INTO games(id,player_id,level,moves,turn,status,revision,started_at,ended_at,undo_count,events) SELECT ?,?,?,?,0,'finished',0,datetime('now'),datetime('now'),?,? WHERE EXISTS(SELECT 1 FROM players WHERE id=? AND points>=?)")
+      .bind(body.gameId,user.id,body.level,finalMoves,validated.undoCount,eventJson,user.id,undoCost),
+     env.DB.prepare("UPDATE players SET points=points+?,earned_points=earned_points+?,wins=wins+?,losses=losses+?,draws=draws+? WHERE id=? AND points>=?")
+      .bind(netDelta,reward,validated.result===1?1:0,validated.result===2?1:0,validated.result===3?1:0,user.id,undoCost)
+    ];
+    if(reward>0)statements.push(env.DB.prepare("INSERT INTO point_ledger(id,player_id,delta,reason,note) SELECT ?,?,?,'win_reward',? WHERE EXISTS(SELECT 1 FROM games WHERE id=? AND player_id=?)")
+      .bind(crypto.randomUUID(),user.id,reward,body.gameId,body.gameId,user.id));
+    if(undoCost>0)statements.push(env.DB.prepare("INSERT INTO point_ledger(id,player_id,delta,reason,note) SELECT ?,?,?,'paid_undo',? WHERE EXISTS(SELECT 1 FROM games WHERE id=? AND player_id=?)")
+      .bind(crypto.randomUUID(),user.id,-undoCost,body.gameId,body.gameId,user.id));
+    const result=await env.DB.batch(statements);
+    if(result[0].meta.changes!==1||result[1].meta.changes!==1)throw invalid("云端积分不足，成绩暂未结算",409);
+    return reply({alreadySubmitted:false,profile:await profile(env,user.id)},200,cors);
    }
    if(url.pathname==="/api/start"){
     if(!LEVELS[body.level])throw invalid("未知难度");
