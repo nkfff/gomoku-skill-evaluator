@@ -75,11 +75,11 @@ jobs:
         run: printf '%s' "$SUPABASE_URL" | npx wrangler secret put SUPABASE_URL
 
       - name: Configure administrator UUID if provided
-        if: ${{ secrets.ADMIN_USER_ID != '' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+        if: env.ADMIN_USER_ID != ''
         run: printf '%s' "$ADMIN_USER_ID" | npx wrangler secret put ADMIN_USER_ID
 
       - name: Deploy Worker
