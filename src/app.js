@@ -26,7 +26,7 @@ async function api(path,payload){const token=await bearer();if(!token)throw Erro
 }
 function applyRemoteProfile(p){if(!p)return;
  profile.id=p.id;profile.points=p.points;profile.earnedPoints=p.earned_points;profile.wins=p.wins;profile.losses=p.losses;profile.draws=p.draws;
- profile.owned=p.inventory;profile.boardSkin=p.selected_board||"classic";profile.pieceSkin=p.selected_piece||"classic";profile.name=p.name;save();
+ profile.owned=p.inventory;profile.boardSkin=p.selected_board||"classic";profile.pieceSkin=p.selected_piece||"classic";profile.name=p.name; /* Cloud data is not written over the guest profile. */
 }
 const freshProfile=()=>({id:crypto.randomUUID(),name:"匿名棋手",points:0,earnedPoints:0,owned:["classic","board:classic","piece:classic"],skin:"classic",boardSkin:"classic",pieceSkin:"classic",wins:0,losses:0,draws:0,claimed:[]});
 function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&&typeof s.id==="string"&&Array.isArray(s.owned))return {...freshProfile(),...s,boardSkin:s.boardSkin||s.skin||"classic",pieceSkin:s.pieceSkin||"classic"};}catch{}return freshProfile();}
@@ -363,7 +363,7 @@ initAccount(async signedIn=>{
  if(signedIn&&cloudConfigured()){
   try{const v=await api("profile",{});applyRemoteProfile(v.profile);$("cloudBanner").textContent="云端账号已连接";}
   catch(e){$("cloudBanner").textContent="云端身份验证失败："+e.message;}
- }else $("cloudBanner").textContent="游客模式 · 数据保存在此浏览器";
+ }else {profile=loadProfile();$("cloudBanner").textContent="游客模式 · 数据保存在此浏览器";}
  await newGame();await localRank();render();
 }).catch(e=>$("cloudBanner").textContent="账号组件错误："+e.message);
 localRank();setInterval(formatTime,150);
