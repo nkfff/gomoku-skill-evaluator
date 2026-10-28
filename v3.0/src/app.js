@@ -277,8 +277,8 @@ function activate(tab){
  }
  const layout=document.querySelector(".layout");
  if(layout)layout.classList.toggle("pvp-mode",tab==="pvp");
- const aiPanel=layout?.querySelector(":scope > section");
- if(aiPanel)aiPanel.hidden=tab==="pvp";
+ const gamePanel=layout?.querySelector(":scope > section.panel");
+ if(gamePanel)gamePanel.hidden=tab==="pvp";
  render();
 }
 window.activateGomokuTab=activate;
@@ -319,7 +319,7 @@ function draw(b,last=-1){
  const cell=40,offset=32;
  ctx.clearRect(0,0,640,640);ctx.fillStyle=skin.bg;ctx.fillRect(0,0,640,640);
  if(skin.cat){drawPaw(ctx,16,16,1.1);drawPaw(ctx,624,16,1.1);drawPaw(ctx,16,624,1.1);drawPaw(ctx,624,624,1.1);}
- document.body.classList.toggle("cat-theme",!!(skin.cat||piece.cat));
+ document.body.dataset.boardTheme=skin.id;document.body.dataset.pieceTheme=piece.id;document.body.classList.remove("cat-theme");
  ctx.strokeStyle=skin.grid;ctx.lineWidth=1.3;
  for(let k=0;k<15;k++){const x=offset+cell*k;ctx.beginPath();ctx.moveTo(offset,x);ctx.lineTo(592,x);ctx.moveTo(x,offset);ctx.lineTo(x,592);ctx.stroke();}
  for(const r of [3,7,11])for(const c of [3,7,11]){ctx.fillStyle=skin.grid;ctx.beginPath();ctx.arc(offset+c*cell,offset+r*cell,3.5,0,7);ctx.fill();}
