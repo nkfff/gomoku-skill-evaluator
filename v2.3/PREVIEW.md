@@ -12,9 +12,9 @@ V2.3 是在 V2.2 稳定版基础上的独立预览目录。V2.2 原目录保持�
 
 ## 发布状态
 
-- **Cloudflare Worker 后端：已部署。** [部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40669847860)
-- **自动化检查：已通过。** [最新测试记录](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40669847728)
-- **前端：通过 PR #3 合并到 `main` 后发布至 GitHub Pages 的 `/v2.3/` 路径。**
+- **Cloudflare Worker 后端：已部署。** [部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158103)
+- **自动化检查：已通过。** [最新测试记录](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158258)
+- **前端：已发布至 GitHub Pages 的 `/v2.3/` 路径。** [最新发布与部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670508182)
 
 ## 发布后验收
 
@@ -23,4 +23,4 @@ V2.3 是在 V2.2 稳定版基础上的独立预览目录。V2.2 原目录保持�
 3. 检查断网后成绩进入待同步队列，恢复网络后只结算一次。
 4. 验证 V2.2 稳定入口 `/v2.2/` 仍然可用。
 
-**注意：** 自动化测试通过不替代真实浏览器的端到端验收；V2.2 稳定入口保持不变。
+**验收边界：** 自动化测试、D1 migration、Worker 线上 health check 和 GitHub Pages 发布均已通过；但三档 AI 完整对局、胜负积分、断网恢复/重复结算及移动端布局仍需真实浏览器人工验收。V2.2 稳定入口保持不变。
