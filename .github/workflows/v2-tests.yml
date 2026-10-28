@@ -1,7 +1,7 @@
 name: V2 engine tests
 on:
   push:
-    branches: [feature/v2-major-upgrade, feature/v2.1-scoring, feature/v2.2-accounts-customization]
+    branches: [feature/v2-major-upgrade, feature/v2.1-scoring, feature/v2.2-accounts-customization, feature/v3.0-pvp]
   pull_request:
     branches: [main]
 jobs:
