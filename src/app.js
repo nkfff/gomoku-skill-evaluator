@@ -355,13 +355,13 @@ async function localRank(){
  const rankPoints=(earned,wins,losses,draws)=>{
   const games=wins+losses+draws;
   const adjusted=games?100*(wins+2.5)/(games+5):0;
-  const rateBonus=Math.round(Math.max(0,adjusted-50)*Math.min(games,20)/10);
-  return Math.round(Number(earned||0)+rateBonus);
+  const composite=Math.round(Number(earned||0)+(adjusted-50)*Math.min(games,20)/10);
+  return Math.max(0,composite);
  };
  if(cloudMode()){
   try{
    const result=await api("leaderboard");
-   $("leaderboardMode").textContent="按综合积分降序排名。胜利奖励按 AI 难度累计（新手 10、进阶 30、大师 80）；综合积分再加胜率奖励。原始胜率单独展示，消费积分不影响排名。";
+   $("leaderboardMode").textContent="按综合积分降序排名。胜利奖励按 AI 难度累计（新手 10、进阶 30、大师 80）；胜率高于 50% 时增加修正分，低于 50% 时相应扣分，最多按 20 局修正。原始胜率单独展示，消费积分不影响排名。";
    $("rankRows").innerHTML=result.players.map((p,i)=>{
     const wins=Number(p.wins||0),losses=Number(p.losses||0),draws=Number(p.draws||0);
     const games=Number(p.games_played??(wins+losses+draws));
