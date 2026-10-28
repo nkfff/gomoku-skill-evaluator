@@ -246,21 +246,61 @@ function render(){
   "最近玩家着 "+latest.coord+"：正在后台计算搜索建议。"):"第一手请落子，系统随后分析。";
  renderShop();
 }
+function drawSkinPreview(){
+ const board=skins.find(x=>x.id===previewBoard)||skins[0];
+ const piece=pieceSkins.find(x=>x.id===previewPiece)||pieceSkins[0];
+ const c=$("skinPreview"),ctx=c.getContext("2d");
+ ctx.clearRect(0,0,360,200);ctx.fillStyle=board.bg;ctx.fillRect(0,0,360,200);
+ ctx.strokeStyle=board.grid;ctx.lineWidth=1;
+ for(let x=20;x<=340;x+=40){ctx.beginPath();ctx.moveTo(x,15);ctx.lineTo(x,185);ctx.stroke();}
+ for(let y=20;y<=180;y+=40){ctx.beginPath();ctx.moveTo(15,y);ctx.lineTo(345,y);ctx.stroke();}
+ for(const [x,y,p] of [[140,100,1],[180,100,2],[220,100,1],[180,60,2],[140,140,2],[220,140,1]]){
+  ctx.beginPath();ctx.arc(x,y,16,0,7);ctx.fillStyle=p===1?piece.black:piece.white;
+  ctx.shadowColor="#0008";ctx.shadowBlur=6;ctx.fill();ctx.shadowBlur=0;
+  ctx.lineWidth=piece.gloss?3:1;ctx.strokeStyle=piece.ring;ctx.stroke();
+  if(piece.gloss){ctx.beginPath();ctx.arc(x-5,y-5,4,0,7);ctx.fillStyle="#ffffff88";ctx.fill();}
+ }
+ $("skinPreviewTitle").textContent=board.name+" + "+piece.name;
+}
 function renderShop(){
- $("skinShop").innerHTML=skins.map(s=>{
-  const owned=profile.owned.includes(s.id),selected=profile.skin===s.id;
-  return "<article class='skin'><span class='swatch' style='background:"+s.bg+";border-color:"+s.grid+"'></span><div><b>"+s.name+"</b><small>"+(s.cost?"兑换 "+s.cost+" 积分":"免费")+"</small></div><button data-skin='"+s.id+"' "+(selected?"disabled":"")+">"+(selected?"使用中":owned?"使用":profile.points>=s.cost?"兑换":"积分不足")+"</button></article>";
- }).join("");
- $("skinShop").querySelectorAll("[data-skin]").forEach(btn=>btn.onclick=async()=>{
-  const s=skins.find(v=>v.id===btn.dataset.skin);
-  if(!s)return;
-  if(API_URL){try{const v=await api("shop",{skin:s.id});applyRemoteProfile(v.profile);render();return;}catch(e){alert("云端兑换失败："+e.message);return;}}
-  if(!profile.owned.includes(s.id)){
-   if(profile.points<s.cost)return;
-   profile.points-=s.cost;profile.owned.push(s.id);
-  }
-  profile.skin=s.id;save();render();
+ function card(kind,item){
+  const key=kind+":"+item.id,owned=profile.owned.includes(key)||(kind==="board"&&profile.owned.includes(item.id));
+  const selected=(kind==="board"?profile.boardSkin:profile.pieceSkin)===item.id;
+  const affordable=profile.points>=item.cost;
+  return "<article class='skin'><span class='swatch' style='background:"+
+   (kind==="board"?item.bg:item.black)+";border-color:"+
+   (kind==="board"?item.grid:item.ring)+"'></span><div><b>"+item.name+
+   "</b><small>"+(item.cost?item.cost+" 积分":"免费")+"</small></div>"+
+   "<div class='controls'><button data-preview='"+kind+":"+item.id+"'>试穿</button>"+
+   "<button data-buy='"+kind+":"+item.id+"' "+(selected||(!owned&&!affordable)?"disabled":"")+">"+
+   (selected?"使用中":owned?"装备":affordable?"兑换":"积分不足")+"</button></div></article>";
+ }
+ $("boardShop").innerHTML=skins.map(s=>card("board",s)).join("");
+ $("pieceShop").innerHTML=pieceSkins.map(s=>card("piece",s)).join("");
+ document.querySelectorAll("[data-preview]").forEach(button=>button.onclick=()=>{
+  const [kind,id]=button.dataset.preview.split(":");
+  if(kind==="board")previewBoard=id;else previewPiece=id;
+  drawSkinPreview();
  });
+ document.querySelectorAll("[data-buy]").forEach(button=>button.onclick=async()=>{
+  const [kind,id]=button.dataset.buy.split(":");
+  const item=(kind==="board"?skins:pieceSkins).find(x=>x.id===id);
+  if(!item)return;
+  const key=kind+":"+id,owned=profile.owned.includes(key)||(kind==="board"&&profile.owned.includes(id));
+  if(!owned&&profile.points<item.cost){alert("积分不足");return;}
+  if(!owned&&!confirm("使用 "+item.cost+" 积分永久解锁「"+item.name+"」？"))return;
+  if(cloudMode()){
+   try{const result=await api("shop",{kind,item:id});applyRemoteProfile(result.profile);}
+   catch(e){alert("云端兑换失败："+e.message);return;}
+  }else{
+   if(!owned){profile.points-=item.cost;profile.owned.push(key);}
+   if(kind==="board")profile.boardSkin=id;else profile.pieceSkin=id;
+   save();
+  }
+  previewBoard=profile.boardSkin;previewPiece=profile.pieceSkin;
+  render();
+ });
+ drawSkinPreview();
 }
 function formatTime(){if(!game)return;const now=game.ended||performance.now(),total=Math.max(0,Math.floor((now-game.started)/1000));$("totalTime").textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");$("thinkTime").textContent=game.result?"已停止":game.turn===1?((performance.now()-game.turnStart)/1000).toFixed(1)+"s":"AI 行棋";}
 function download(){const payload={version:"2.1",identity:profile.id,level:game.level,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v2.1-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
