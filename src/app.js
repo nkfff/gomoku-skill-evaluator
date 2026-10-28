@@ -143,19 +143,38 @@ function render(){
   $("analysis").textContent="第 "+replayStep+" 手 "+(m.p===1?"玩家":"电脑")+" "+m.coord+
   " · "+q.category+" · 搜索排名 "+q.rank+"/"+q.candidateCount+
   " · Top-1 "+(q.top1?"是":"否")+" · Top-3 "+(q.top3?"是":"否")+
+  " · 局面复杂度 "+q.complexity+"（权重 "+q.weight+"）"+
   " · 落子损失 "+q.loss.toFixed(1)+"/200（启发式优势差）"+
-  " · 单步准确度 "+q.accuracy+"/100。推荐："+q.alternatives.map(coord).join("、")+
+  " · 单步准确度 "+(q.accuracy===null?"不计分":q.accuracy+"/100")+
+  " · 战术机会 "+(q.opportunity==="attack"?"进攻":q.opportunity==="defense"?"防守":"无")+
+  "。推荐："+q.alternatives.map(coord).join("、")+
   "。搜索深度 "+q.depth+" 层；非职业引擎结论。";
  } else $("analysis").textContent=m.analysisError||"正在后台搜索评估这一步……";
  const stats=summarizeQuality(game.moves),completed=stats.ready===stats.total&&stats.total>0;
- $("qualityScore").textContent=completed?stats.score+" / 100":"分析中 "+stats.ready+"/"+stats.total;
- $("top1Rate").textContent=stats.ready?(stats.top1*100).toFixed(1)+"%":"—";
- $("top3Rate").textContent=stats.ready?(stats.top3*100).toFixed(1)+"%":"—";
- $("severeRate").textContent=stats.ready?(stats.severeRate*100).toFixed(1)+"%":"—";
- $("qualityNotice").textContent=completed?"评估完成：只统计玩家落子，采用有限搜索；不代表 Elo 或真实段位。":stats.total?"已分析 "+stats.ready+"/"+stats.total+" 手玩家棋。仅已分析着法参与临时比例。":"落子后生成逐手评估。";
+ const formatRatio=x=>x===null?"未测得":(x*100).toFixed(1)+"%";
+ $("qualityScore").textContent=stats.score===null?"—":stats.score+" / 100"+(game.result&&completed?"":" · 临时");
+ $("top1Rate").textContent=stats.scored?formatRatio(stats.top1):"—";
+ $("top3Rate").textContent=stats.scored?formatRatio(stats.top3):"—";
+ $("severeRate").textContent=stats.scored?formatRatio(stats.severeRate):"—";
+ $("tacticalRate").textContent=formatRatio(stats.tacticalRate);
+ $("attackRate").textContent=stats.attackOpportunities?stats.attackSuccess+" / "+stats.attackOpportunities:"未测得";
+ $("defenseRate").textContent=stats.defenseOpportunities?stats.defenseSuccess+" / "+stats.defenseOpportunities:"未测得";
+ $("weightedAccuracy").textContent=stats.scored?stats.weightedAccuracy+" / 100":"—";
+ $("confidence").textContent=stats.confidence;
+ $("effectiveSamples").textContent=String(stats.effectiveSamples);
+ $("complexity").textContent="普通 "+stats.complexityCounts.low+" / 中等 "+stats.complexityCounts.medium+
+    " / 高 "+stats.complexityCounts.high+" / 关键战术 "+stats.complexityCounts.critical;
+ $("qualityNotice").textContent=stats.total?
+  ("已分析 "+stats.ready+"/"+stats.total+" 手玩家棋，其中 "+stats.scored+" 手参与评分、"+
+   stats.excluded+" 手属于不可避免的直接失利局面。"+stats.confidenceNote+
+   (completed&&game.result?" 本局终局分析已完成。":" 当前结果仅作阶段性参考。")):
+  "落子后开始后台逐手分析。";
  $("report").textContent=(game.result?"本局结束。终局计时已冻结，悔棋锁定。":"对局进行中。")+
- " 总落子 "+game.moves.length+" 手，悔棋 "+game.undo+" 次。"+
- (completed?" 平均单步准确度 "+stats.accuracy+"/100，玩家平均思考 "+stats.avgTime+" 秒。":"");
+ " 玩家落子 "+stats.total+" 手，悔棋 "+game.undo+" 次，"+
+ "难度 "+LEVELS[game.level].label+"。"+
+ (stats.scored?" 平均单步准确度 "+stats.accuracy+"/100，加权准确度 "+stats.weightedAccuracy+
+ "/100，平均思考 "+stats.avgTime+" 秒。":" 暂无可评分的落子。")+
+ " Top-1 和 Top-3 仅展示，不直接加分；无战术机会时战术项不计分。";
  const latest=[...game.moves].reverse().find(x=>x.p===1);
  $("recommend").textContent=latest?(latest.quality?
   "最近玩家着 "+latest.coord+"："+latest.quality.category+"；建议 "+latest.quality.alternatives.map(coord).join("、")+"。":
@@ -179,7 +198,7 @@ function renderShop(){
  });
 }
 function formatTime(){if(!game)return;const now=game.ended||performance.now(),total=Math.max(0,Math.floor((now-game.started)/1000));$("totalTime").textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");$("thinkTime").textContent=game.result?"已停止":game.turn===1?((performance.now()-game.turnStart)/1000).toFixed(1)+"s":"AI 行棋";}
-function download(){const payload={version:2,identity:profile.id,level:game.level,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v2-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
+function download(){const payload={version:"2.1",identity:profile.id,level:game.level,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v2.1-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
 async function localRank(){
  if(API_URL){try{const result=await api("leaderboard");$("leaderboardMode").textContent="全球排行榜（云端 D1，按累计积分排序）";$("rankRows").innerHTML=result.players.map((p,i)=>"<tr><td>"+(i+1)+"</td><td>"+escapeText(p.name)+"</td><td>"+p.wins+"</td><td>"+p.points+"</td></tr>").join("");return;}catch(e){$("leaderboardMode").textContent="排行榜暂不可用："+e.message;return;}}
  $("leaderboardMode").textContent="本地模式：仅显示当前浏览器玩家的统计。多人共享排行榜须部署并配置独立服务端。";
