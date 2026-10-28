@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const app = readFileSync(new URL("./src/app.js", import.meta.url), "utf8");
 const css = readFileSync(new URL("./src/style.css", import.meta.url), "utf8");
+const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 
 const boardThemes = ["classic", "jade", "night", "cherry", "catcafe", "gold"];
 const pieceThemes = ["classic", "crystal", "ink", "neon", "pearl", "cat"];
@@ -44,7 +45,13 @@ test("cat pieces use real transparent image assets", () => {
     assert.equal(image.toString("ascii", 0, 4), "RIFF");
     assert.equal(image.toString("ascii", 8, 12), "WEBP");
   }
-  assert.match(app, /new URL\("\.\.\/assets\/cat-black\.webp",\s*import\.meta\.url\)/);
-  assert.match(app, /new URL\("\.\.\/assets\/cat-white\.webp",\s*import\.meta\.url\)/);
+  assert.match(app, /new URL\("\.\.\/assets\/cat-black\.webp\?v="\+CAT_IMAGE_VERSION,\s*import\.meta\.url\)/);
+  assert.match(app, /new URL\("\.\.\/assets\/cat-white\.webp\?v="\+CAT_IMAGE_VERSION,\s*import\.meta\.url\)/);
+  assert.match(app, /image\.onload=/);
+  assert.match(app, /image\.onerror=/);
+  assert.match(app, /image\.dataset\.catLoaded==="true"/);
   assert.match(app, /ctx\.drawImage\(image,\s*x-19,\s*y-19,\s*38,\s*38\)/);
+  assert.match(html, /src="\.\/src\/app\.js\?v=20261028-cat-image-fix"/);
+  assert.match(html, /cat-black\.webp\?v=20261028-cat-image-fix/);
+  assert.match(html, /cat-white\.webp\?v=20261028-cat-image-fix/);
 });
