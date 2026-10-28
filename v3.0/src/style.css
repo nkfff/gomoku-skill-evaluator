@@ -32,9 +32,112 @@ fieldset input:disabled{cursor:not-allowed}
 .cat-theme .audit{background:#fff3f7;color:#65485a}
 #retrySync{font-size:12px;padding:5px 8px}
 
-/* V3.0 friend PVP panel */
+
+/* V2.3 global theme system: board skin sets the page ambience; piece skin sets UI accents. */
+body[data-board-theme]{
+ --page-bg:#f4eadb;--page-glow:rgba(255,247,230,.92);--piece-glow:rgba(148,104,63,.16);--text:#493727;--muted:#806b55;--heading:#583a20;
+ --panel:#fffaf0;--panel-border:#d9bc91;--surface:#f4e5cc;--surface-2:#fff5e6;--border:#d5b991;
+ --input-bg:#fffdf8;--input-text:#493727;--link:#895a2d;--hint-bg:#fff2d9;--hint-border:#d3ad73;--hint-text:#654a2e;
+ --board-frame:#d4b17c;--shadow:0 12px 30px rgba(94,62,30,.10);
+ --accent:#94683f;--accent-hover:#754d2c;--accent-soft:#f1dfc9;--accent-contrast:#fffdf8;--accent-glow:rgba(148,104,63,.22);
+ min-height:100vh;color:var(--text);
+ background:radial-gradient(900px 520px at 100% 0%,var(--piece-glow),transparent 72%),radial-gradient(1000px 560px at 0% 0%,var(--page-glow),transparent 72%),var(--page-bg);
+ transition:background-color .25s ease,color .25s ease;
+}
+body[data-board-theme="classic"]{
+ --page-bg:#f4eadb;--page-glow:rgba(255,247,230,.92);--text:#493727;--muted:#806b55;--heading:#583a20;
+ --panel:#fffaf0;--panel-border:#d9bc91;--surface:#f4e5cc;--surface-2:#fff5e6;--border:#d5b991;
+ --input-bg:#fffdf8;--input-text:#493727;--link:#895a2d;--hint-bg:#fff2d9;--hint-border:#d3ad73;--hint-text:#654a2e;
+ --board-frame:#d4b17c;--shadow:0 12px 30px rgba(94,62,30,.10);
+}
+body[data-board-theme="jade"]{
+ --page-bg:#eaf4ed;--page-glow:rgba(207,239,218,.9);--text:#244536;--muted:#5b7868;--heading:#1f563d;
+ --panel:#f9fffa;--panel-border:#b9d8c4;--surface:#e5f2e9;--surface-2:#f0f9f2;--border:#bfd9c7;
+ --input-bg:#fbfffc;--input-text:#244536;--link:#26744e;--hint-bg:#e2f5e8;--hint-border:#a8d6b8;--hint-text:#285b3e;
+ --board-frame:#a7cbb2;--shadow:0 12px 30px rgba(42,100,65,.11);
+}
+body[data-board-theme="night"]{
+ --page-bg:#0b1020;--page-glow:rgba(57,68,116,.52);--text:#eff3ff;--muted:#aebbd6;--heading:#f3f5ff;
+ --panel:#151d32;--panel-border:#354260;--surface:#202a43;--surface-2:#27334e;--border:#4c5a79;
+ --input-bg:#202a43;--input-text:#f3f6ff;--link:#9cbcff;--hint-bg:#222f4a;--hint-border:#586e9e;--hint-text:#dce5ff;
+ --board-frame:#52618a;--shadow:0 14px 34px rgba(0,0,0,.28);
+}
+body[data-board-theme="cherry"]{
+ --page-bg:#fff0f3;--page-glow:rgba(255,218,229,.88);--text:#573846;--muted:#8c6878;--heading:#853e5b;
+ --panel:#fffafd;--panel-border:#ecc5d3;--surface:#fbe8ee;--surface-2:#fff2f6;--border:#e8bfce;
+ --input-bg:#fffdfd;--input-text:#573846;--link:#a34f72;--hint-bg:#fff0f5;--hint-border:#e7aec4;--hint-text:#78465b;
+ --board-frame:#dfadbf;--shadow:0 12px 30px rgba(160,76,111,.11);
+}
+body[data-board-theme="catcafe"]{
+ --page-bg:#fff5f8;--page-glow:rgba(255,221,235,.92);--text:#4a3445;--muted:#7c6172;--heading:#7a3c5b;
+ --panel:#fffafd;--panel-border:#f0c4d5;--surface:#fff0f5;--surface-2:#fff5f8;--border:#e8b4c8;
+ --input-bg:#fff;--input-text:#563b4c;--link:#b64f7b;--hint-bg:#fff0f6;--hint-border:#edb9cd;--hint-text:#714b60;
+ --board-frame:#e6b1c7;--shadow:0 12px 30px rgba(213,138,163,.14);
+}
+body[data-board-theme="gold"]{
+ --page-bg:#17120f;--page-glow:rgba(113,79,35,.38);--text:#f5e8ca;--muted:#c5b28d;--heading:#f7d995;
+ --panel:#241c17;--panel-border:#725a35;--surface:#30251c;--surface-2:#392b1d;--border:#80643a;
+ --input-bg:#2d231b;--input-text:#f8ebce;--link:#eac678;--hint-bg:#33271b;--hint-border:#a17b3e;--hint-text:#f3dfb2;
+ --board-frame:#ac884a;--shadow:0 14px 34px rgba(0,0,0,.28);
+}
+
+/* Piece skins also theme the surrounding interface, not just the stones. */
+body[data-piece-theme="classic"]{--piece-glow:rgba(148,104,63,.16);--accent:#94683f;--accent-hover:#754d2c;--accent-soft:#f1dfc9;--accent-contrast:#fffdf8;--accent-glow:rgba(148,104,63,.22)}
+body[data-piece-theme="crystal"]{--piece-glow:rgba(40,127,202,.22);--accent:#287fca;--accent-hover:#1b5d99;--accent-soft:#d9efff;--accent-contrast:#fff;--accent-glow:rgba(40,127,202,.25)}
+body[data-piece-theme="ink"]{--piece-glow:rgba(149,103,69,.18);--accent:#956745;--accent-hover:#6d482f;--accent-soft:#efe0ce;--accent-contrast:#fffaf1;--accent-glow:rgba(149,103,69,.22)}
+body[data-piece-theme="neon"]{--piece-glow:rgba(168,45,240,.28);--accent:#a82df0;--accent-hover:#7820b5;--accent-soft:#f1dcff;--accent-contrast:#fff;--accent-glow:rgba(168,45,240,.30)}
+body[data-piece-theme="pearl"]{--piece-glow:rgba(192,79,136,.22);--accent:#c04f88;--accent-hover:#90345f;--accent-soft:#f8dfec;--accent-contrast:#fff;--accent-glow:rgba(192,79,136,.24)}
+body[data-piece-theme="cat"]{--piece-glow:rgba(233,133,174,.32);--accent:#e985ae;--accent-hover:#c64f82;--accent-soft:#ffe3ef;--accent-contrast:#fff;--accent-glow:rgba(233,133,174,.28)}
+
+/* Shared components consume the theme tokens, so every board/piece combination is coherent. */
+body[data-board-theme] header{border-bottom:1px solid var(--border);padding-bottom:14px}
+body[data-board-theme] h1,body[data-board-theme] h2{color:var(--heading)}
+body[data-board-theme] p,body[data-board-theme] .muted,body[data-board-theme] .note,
+body[data-board-theme] label,body[data-board-theme] .skin small,body[data-board-theme] .stat small{color:var(--muted)}
+body[data-board-theme] a{color:var(--link)}
+body[data-board-theme] .panel{background:var(--panel);border-color:var(--panel-border);box-shadow:var(--shadow),inset 0 0 0 1px var(--accent-glow)}
+body[data-board-theme] .stat{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+body[data-board-theme] button{
+ background:var(--surface-2);color:var(--text);border:1px solid var(--border);
+ box-shadow:0 2px 0 rgba(0,0,0,.025);transition:background .18s ease,border-color .18s ease,transform .18s ease,box-shadow .18s ease;
+}
+body[data-board-theme] button:hover:not(:disabled){border-color:var(--accent);box-shadow:0 4px 12px var(--accent-glow);transform:translateY(-1px)}
+body[data-board-theme] button.active,body[data-board-theme] button.primary{
+ background:var(--accent);color:var(--accent-contrast);border-color:var(--accent);box-shadow:0 4px 14px var(--accent-glow)
+}
+body[data-board-theme] button:disabled{opacity:.48;box-shadow:none}
+body[data-board-theme] input,body[data-board-theme] select{
+ background:var(--input-bg);color:var(--input-text);border:1px solid var(--border);box-shadow:inset 0 1px 2px rgba(0,0,0,.025)
+}
+body[data-board-theme] input:focus,body[data-board-theme] select:focus{outline:2px solid var(--accent);outline-offset:1px}
+body[data-board-theme] .panel,body[data-board-theme] .stat,body[data-board-theme] .hint,
+body[data-board-theme] .skin,body[data-board-theme] .auth-feedback,body[data-board-theme] .audit{transition:background-color .22s ease,border-color .22s ease,color .22s ease}
+body[data-board-theme] .board{border:1px solid var(--board-frame);box-shadow:0 8px 22px var(--accent-glow)}
+body[data-board-theme] .hint{background:var(--hint-bg);border:1px solid var(--hint-border);color:var(--hint-text)}
+body[data-board-theme] #hintPanel{background:var(--hint-bg);border-color:var(--hint-border);color:var(--hint-text)}
+body[data-board-theme] .skin{border-bottom-color:var(--border);border-radius:10px;padding:12px;margin:5px 0}
+body[data-board-theme] .skin .swatch{box-shadow:0 3px 10px var(--accent-glow)}
+body[data-board-theme] .skin button{min-width:66px}
+body[data-board-theme] .selected{outline:2px solid var(--accent);outline-offset:1px}
+body[data-board-theme] table{color:var(--text);border-color:var(--border)}
+body[data-board-theme] th,body[data-board-theme] td{border-bottom-color:var(--border)}
+body[data-board-theme] .auth-feedback{background:var(--accent-soft);color:var(--text);border-color:var(--border)}
+body[data-board-theme] .auth-feedback.error{background:#fff0ee;color:#8c3027;border-color:#d98479}
+body[data-board-theme] .audit{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
+body[data-board-theme] .history{scrollbar-color:var(--accent) var(--surface)}
+body[data-board-theme] .move{border-radius:8px}
+body[data-board-theme] .stat strong{color:var(--accent)}
+body[data-board-theme] footer{border-top:1px solid var(--border);margin-top:20px;padding-top:8px}
+body[data-board-theme] #cloudBanner{color:var(--muted)}
+body[data-board-theme] #retrySync{font-size:12px;padding:5px 8px}
+body[data-board-theme] .miniPreview{border:1px solid var(--border);box-shadow:var(--shadow)}
+@media(prefers-reduced-motion:reduce){body[data-board-theme],body[data-board-theme] *{transition:none!important;animation:none!important}}
+
+
+/* V3.0 PVP: retain V2.3 theme tokens while using a focused responsive room layout. */
 .layout.pvp-mode{grid-template-columns:minmax(0,1fr)}
 .layout.pvp-mode>section:first-child{display:none}
+#panel-pvp{min-width:0}
 .pvp-board{display:block;width:min(100%,600px);height:auto;aspect-ratio:1;margin:16px auto;background:#e5c58d;border-radius:10px;touch-action:manipulation;cursor:crosshair}
 #panel-pvp .tableWrap{max-width:100%;overflow-x:auto}
 #panel-pvp .controls button{flex:0 1 auto}
