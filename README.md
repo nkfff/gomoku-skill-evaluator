@@ -1,6 +1,6 @@
 # 五子棋棋力评估 · Gomoku Skill Evaluator
 
-**当前稳定版：V2.2** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 预览版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
+**当前稳定版：V2.2** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 预览版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🐾 V3.0 PVP 测试版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
 > **最近更新：2026-10-28** · V2.3 预览版已发布；本地即时对局、猫猫主题、落子音效、终局云端结算与部署状态已同步记录。
 
@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | **V2.2 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.2/ | 当前稳定入口；前端与 Worker 部署成功，自动化测试通过（2026-10-28） |
 | **V2.3 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.3/ | 已部署：本地即时对局、猫猫主题棋盘/棋子、落子音效与终局云端结算；仍需真实浏览器验收 |
+| **V3.0 PVP 测试版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.0/ | 以当前 V2.3 页面、主题系统、账号与本地棋力引擎为基础，新增好友真人 PVP 与独立 Elo；测试版，待真实双账号对局验收 |
 | V2.1 旧版主页 | https://nkfff.github.io/gomoku-skill-evaluator/ | 保留兼容，不作为当前版本入口 |
 | V2.1 预览快照 | https://nkfff.github.io/gomoku-skill-evaluator/v2.1/ | 旧预览备份 |
 | V1 历史版 | https://nkfff.github.io/gomoku-skill-evaluator/v1/ | 保留的旧版页面 |
@@ -140,3 +141,15 @@ V2.2 当前稳定入口已部署，自动化测试与部署工作流均通过。
 - 使用现有账号体系，真人 Elo 段位与 AI 积分分开统计；服务端校验落子、时钟和胜负。
 - 当前为测试版，正式邀请好友对局前请先确认登录、创建房间和重连流程正常。
 - Supabase Authentication 的 Redirect URLs 需要允许：`https://nkfff.github.io/gomoku-skill-evaluator/v3.0/`。
+
+
+## V3.0 好友真人 PVP 测试版（2026-10-28）
+
+V3.0 **直接继承当前 V2.3 预览版的页面、全局皮肤主题、账号模块、本地 AI 引擎和棋力评估模块**，并在独立的 `/v3.0/` 入口增加真人对战，不覆盖 V2.3。
+
+- **在线入口：** https://nkfff.github.io/gomoku-skill-evaluator/v3.0/
+- **实时服务：** https://gomoku-v3-api.1395598907.workers.dev/api/health
+- **真人对局：** 邀请码房间、实时落子、双方准备、10 分钟棋钟、认输/和棋、断线重连、真人 Elo 排行榜与历史战绩。
+- **数据隔离：** 真人 Elo 与 AI 积分分开保存，不改变 V2.3 的 AI 结算逻辑。
+- **验收状态：** GitHub Pages 部署与自动化检查通过；请使用两个账号实测注册/登录、创建/加入房间、连续落子、结束结算及重连。尚未宣称通过真实双人完整对局验收。
+
