@@ -21,7 +21,7 @@ test("every piece skin has a global accent palette and page ambience", () => {
     assert.match(rule[1], /--accent:/);
     assert.match(rule[1], /--piece-glow:/);
   }
-  assert.match(css, /var\\(--piece-glow\\)/);
+  assert.match(css, /var\(--piece-glow\)/);
 });
 
 test("equipped board and piece skins drive the page theme", () => {
