@@ -1,6 +1,8 @@
 # 五子棋 V2.2 · 账号与个性化大升级（开发版）
 
-> 此分支尚未合并到 `main`；现有 V2.1 正式版保持不变。V2.2 的游客玩法可以独立运行，注册账号和共享排行榜需配置 Supabase Auth、Cloudflare Workers、D1。
+**[🎮 在线游客预览](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/)** · [V2.1 稳定主页](https://nkfff.github.io/gomoku-skill-evaluator/) · [GitHub Actions 部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions)
+
+> 本分支是 V2.2 开发源代码，尚未合并为 `main` 根目录正式版。独立游客预览快照已部署到 `main/v2.2/`，V2.1 稳定主页保持不变。**账号系统仍未连接实际 Supabase 项目，Cloudflare Worker 与 D1 也尚未部署**；游客玩法可以运行，真实注册登录、管理员调分和共享排行榜不可用。
 
 ## 六大升级
 
@@ -22,13 +24,15 @@
 
 ## 创建真正的账号系统
 
-1. 创建 Supabase 项目，在 **Authentication → Providers** 启用 Email/Password；配置站点网址和允许的回调地址，例如 `https://nkfff.github.io/gomoku-skill-evaluator/`，建议开启邮件验证。
+> 仅登录 Supabase 控制台或创建组织还不够。必须在组织内创建一个 Supabase **项目**，取得 Project URL 与 publishable key，并完成以下配置。V2.2 预览页当前的 `config.js` 仍是空值，因此账号页会提示未连接。
+
+1. 在 Supabase 组织内新建项目，在 **Authentication → Providers** 启用 Email/Password；配置 Site URL 与 Redirect URLs，加入 `https://nkfff.github.io/gomoku-skill-evaluator/v2.2/`，建议开启邮件验证。
 2. 在 Supabase 的 JWT Signing Keys 启用并激活**非对称 ES256 或 RS256 签名密钥**。Worker 通过项目 JWKS 验签，不支持旧 HS256 token。参见 [Supabase JWT Signing Keys](https://supabase.com/docs/guides/auth/signing-keys)。
 3. 安装依赖 `npm install`，使用 `npx wrangler login` 登录 Cloudflare。
 4. 使用 `npx wrangler d1 create gomoku-v2` 创建 D1 数据库，将返回的 `database_id` 写入 `wrangler.toml`，替换示例占位符。
 5. 运行 `npx wrangler d1 migrations apply gomoku-v2 --remote` 执行 `0001_init.sql`、`0002_accounts.sql`。
 6. 在 **Worker 环境配置** 设置 `SUPABASE_URL`（项目 URL）、`ADMIN_USER_ID`（管理员在 Supabase Auth 中的 UUID），并保持 `FRONTEND_ORIGIN = "https://nkfff.github.io"`。管理员应先正常注册，再将自己真实的用户 ID 配为 `ADMIN_USER_ID`。
-7. 运行 `npx wrangler deploy`。拿到公开的 Worker URL 后，在前端 `config.js` 填入 Worker URL、Supabase Project URL、Supabase **publishable** key。
+7. 运行 `npx wrangler deploy`。拿到公开的 Worker URL 后，在开发分支的 `config.js` 以及部署预览的 `v2.2/config.js` 中填入 Worker URL、Supabase Project URL、Supabase **publishable** key。前端配置只允许使用公开的 publishable key，绝不能写入 `service_role` 或其他 secret。
 8. 用独立 V2.2 预览环境完整测试：注册、邮件验证、登录、登出、胜利计分、扣分、管理员操作、游客隔离、悔棋和商店兑换。验收后才合并到 `main`。
 
 ```js
@@ -58,6 +62,12 @@ window.GOMOKU_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_xxx";
 | 额外悔棋 | 每次 10 积分 |
 | 棋盘兑换 | 0 / 60 / 150 / 260 / 500 积分 |
 | 棋子兑换 | 0 / 45 / 85 / 140 / 220 积分 |
+
+## 在线预览与本地开发
+
+在线游客预览：<https://nkfff.github.io/gomoku-skill-evaluator/v2.2/>。该预览是静态前端快照；账号相关控件只有在 Supabase 与 Worker 配置有效后才会启用。完成后端部署前，不要把游客本地积分当作正式排行数据。
+
+V2.1 稳定主页：<https://nkfff.github.io/gomoku-skill-evaluator/>。
 
 ## 本地开发与测试
 
