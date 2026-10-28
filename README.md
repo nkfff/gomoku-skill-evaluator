@@ -2,7 +2,7 @@
 
 **[🎮 在线游客预览](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/)** · [V2.1 稳定主页](https://nkfff.github.io/gomoku-skill-evaluator/) · [GitHub Actions 部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions)
 
-> 本分支是 V2.2 开发源代码，尚未合并为 `main` 根目录正式版。独立游客预览快照已部署到 `main/v2.2/`，V2.1 稳定主页保持不变。**账号系统仍未连接实际 Supabase 项目，Cloudflare Worker 与 D1 也尚未部署**；游客玩法可以运行，真实注册登录、管理员调分和共享排行榜不可用。
+> 本分支是 V2.2 开发源代码，尚未合并为 `main` 根目录正式版。独立游客预览快照已部署到 `main/v2.2/`，V2.1 稳定主页保持不变。**Supabase 已连接，Cloudflare Worker 与 D1 首次部署已成功**；前端配置已指向 Worker，但注册登录、管理员调分和共享排行榜仍需端到端验收。
 
 ## 六大升级
 
@@ -24,7 +24,7 @@
 
 ## 创建真正的账号系统
 
-> Supabase Project URL 与 Publishable Key 已配置在开发分支的 config.js 和 V2.2 预览配置中。Cloudflare Worker URL 与 D1 数据库尚未配置，所以在线账号功能仍未启用。
+> Supabase Project URL 与 Publishable Key 已配置在开发分支的 config.js 和 V2.2 预览配置中。Cloudflare Worker 与 D1 已完成首次部署；Worker 地址为 https://gomoku-v2-api.1395598907.workers.dev。仍需验收注册登录、积分和管理员流程。
 
 1. 在 Supabase Authentication → Providers 启用 Email/Password；在 Authentication → URL Configuration 的 Redirect URLs 中加入 https://nkfff.github.io/gomoku-skill-evaluator/v2.2/，建议开启邮箱验证。
 2. 在 Supabase JWT Signing Keys 确认用户访问令牌使用 Worker 支持的非对称 ES256 或 RS256 签名密钥。参考 https://supabase.com/docs/guides/auth/signing-keys。
@@ -41,7 +41,7 @@
 | ADMIN_USER_ID | 可先不设置，管理员注册账号后再添加 |
 
 6. 在 GitHub Actions → Deploy V2.2 Cloudflare Worker → Run workflow 中选择源分支 feature/v2.2-accounts-customization。工作流会安装依赖、运行测试、执行 0001_init.sql 和 0002_accounts.sql 迁移并部署 Worker。
-7. 从 Actions 日志复制 Worker 的 workers.dev URL，写入 main 分支 v2.2/config.js 的 GOMOKU_API_URL。Supabase Project URL 和 Publishable Key 已配置。提交后等待 GitHub Pages 部署成功。
+7. Worker 已部署，地址为 https://gomoku-v2-api.1395598907.workers.dev；main/v2.2/config.js 与开发分支 config.js 已写入该地址，Supabase Project URL 和 Publishable Key 也已配置。
 8. 首次部署后，通过预览页注册并验证管理员邮箱。在 Supabase Authentication → Users 复制自己的 User ID，将其添加为 GitHub Actions secret ADMIN_USER_ID，再运行一次 Worker 部署工作流。只有服务端配置的 UUID 才拥有管理员权限。
 9. 上线前完整测试注册、邮件验证、登录/登出、胜局积分、皮肤购买、额外悔棋、管理员调分、封禁、审计日志与游客隔离。完成端到端测试后再考虑合并到 main。
 
@@ -70,7 +70,7 @@
 
 ## 在线预览与本地开发
 
-在线游客预览：<https://nkfff.github.io/gomoku-skill-evaluator/v2.2/>。该预览是静态前端快照；账号相关控件只有在 Supabase 与 Worker 配置有效后才会启用。完成后端部署前，不要把游客本地积分当作正式排行数据。
+在线 V2.2 预览：<https://nkfff.github.io/gomoku-skill-evaluator/v2.2/>。Supabase 与 Cloudflare Worker/D1 已首次部署，前端已配置 Worker 地址；请继续完成账号注册、邮箱验证、积分和管理员流程的端到端测试。游客本地积分不应当作正式排行数据。
 
 V2.1 稳定主页：<https://nkfff.github.io/gomoku-skill-evaluator/>。
 
