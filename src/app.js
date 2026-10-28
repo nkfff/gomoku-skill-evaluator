@@ -31,7 +31,7 @@ function applyRemoteProfile(p){if(!p)return;
 const freshProfile=()=>({id:crypto.randomUUID(),name:"匿名棋手",points:0,earnedPoints:0,owned:["classic","board:classic","piece:classic"],skin:"classic",boardSkin:"classic",pieceSkin:"classic",wins:0,losses:0,draws:0,claimed:[]});
 function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&&typeof s.id==="string"&&Array.isArray(s.owned))return {...freshProfile(),...s,boardSkin:s.boardSkin||s.skin||"classic",pieceSkin:s.pieceSkin||"classic"};}catch{}return freshProfile();}
 let profile=loadProfile(),game,task=null,turnToken=0,activeTab="game",endedAt=0,replayStep=0,lastResult=null,cloudEnabled=false;
-let hints=[],previewBoard="classic",previewPiece="classic";
+let hints=[],hintVisible=false,hintRequest=0,previewBoard="classic",previewPiece="classic";
 const analysisWorker = typeof Worker !== "undefined" ? new Worker(new URL("./analysis.worker.js", import.meta.url), {type:"module"}) : null;
 if (analysisWorker) {
  analysisWorker.onmessage = ({data})=>{
@@ -53,7 +53,7 @@ async function newGame(){
  clearTimeout(task);turnToken++;
  const now=performance.now();
  game={id:crypto.randomUUID(),b:Array(CELLS).fill(0),moves:[],events:[],level:$("difficulty").value,turn:1,started:now,turnStart:now,ended:0,result:0,undo:0};
- hints=[];$("hintPanel").hidden=true;
+ hints=[];hintVisible=false;hintRequest++;$("hintPanel").hidden=true;
  endedAt=0;replayStep=0;lastResult=null;remoteGame=null;remoteBusy=false;
  if(cloudMode()){try{const v=await api("start",{level:game.level});remoteGame={gameId:v.gameId,revision:v.revision};}catch(e){$("cloudBanner").textContent="云端暂不可用，已切换到本地模式："+e.message;}}
  $("review").disabled=true;$("undo").disabled=true;
@@ -62,7 +62,7 @@ async function newGame(){
 }
 function drop(i,p,elapsed,analysis=null){
  const before=game.b.slice();
- hints=[];$("hintPanel").hidden=true;
+ hints=[];hintVisible=false;hintRequest++;$("hintPanel").hidden=true;
  game.b[i]=p;
  const record={id:crypto.randomUUID(),i,p,coord:coord(i),seconds:+elapsed.toFixed(2),at:new Date().toISOString(),analysis,quality:null};
  game.moves.push(record);game.events.push({type:"move",id:record.id,i,p,coord:record.coord,seconds:record.seconds,at:record.at,analysis});
@@ -116,7 +116,7 @@ async function undo(){
  const paid=game.undo>=3;
  if(paid&&profile.points<10){alert("免费悔棋已用尽；再悔棋需要 10 积分。当前积分不足。");return;}
  if(paid&&!confirm("免费悔棋已用完，本次扣除 10 积分，确定吗？"))return;
- clearTimeout(task);turnToken++;hints=[];$("hintPanel").hidden=true;
+ clearTimeout(task);turnToken++;hints=[];hintVisible=false;hintRequest++;$("hintPanel").hidden=true;
  if(remoteGame){
   remoteBusy=true;render();
   try{
@@ -139,18 +139,30 @@ async function undo(){
  game.turn=1;game.turnStart=performance.now();render();
 }
 async function hintMove(){
- if(!game||game.turn!==1||game.result||remoteBusy)return;
+ if(!game||game.turn!==1||game.result||remoteBusy||activeTab!=="game")return;
+ const requestId=++hintRequest,gameId=game.id,moveCount=game.moves.length;
+ $("hint").disabled=true;
  try{
+  let suggestions;
   if(remoteGame){
-   const v=await api("hint",{gameId:remoteGame.gameId,revision:remoteGame.revision});
-   hints=v.suggestions.map(x=>x.index);
-  }else hints=rankedMoves(game.b,1,3).slice(0,3);
-  $("hintPanel").hidden=false;
-  $("hintPanel").textContent="战术参谋给你圈出 "+hints.map((i,n)=>(n+1)+". "+coord(i)).join("，")+"。数字越小表示当前搜索优先级越高。⚠️ 这不是真实胜率或必胜保证。";
+   const result=await api("hint",{gameId:remoteGame.gameId,revision:remoteGame.revision});
+   suggestions=result.suggestions.map(x=>x.index);
+  }else suggestions=rankedMoves(game.b,1,3).slice(0,3);
+  // Ignore late API replies after a move, reset, undo or tab switch.
+  if(requestId!==hintRequest||game.id!==gameId||game.moves.length!==moveCount||game.turn!==1||game.result||activeTab!=="game")return;
+  hints=suggestions.filter(i=>!game.b[i]);
+  hintVisible=hints.length>0;
+  $("hintPanel").hidden=!hintVisible;
+  if(hintVisible)$("hintPanel").textContent="战术参谋给你圈出 "+hints.map((i,n)=>(n+1)+". "+coord(i)).join("，")+
+   "。标号表示候选优先级；不是经过校准的真实获胜概率。落下一手会自动清除提示。";
   render();
- }catch(e){alert("获取提示失败："+e.message);}
+ }catch(e){if(requestId===hintRequest)alert("获取提示失败："+e.message);}
+ finally{render();}
 }
 function activate(tab){
+ if(tab!=="game"&&activeTab==="game"){
+  hintRequest++;hintVisible=false;hints=[];$("hintPanel").hidden=true;
+ }
  activeTab=tab;
  for(const name of ["game","replay","store","leaderboard","account"]){
   $("tab-"+name).classList.toggle("active",name===tab);
@@ -173,7 +185,7 @@ function draw(b,last=-1){
   if(piece.gloss){ctx.beginPath();ctx.arc(x-4,y-5,4,0,7);ctx.fillStyle="#ffffff66";ctx.fill();}
   if(i===last){ctx.beginPath();ctx.arc(x,y,4.5,0,7);ctx.fillStyle="#f34c42";ctx.fill();}
  }
- if(activeTab==="game"&&game.turn===1&&!game.result){
+ if(activeTab==="game"&&hintVisible&&game.turn===1&&!game.result){
   hints.forEach((i,j)=>{if(b[i])return;
    const x=offset+i%15*cell,y=offset+Math.floor(i/15)*cell;
    ctx.beginPath();ctx.arc(x,y,15,0,7);ctx.fillStyle=["#3af7ba99","#70b6ffaa","#ffc77199"][j];ctx.fill();
