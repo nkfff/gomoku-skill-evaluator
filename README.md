@@ -11,9 +11,21 @@
 | 版本 | 在线地址 | 状态 |
 | --- | --- | --- |
 | **V2.2 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.2/ | 当前稳定入口；前端与 Worker 部署成功，自动化测试通过（2026-10-28） |
+| **V2.3 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.3/ | 已部署：本地即时对局、猫猫主题棋盘/棋子、落子音效与终局云端结算；仍需真实浏览器验收 |
 | V2.1 旧版主页 | https://nkfff.github.io/gomoku-skill-evaluator/ | 保留兼容，不作为当前版本入口 |
 | V2.1 预览快照 | https://nkfff.github.io/gomoku-skill-evaluator/v2.1/ | 旧预览备份 |
 | V1 历史版 | https://nkfff.github.io/gomoku-skill-evaluator/v1/ | 保留的旧版页面 |
+
+## V2.3 预览版（2026-10-28）
+
+V2.3 已部署至独立预览入口，**V2.2 稳定版与 V2.1 兼容入口保持不变**。
+
+- **低延迟**：AI 落子、计时与棋谱在浏览器本地执行，不再逐手等待网络响应。
+- **终局结算**：登录对局在结束后提交棋谱，由 Cloudflare Worker 验证并结算；断网时暂存本地，可重试同步。
+- **猫猫主题**：奶油粉猫咪咖啡馆棋盘、猫爪装饰、动漫猫猫头棋子，以及可开关的落子音效。
+- **部署与检查**：[Worker 部署及线上健康检查](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158103)、[自动化测试](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158258)、[GitHub Pages 发布](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670091107)。
+
+注意：自动化测试和部署检查已通过；胜负结算、断网重试及移动端外观仍建议在真实浏览器中做一次人工验收。
 
 ## 最近更新（2026-10-28）
 
