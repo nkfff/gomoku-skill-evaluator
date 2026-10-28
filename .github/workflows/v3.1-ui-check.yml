@@ -1,0 +1,71 @@
+name: V3.1 UI behavior checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "v3.1/**"
+      - ".github/workflows/v3.1-ui-check.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "v3.1/**"
+      - ".github/workflows/v3.1-ui-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check JavaScript syntax
+        run: |
+          node --check v3.1/src/app.js
+          node --check v3.1/src/account.js
+          node --check v3.1/src/assessment.js
+          node --check v3.1/src/engine.js
+          node --check v3.1/src/analysis.worker.js
+          node --check v3.1/pvp-ui.js
+      - name: Verify page-specific visibility rules
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path("v3.1/index.html").read_text(encoding="utf-8")
+          app = Path("v3.1/src/app.js").read_text(encoding="utf-8")
+          css = Path("v3.1/src/style.css").read_text(encoding="utf-8")
+          config = Path("v3.1/config.js").read_text(encoding="utf-8")
+          required_ids = [
+              "tab-game", "tab-replay", "tab-store", "tab-leaderboard",
+              "tab-account", "tab-pvp", "board", "startGame", "panel-game",
+              "panel-replay", "panel-pvp", "pvpBoard"
+          ]
+          missing = [item for item in required_ids if f'id="{item}"' not in html]
+          if missing:
+              raise SystemExit(f"Missing expected UI elements: {missing}")
+          for marker in [
+              'layout.classList.toggle("show-ai-panel",tab==="game"||tab==="replay");',
+              'layout.classList.toggle("show-start-game",tab==="game");'
+          ]:
+              if marker not in app:
+                  raise SystemExit(f"Missing tab visibility state: {marker}")
+          for selector in [
+              ".layout:not(.show-ai-panel){grid-template-columns:minmax(0,1fr)}",
+              ".layout:not(.show-ai-panel)>section:first-child{display:none}",
+              ".layout:not(.show-start-game) #startGame{display:none!important}"
+          ]:
+              if selector not in css:
+                  raise SystemExit(f"Missing visibility CSS rule: {selector}")
+          for asset in ['./src/style.css', './src/app.js', './pvp-ui.js']:
+              if asset not in html:
+                  raise SystemExit(f"Missing page asset reference: {asset}")
+          if "GOMOKU_PVP_API_URL" not in config:
+              raise SystemExit("PVP endpoint configuration is missing.")
+          if 'from "./src/account.js"' not in Path("v3.1/pvp-ui.js").read_text(encoding="utf-8"):
+              raise SystemExit("PVP account import path is incorrect.")
+          print("V3.1 page wiring and visibility rules OK")
+          PY
