@@ -177,33 +177,42 @@ export default {
     if(!uuid(body.gameId)||!LEVELS[body.level]||![1,2,3].includes(body.result)||!Number.isInteger(body.undoCount)||body.undoCount<0||body.undoCount>112)throw invalid("对局提交参数不合法");
     const validated=validateSubmittedTimeline(body.events,body.level,body.result,body.undoCount);
     const finalMoves=JSON.stringify(validated.moves),eventJson=JSON.stringify(body.events);
-    const existing=await env.DB.prepare("SELECT player_id,level,moves,status,events FROM games WHERE id=?").bind(body.gameId).first();
-    if(existing){
-     if(existing.player_id!==user.id)throw invalid("对局 ID 已被使用",409);
-     if(existing.status==="finished"&&existing.level===body.level&&existing.moves===finalMoves&&existing.events===eventJson)
-      return reply({alreadySubmitted:true,profile:await profile(env,user.id)},200,cors);
-     throw invalid("该对局 ID 已提交过不同内容",409);
-    }
-    const undoCost=Math.max(0,validated.undoCount-3)*10,reward=validated.result===1?award[body.level]:0,netDelta=reward-undoCost;
+    const existing=await env.DB.prepare("SELECT player_id,level,moves,status,events,settled_at FROM games WHERE id=?").bind(body.gameId).first();
+    if(!existing)throw invalid("云端对局会话不存在，请重试同步",409);
+    if(existing.player_id!==user.id)throw invalid("对局 ID 已被使用",409);
+    if(existing.level!==body.level)throw invalid("对局难度与会话不一致",409);
+    if(existing.status==="finished"&&existing.settled_at&&existing.moves===finalMoves&&existing.events===eventJson)
+     return reply({alreadySubmitted:true,profile:await profile(env,user.id)},200,cors);
+    if(existing.status!=="active")throw invalid("该对局已结束或状态异常",409);
+    const undoCost=Math.max(0,validated.undoCount-3)*10;
+    const reward=validated.result===1?award[body.level]:0;
+    const netDelta=reward-undoCost;
     const statements=[
-     env.DB.prepare("INSERT INTO games(id,player_id,level,moves,turn,status,revision,started_at,ended_at,undo_count,events) SELECT ?,?,?,?,0,'finished',0,datetime('now'),datetime('now'),?,? WHERE EXISTS(SELECT 1 FROM players WHERE id=? AND points>=?)")
-      .bind(body.gameId,user.id,body.level,finalMoves,validated.undoCount,eventJson,user.id,undoCost),
-     env.DB.prepare("UPDATE players SET points=points+?,earned_points=earned_points+?,wins=wins+?,losses=losses+?,draws=draws+? WHERE id=? AND points>=?")
-      .bind(netDelta,reward,validated.result===1?1:0,validated.result===2?1:0,validated.result===3?1:0,user.id,undoCost)
+     env.DB.prepare("UPDATE games SET moves=?,turn=0,status='finished',revision=revision+1,ended_at=datetime('now'),undo_count=?,events=? WHERE id=? AND player_id=? AND level=? AND status='active' AND (SELECT points FROM players WHERE id=?)>=?")
+      .bind(finalMoves,validated.undoCount,eventJson,body.gameId,user.id,body.level,user.id,undoCost),
+     env.DB.prepare("UPDATE players SET points=points+?,earned_points=earned_points+?,wins=wins+?,losses=losses+?,draws=draws+? WHERE id=? AND points>=? AND EXISTS(SELECT 1 FROM games WHERE id=? AND player_id=? AND status='finished' AND settled_at IS NULL AND events=? AND moves=?)")
+      .bind(netDelta,reward,validated.result===1?1:0,validated.result===2?1:0,validated.result===3?1:0,user.id,undoCost,body.gameId,user.id,eventJson,finalMoves)
     ];
-    if(reward>0)statements.push(env.DB.prepare("INSERT INTO point_ledger(id,player_id,delta,reason,note) SELECT ?,?,?,'win_reward',? WHERE EXISTS(SELECT 1 FROM games WHERE id=? AND player_id=?)")
-      .bind(crypto.randomUUID(),user.id,reward,body.gameId,body.gameId,user.id));
-    if(undoCost>0)statements.push(env.DB.prepare("INSERT INTO point_ledger(id,player_id,delta,reason,note) SELECT ?,?,?,'paid_undo',? WHERE EXISTS(SELECT 1 FROM games WHERE id=? AND player_id=?)")
-      .bind(crypto.randomUUID(),user.id,-undoCost,body.gameId,body.gameId,user.id));
+    if(reward>0)statements.push(env.DB.prepare("INSERT INTO point_ledger(id,player_id,delta,reason,note) SELECT ?,?,?,'win_reward',? WHERE EXISTS(SELECT 1 FROM games WHERE id=? AND player_id=? AND status='finished' AND settled_at IS NULL AND events=? AND moves=?)")
+      .bind(crypto.randomUUID(),user.id,reward,body.gameId,body.gameId,user.id,eventJson,finalMoves));
+    if(undoCost>0)statements.push(env.DB.prepare("INSERT INTO point_ledger(id,player_id,delta,reason,note) SELECT ?,?,?,'paid_undo',? WHERE EXISTS(SELECT 1 FROM games WHERE id=? AND player_id=? AND status='finished' AND settled_at IS NULL AND events=? AND moves=?)")
+      .bind(crypto.randomUUID(),user.id,-undoCost,body.gameId,body.gameId,user.id,eventJson,finalMoves));
+    statements.push(env.DB.prepare("UPDATE games SET settled_at=datetime('now') WHERE id=? AND player_id=? AND status='finished' AND settled_at IS NULL AND events=? AND moves=?")
+      .bind(body.gameId,user.id,eventJson,finalMoves));
     const result=await env.DB.batch(statements);
-    if(result[0].meta.changes!==1||result[1].meta.changes!==1)throw invalid("云端积分不足，成绩暂未结算",409);
+    if(result[0].meta.changes!==1||result[1].meta.changes!==1||result[result.length-1].meta.changes!==1)
+     throw invalid("云端积分不足或成绩已被处理，请重试同步",409);
     return reply({alreadySubmitted:false,profile:await profile(env,user.id)},200,cors);
    }
    if(url.pathname==="/api/start"){
     if(!LEVELS[body.level])throw invalid("未知难度");
-    const gameId=crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO games(id,player_id,level,moves,turn,status,revision,started_at) VALUES(?,?,?,'[]',1,'active',0,datetime('now'))").bind(gameId,user.id,body.level).run();
-    return reply({gameId,revision:0},200,cors);
+    const gameId=body.gameId===undefined?crypto.randomUUID():body.gameId;
+    if(!uuid(gameId))throw invalid("对局 ID 不合法");
+    await env.DB.prepare("INSERT OR IGNORE INTO games(id,player_id,level,moves,turn,status,revision,started_at) VALUES(?,?,?,'[]',1,'active',0,datetime('now'))")
+     .bind(gameId,user.id,body.level).run();
+    const session=await env.DB.prepare("SELECT player_id,level,status,revision FROM games WHERE id=?").bind(gameId).first();
+    if(!session||session.player_id!==user.id||session.level!==body.level)throw invalid("对局会话冲突",409);
+    return reply({gameId,revision:session.revision,status:session.status},200,cors);
    }
    if(!["/api/move","/api/undo","/api/hint"].includes(url.pathname))throw invalid("路径不存在",404);
    if(!uuid(body.gameId)||!Number.isInteger(body.revision))throw invalid("对局 ID 或版本不合法");
