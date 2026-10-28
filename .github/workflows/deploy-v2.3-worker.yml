@@ -97,3 +97,17 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy
+
+      - name: Verify deployed Worker health
+        run: |
+          set -eu
+          for attempt in 1 2 3 4 5; do
+            response="$(curl -fsS https://gomoku-v2-api.1395598907.workers.dev/api/health || true)"
+            echo "$response"
+            if printf '%s' "$response" | grep -q '"version":"2.3"'; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Worker health endpoint did not report version 2.3" >&2
+          exit 1
