@@ -33,7 +33,7 @@ test("leaderboard ranks by composite points while showing raw win rate separatel
  assert.ok(worker.includes("AS win_rate"));
  assert.ok(worker.includes("AS rank_points"));
  assert.ok(worker.includes("ORDER BY rank_points DESC,earned_points DESC,wins DESC,games_played DESC"));
- assert.ok(worker.includes("MAX(0,adjusted_win_rate-50)*MIN(games_played,20)/10.0"));
+ assert.ok(worker.includes("MAX(0,ROUND(earned_points+(adjusted_win_rate-50)*MIN(games_played,20)/10.0)) AS rank_points"));
  assert.ok(worker.includes("const award={easy:10,normal:30,hard:80}"));
  assert.ok(worker.includes("AND (wins+losses+draws)>0"));
 });
