@@ -25,7 +25,7 @@ let soundEnabled=localStorage.getItem(SOUND_STORE)!=="off";
 let audioContext=null;
 const API_URL=(window.GOMOKU_API_URL||"").replace(/\/$/,"");
 const cloudMode=()=>cloudConfigured()&&loggedIn();
-let remoteGame=null,remoteBusy=false;
+let remoteGame=null,remoteBusy=false,syncingPending=false;
 async function api(path,payload){const token=await bearer();if(!token)throw Error("请先登录以使用云端功能");
  const r=await fetch(API_URL+"/api/"+path,{method:payload?"POST":"GET",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:payload?JSON.stringify(payload):undefined});
  const v=await r.json();if(!r.ok)throw Error(v.error||"Cloud API unavailable");return v;
@@ -90,25 +90,31 @@ function submissionPayload(g){
   }).filter(Boolean)};
 }
 async function syncPendingSubmissions(){
- if(!cloudMode())return;
- let queue=readPendingSubmissions();
- for(const entry of [...queue]){
-  if(entry.playerId!==profile.id)continue;
-  try{
-   const result=await api("submit",entry.payload);
-   if(result.profile)applyRemoteProfile(result.profile);
-   queue=queue.filter(item=>item.payload.gameId!==entry.payload.gameId);
-   localStorage.setItem(PENDING_STORE,JSON.stringify(queue));
-   if(game&&game.id===entry.payload.gameId){game.syncState="synced";render();}
-   $("cloudBanner").textContent="云端成绩已验证并同步";
-  }catch(e){
-   if(game&&game.id===entry.payload.gameId){game.syncState="failed";render();}
-   $("cloudBanner").textContent="成绩已暂存本地，上传失败："+e.message;
-   $("retrySync").hidden=false;return;
+ if(!cloudMode()||syncingPending)return;
+ syncingPending=true;
+ try{
+  let queue=readPendingSubmissions();
+  for(const entry of [...queue]){
+   if(entry.playerId!==profile.id)continue;
+   try{
+    // Idempotently create/recover the server session before submitting its final event log.
+    await api("start",{level:entry.payload.level,gameId:entry.payload.gameId});
+    const result=await api("submit",entry.payload);
+    if(result.profile)applyRemoteProfile(result.profile);
+    queue=queue.filter(item=>item.payload.gameId!==entry.payload.gameId);
+    localStorage.setItem(PENDING_STORE,JSON.stringify(queue));
+    if(game&&game.id===entry.payload.gameId){game.syncState="synced";render();}
+    $("cloudBanner").textContent="云端成绩已验证并同步";
+   }catch(e){
+    if(game&&game.id===entry.payload.gameId){game.syncState="failed";render();}
+    $("cloudBanner").textContent="成绩已暂存本地，上传失败："+e.message;
+    $("retrySync").hidden=false;return;
+   }
   }
- }
- $("retrySync").hidden=!queue.some(entry=>entry.playerId===profile.id);
- await localRank();render();
+  queue=readPendingSubmissions();
+  $("retrySync").hidden=!queue.some(entry=>entry.playerId===profile.id);
+  await localRank();render();
+ }finally{syncingPending=false;}
 }
 async function submitFinishedGame(g){
  const payload=submissionPayload(g),queue=readPendingSubmissions();
@@ -135,7 +141,16 @@ function startGame(){
  game.cloudSession=cloudMode();game.playerId=game.cloudSession?profile.id:null;game.syncState="idle";
  game.started=now;game.turnStart=now;game.startedGame=true;
  remoteGame=null;remoteBusy=false;
- $("cloudBanner").textContent=game.cloudSession?"本地即时对局 · 终局后验证并同步成绩":"游客模式 · 对局在本地运行";
+ $("cloudBanner").textContent=game.cloudSession?"本地即时对局 · 云端会话后台准备中":"游客模式 · 对局在本地运行";
+ if(game.cloudSession){
+  const gameId=game.id,level=game.level;
+  api("start",{level,gameId}).catch(e=>{
+   if(game&&game.id===gameId){
+    game.startSyncError=e.message;
+    $("cloudBanner").textContent="本地对局不受网络影响；终局同步时将重试云端会话。";
+   }
+  });
+ }
  render();formatTime();
 }
 function drop(i,p,elapsed,analysis=null){
