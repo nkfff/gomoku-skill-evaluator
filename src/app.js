@@ -338,7 +338,7 @@ async function localRank(){
  $("rankRows").innerHTML="<tr><td>1</td><td>"+escapeText(profile.name)+"</td><td>"+profile.wins+"</td><td>"+profile.points+"</td></tr>";
 }
 function escapeText(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-async function setName(){const name=$("nickname").value.trim().slice(0,20);if(!name)return;if(cloudMode()){try{const v=await api("name",{name});applyRemoteProfile(v.profile);}catch(e){alert("保存失败："+e.message);return;}}else{profile.name=name;save();}render();localRank();}
+async function setName(){const name=$("nickname").value.trim().slice(0,24);if(!name)return;if(cloudMode()){try{const v=await api("name",{name});applyRemoteProfile(v.profile);}catch(e){alert("保存失败："+e.message);return;}}else{profile.name=name;save();}render();localRank();}
 for(const name of ["game","replay","store","leaderboard","account"])$("tab-"+name).onclick=()=>activate(name);
 $("board").addEventListener("click",e=>{
  if(activeTab!=="game")return;
