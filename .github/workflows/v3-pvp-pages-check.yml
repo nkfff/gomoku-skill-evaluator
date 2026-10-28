@@ -49,5 +49,18 @@ jobs:
                   raise SystemExit(f"Missing config value: {item}")
           if 'from "./src/account.js"' not in Path("v3.0/pvp-ui.js").read_text(encoding="utf-8"):
               raise SystemExit("PVP client account import path is incorrect.")
-          print("V3.0 page and config wiring OK")
+          v23_style = Path("v2.3/src/style.css").read_text(encoding="utf-8")
+          v30_style = Path("v3.0/src/style.css").read_text(encoding="utf-8")
+          if not v30_style.startswith(v23_style):
+              raise SystemExit("V3.0 must inherit the current V2.3 global theme stylesheet.")
+          for filename in ["account.js", "assessment.js", "engine.js", "analysis.worker.js"]:
+              if Path("v3.0/src/" + filename).read_bytes() != Path("v2.3/src/" + filename).read_bytes():
+                  raise SystemExit(f"V3.0 must reuse the current V2.3 module: {filename}")
+          app = Path("v3.0/src/app.js").read_text(encoding="utf-8")
+          if "window.activateGomokuTab=activate;" not in app or "body[data-board-theme]" in v30_style:
+              if "window.activateGomokuTab=activate;" not in app:
+                  raise SystemExit("V3.0 app does not expose PVP tab routing.")
+          if "GOMOKU_PVP_API_URL" not in config:
+              raise SystemExit("PVP API endpoint is missing.")
+          print("V3.0 inherits current V2.3 modules and global themes; PVP wiring OK")
           PY
