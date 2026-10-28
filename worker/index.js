@@ -155,13 +155,23 @@ export default {
     const paid=game.undo_count>=3,cost=paid?10:0;
     if(paid&&current.points<cost)throw invalid("本局免费悔棋已用尽，余额不足 10 积分",409);
     const trimmed=moves.slice(0,-count);
-    // Atomic D1 batch: charge only when the account is eligible; guarded game revision.
-    const changes=await env.DB.prepare("UPDATE games SET moves=?,undo_count=undo_count+1,revision=revision+1 WHERE id=? AND player_id=? AND revision=? AND status='active' AND (undo_count<3 OR (SELECT points FROM players WHERE id=?)>=10)").bind(JSON.stringify(trimmed),game.id,user.id,game.revision,user.id).run();
-    if(changes.meta.changes!==1)throw invalid("状态变化或积分不足",409);
+    const event=JSON.stringify({type:"undo",cost,at:new Date().toISOString(),removed:moves.slice(-count)});
+    const update=env.DB.prepare("UPDATE games SET moves=?,undo_count=undo_count+1,revision=revision+1,events=json_insert(events,'$[#]',json(?)) WHERE id=? AND player_id=? AND revision=? AND status='active' AND (undo_count<3 OR (SELECT points FROM players WHERE id=?)>=10)")
+     .bind(JSON.stringify(trimmed),event,game.id,user.id,game.revision,user.id);
+    let changes;
     if(paid){
-     await env.DB.prepare("UPDATE players SET points=points-10 WHERE id=? AND points>=10").bind(user.id).run();
-     await env.DB.prepare("INSERT INTO point_ledger(id,player_id,delta,reason,note) VALUES(?,?,-10,'paid_undo',?)").bind(crypto.randomUUID(),user.id,game.id).run();
+     // D1 batch executes statements transactionally: either both payment and undo are persisted or neither.
+     const charge=env.DB.prepare("UPDATE players SET points=points-10 WHERE id=? AND points>=10 AND EXISTS(SELECT 1 FROM games WHERE id=? AND revision=? AND undo_count>=4)")
+      .bind(user.id,game.id,game.revision+1);
+     const ledger=env.DB.prepare("INSERT INTO point_ledger(id,player_id,delta,reason,note) SELECT ?,?,-10,'paid_undo',? WHERE EXISTS(SELECT 1 FROM games WHERE id=? AND revision=? AND undo_count>=4)")
+      .bind(crypto.randomUUID(),user.id,game.id,game.id,game.revision+1);
+     const result=await env.DB.batch([update,charge,ledger]);
+     changes=result[0].meta.changes;
+     if(changes!==1||result[1].meta.changes!==1||result[2].meta.changes!==1)throw invalid("支付悔棋操作未完成，请联系管理员核查",409);
+    }else{
+     const result=await update.run();changes=result.meta.changes;
     }
+    if(changes!==1)throw invalid("状态变化或积分不足",409);
     return reply({moves:trimmed,revision:game.revision+1,undoCount:game.undo_count+1,paid,cost,profile:await profile(env,user.id)},200,cors);
    }
    const index=body.index;
