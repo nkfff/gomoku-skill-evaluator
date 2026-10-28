@@ -181,12 +181,17 @@ function activate(tab){
   hintRequest++;hintVisible=false;hints=[];$("hintPanel").hidden=true;
  }
  activeTab=tab;
- for(const name of ["game","replay","store","leaderboard","account"]){
-  $("tab-"+name).classList.toggle("active",name===tab);
-  $("panel-"+name).hidden=name!==tab;
+ for(const name of ["game","replay","store","leaderboard","account","pvp"]){
+  const button=$("tab-"+name),panel=$("panel-"+name);
+  if(button)button.classList.toggle("active",name===tab);
+  if(panel)panel.hidden=name!==tab;
  }
+ const layout=$("mainLayout"),aiPanel=$("aiPanel");
+ if(layout)layout.classList.toggle("pvp-mode",tab==="pvp");
+ if(aiPanel)aiPanel.hidden=tab==="pvp";
  render();
 }
+window.activateGomokuTab=activate;
 function draw(b,last=-1){
  const canvas=$("board"),ctx=canvas.getContext("2d");
  const skin=skins.find(x=>x.id===profile.boardSkin)||skins[0];
