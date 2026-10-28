@@ -1,6 +1,8 @@
 # 五子棋 V2.2 · 稳定版与账号个性化升级
 
-**[🎮 V2.2 稳定版在线入口](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/)** · [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) · [GitHub Actions 部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions)
+**当前稳定版：V2.2 · V2.3 开发中（本地即时对局与猫猫主题）**
+
+[🎮 V2.2 稳定版在线入口](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/)** · [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) · [GitHub Actions 部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions)
 
 > **最近更新：2026-10-28。** 本分支保留 V2.2 稳定版源代码；独立入口已部署，V2.1 根路径继续作为兼容旧版。GitHub Actions 自动化测试、GitHub Pages 前端部署与 Cloudflare Worker 部署均已成功。
 
@@ -99,3 +101,17 @@ npm run check
 - `test/v2.2-ui.test.js`：提示、综合积分排名、原始胜率、手动计时、邮箱验证反馈和管理员自调积分规则验收
 
 当前 V2.2 稳定入口为独立路径 `/v2.2/`；根路径仍保留 V2.1 旧版。自动化测试与部署成功不替代后续安全维护；请勿将 service_role、数据库密码或 Cloudflare API Token 放入公开代码。
+
+
+## V2.3 开发中（2026-10-28）
+
+V2.2 稳定入口继续保留。本分支开始实现以下升级：
+
+- **本地即时对局**：落子、AI 行棋、计时和棋谱在浏览器本地运行，不再每手等待 Worker 往返。
+- **终局云端结算**：登录用户结束对局后提交精简事件流；Worker 复核落子顺序、AI 应手、胜负和悔棋记录，再更新云端积分。
+- **断网容错**：终局提交先写入本地待同步队列，网络恢复或点击“重试上传”后再次提交；服务端使用对局 ID 做幂等检查。
+- **猫咪咖啡馆棋盘**：奶油粉棋盘、猫爪装饰；新增“猫猫软糖”动漫猫头棋子，可分别试穿与装备。
+- **落子音效**：使用 Web Audio API 生成轻量音效，提供开关，不需要下载音频文件。
+- **兼容性**：游客继续使用本地积分；登录用户的正式云端成绩只在服务端验证成功后结算。旧版在线 API 保留，避免直接删除旧接口。
+
+> 当前为开发分支，完成自动化回归和 Worker 部署前不应替代 V2.2 稳定版。部署前运行 `npm run check` 和 `npm test`，再从 GitHub Actions 部署 Worker。
