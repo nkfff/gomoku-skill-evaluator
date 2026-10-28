@@ -5,12 +5,12 @@ compatibility_date = "2026-10-01"
 [vars]
 FRONTEND_ORIGIN = "https://nkfff.github.io"
 
-# Create a separate V3.0 D1 database before deployment.
-# Apply migrations/0001_init.sql, 0002_accounts.sql, and 0003_pvp.sql.
+# Reuse the existing V2.2 D1 database so account UUIDs and custom display names remain available.
+# V3.0 only adds pvp_* tables through 0003_pvp.sql. Back up D1 before production migration.
 [[d1_databases]]
 binding = "DB"
-database_name = "gomoku-v3"
-database_id = "REPLACE_WITH_V3_D1_DATABASE_ID"
+database_name = "gomoku-v2"
+database_id = "REPLACE_WITH_V2_D1_DATABASE_ID"
 migrations_dir = "migrations"
 
 [[durable_objects.bindings]]
