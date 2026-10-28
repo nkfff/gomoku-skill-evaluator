@@ -65,5 +65,11 @@ jobs:
               raise SystemExit("V3.0 must reuse the current V2.3 auth and API configuration.")
           if "GOMOKU_PVP_API_URL" not in config:
               raise SystemExit("PVP API endpoint is missing.")
-          print("V3.0 inherits current V2.3 modules and global themes; PVP wiring OK")
+          pvp = Path("v3.0/pvp-ui.js").read_text(encoding="utf-8")
+          for marker in ["BOARD_THEMES", "PIECE_THEMES", "currentVisualThemes", "drawCatStone"]:
+              if marker not in pvp:
+                  raise SystemExit(f"V3.0 PVP board is missing V2.3 theme support: {marker}")
+          if "body[data-board-theme] .pvp-board" not in v30_style:
+              raise SystemExit("V3.0 PVP board does not inherit global theme styling.")
+          print("V3.0 inherits current V2.3 modules and global themes; themed PVP wiring OK")
           PY
