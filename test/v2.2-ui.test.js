@@ -55,3 +55,17 @@ test("email confirmation shows a visible message outside the account tab",()=>{
  assert.ok(account.includes("邮箱验证成功！账号已激活并自动登录"));
  assert.ok(account.includes("hasAuthCallback"));
 });
+
+test("V2.3 AI matches are local-first and only submit the completed game",()=>{
+ assert.match(app,/function startGame\(\)/);
+ const start=app.slice(app.indexOf("function startGame"),app.indexOf("function drop"));
+ assert.doesNotMatch(start,/api\("start"/);
+ assert.match(app,/api\("submit"/);
+ assert.match(worker,/url\.pathname==="\/api\/submit"/);
+ assert.match(worker,/validateSubmittedTimeline/);
+});
+test("V2.3 provides a cat-themed board, cat-head pieces and optional move sound",()=>{
+ assert.ok(app.includes('id:"catcafe"'));assert.ok(app.includes('id:"cat"'));
+ assert.match(app,/function drawCatPiece/);assert.match(app,/function playMoveSound/);
+ assert.ok(html.includes('id="soundToggle"'));assert.ok(html.includes('id="retrySync"'));
+});
