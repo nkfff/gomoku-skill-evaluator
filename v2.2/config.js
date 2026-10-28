@@ -1,5 +1,5 @@
 // Public browser configuration. The Supabase Project URL and publishable key are configured.
-// Worker URL remains blank until the Cloudflare Worker is deployed.
+// Cloudflare Worker is deployed; frontend API endpoint is configured.
 // Never put a Supabase service_role key or any secret in this public file.
 window.GOMOKU_API_URL = "https://gomoku-v2-api.1395598907.workers.dev";
 window.GOMOKU_SUPABASE_URL = "https://khnlxucuvagtpdbooexa.supabase.co";
