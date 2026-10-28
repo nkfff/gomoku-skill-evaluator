@@ -22,8 +22,8 @@ V2.3 已部署至独立预览入口，**V2.2 稳定版与 V2.1 兼容入口保�
 
 - **低延迟**：AI 落子、计时与棋谱在浏览器本地执行，不再逐手等待网络响应。
 - **终局结算**：登录对局在结束后提交棋谱，由 Cloudflare Worker 验证并结算；断网时暂存本地，可重试同步。
-- **猫猫主题**：奶油粉猫咪咖啡馆棋盘、猫爪装饰、动漫猫猫头棋子，以及可开关的落子音效。
-- **部署与检查**：[Worker 部署及线上健康检查](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158103)、[自动化测试](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158258)、[GitHub Pages 发布](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670508182)。
+- **全局皮肤联动（本次修复）**：6 种棋盘主题（经典榉木、翡翠、暗夜星河、樱花庭院、猫咪咖啡馆、曜金）分别控制整站背景、面板、文字、表单与提示样式；6 种棋子主题（经典玉石、水晶冰魄、水墨丹青、霓虹宇宙、黑曜珍珠、猫猫软糖）同步控制按钮、选中态、链接强调色和交互光效。棋盘与棋子可自由组合，不再只有猫猫主题影响全站外观。
+- **主题修复测试**：新增 6 个棋盘主题与 6 个棋子主题的覆盖测试，防止全局风格回归。\n- **部署与检查**：[Worker 部署及线上健康检查](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158103)、[自动化测试](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158258)、[GitHub Pages 发布](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670508182)。
 
 注意：自动化测试和部署检查已通过；胜负结算、断网重试及移动端外观仍建议在真实浏览器中做一次人工验收。
 
