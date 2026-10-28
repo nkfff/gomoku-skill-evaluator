@@ -63,7 +63,7 @@ export default {
   if(url.pathname==="/api/health")return reply({ok:true,version:"2.2",configured:!!env.SUPABASE_URL},200,cors);
   try{
    if(url.pathname==="/api/leaderboard"&&request.method==="GET"){
-    const {results}=await env.DB.prepare("SELECT name,earned_points,wins,losses,draws FROM players WHERE banned=0 ORDER BY earned_points DESC,wins DESC LIMIT 30").all();
+    const {results}=await env.DB.prepare("SELECT name,earned_points,wins,losses,draws,(wins+losses+draws) AS games_played,CASE WHEN (wins+losses+draws)>0 THEN ROUND(100.0*wins/(wins+losses+draws),1) ELSE 0 END AS win_rate,ROUND(100.0*(wins+2.5)/(wins+losses+draws+5),1) AS adjusted_win_rate FROM players WHERE banned=0 AND (wins+losses+draws)>0 ORDER BY adjusted_win_rate DESC,games_played DESC,earned_points DESC LIMIT 30").all();
     return reply({players:results},200,cors);
    }
    const user=await authenticate(request,env);
@@ -94,7 +94,8 @@ export default {
    if(url.pathname.startsWith("/api/admin/")){
     adminOrThrow(env,user);
     const target=body.targetId;
-    if(!uuid(target)||target===user.id)throw invalid("不能操作无效目标或管理员自己");
+    if(!uuid(target))throw invalid("目标账号 ID 无效");
+     if(target===user.id&&url.pathname!=="/api/admin/adjust-points")throw invalid("管理员可以调整自己的积分，但不能封禁或重置自己的账号");
     const current=await profile(env,target);
     if(!current)throw invalid("用户不存在",404);
     if(url.pathname==="/api/admin/adjust-points"){
