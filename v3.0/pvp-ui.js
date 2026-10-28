@@ -145,6 +145,117 @@ function renderClock() {
   $("pvpOpponentClock").textContent = formatClock(currentClock(match, otherColor));
 }
 
+const BOARD_THEMES = {
+  classic: {bg:"#dcb77b", grid:"#815830"},
+  jade: {bg:"#a8c8b2", grid:"#42725b"},
+  night: {bg:"#24283b", grid:"#65729b"},
+  cherry: {bg:"#f0c8cd", grid:"#a96a76"},
+  catcafe: {bg:"#fff1f6", grid:"#c7789a", cat:true},
+  gold: {bg:"#3c3131", grid:"#ac884a"}
+};
+const PIECE_THEMES = {
+  classic: {black:"#18191e", white:"#fffdf4", ring:"#74706d"},
+  crystal: {black:"#2367b3", white:"#d5faff", ring:"#86d3ff", gloss:true},
+  ink: {black:"#14262c", white:"#f5e9d8", ring:"#c28d5e"},
+  neon: {black:"#bb35fe", white:"#42f7ed", ring:"#f0a4ff", gloss:true},
+  pearl: {black:"#2c182a", white:"#ffdcf0", ring:"#d7a0b9", gloss:true},
+  cat: {black:"#30273f", white:"#fff8fc", ring:"#ee8db2", gloss:true, cat:true}
+};
+
+function currentVisualThemes() {
+  let boardId = document.body.dataset.boardTheme || "";
+  let pieceId = document.body.dataset.pieceTheme || "";
+  if (!boardId || !pieceId) {
+    try {
+      const profile = JSON.parse(localStorage.getItem("gomoku-v2-local-player") || "{}");
+      boardId = boardId || profile.boardSkin || profile.skin || "classic";
+      pieceId = pieceId || profile.pieceSkin || "classic";
+    } catch {
+      boardId = boardId || "classic";
+      pieceId = pieceId || "classic";
+    }
+  }
+  return {
+    board: BOARD_THEMES[boardId] || BOARD_THEMES.classic,
+    piece: PIECE_THEMES[pieceId] || PIECE_THEMES.classic
+  };
+}
+
+function drawPaw(ctx, x, y, scale) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#f2a5bf99";
+  for (const [px, py, rx, ry] of [[-7,-5,3,4],[0,-8,3,4],[7,-5,3,4]]) {
+    ctx.beginPath();
+    ctx.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 8, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawCatStone(ctx, x, y, stone, piece, isLast) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.beginPath();
+  ctx.moveTo(-12, -5);
+  ctx.lineTo(-10, -14);
+  ctx.lineTo(-3, -10);
+  ctx.quadraticCurveTo(0, -12, 3, -10);
+  ctx.lineTo(10, -14);
+  ctx.lineTo(12, -5);
+  ctx.arc(0, 1, 12, -0.1, Math.PI + 0.1);
+  ctx.closePath();
+  ctx.fillStyle = stone === 1 ? piece.black : piece.white;
+  ctx.shadowColor = "#0005";
+  ctx.shadowBlur = 3;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = piece.ring;
+  ctx.lineWidth = 1.3;
+  ctx.stroke();
+  const eye = stone === 1 ? "#fff8fc" : "#49384d";
+  ctx.fillStyle = eye;
+  ctx.beginPath();
+  ctx.ellipse(-4.5, -1, 1.5, 2.3, -0.12, 0, Math.PI * 2);
+  ctx.ellipse(4.5, -1, 1.5, 2.3, 0.12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-1.6, 3);
+  ctx.lineTo(1.6, 3);
+  ctx.lineTo(0, 4.8);
+  ctx.closePath();
+  ctx.fillStyle = "#e982a8";
+  ctx.fill();
+  ctx.strokeStyle = eye;
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(-1, 5);
+  ctx.quadraticCurveTo(-3, 7, -4, 5.5);
+  ctx.moveTo(1, 5);
+  ctx.quadraticCurveTo(3, 7, 4, 5.5);
+  ctx.moveTo(-8, 3);
+  ctx.lineTo(-12, 2);
+  ctx.moveTo(-8, 5);
+  ctx.lineTo(-11, 7);
+  ctx.moveTo(8, 3);
+  ctx.lineTo(12, 2);
+  ctx.moveTo(8, 5);
+  ctx.lineTo(11, 7);
+  ctx.stroke();
+  if (isLast) {
+    ctx.beginPath();
+    ctx.arc(0, 0, 17, 0, Math.PI * 2);
+    ctx.strokeStyle = "#f34c42";
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawBoard() {
   const canvas = $("pvpBoard");
   if (!canvas) return;
@@ -153,10 +264,17 @@ function drawBoard() {
   const size = canvas.width;
   const offset = 48;
   const cell = 36;
+  const {board: boardSkin, piece: pieceSkin} = currentVisualThemes();
   ctx.clearRect(0, 0, size, size);
-  ctx.fillStyle = "#e5c58d";
+  ctx.fillStyle = boardSkin.bg;
   ctx.fillRect(0, 0, size, size);
-  ctx.strokeStyle = "#765631";
+  if (boardSkin.cat) {
+    drawPaw(ctx, 17, 17, 0.9);
+    drawPaw(ctx, size - 17, 17, 0.9);
+    drawPaw(ctx, 17, size - 17, 0.9);
+    drawPaw(ctx, size - 17, size - 17, 0.9);
+  }
+  ctx.strokeStyle = boardSkin.grid;
   ctx.lineWidth = 1.2;
   for (let k = 0; k < 15; k++) {
     const p = offset + cell * k;
@@ -170,30 +288,43 @@ function drawBoard() {
   for (const r of [3, 7, 11]) for (const c of [3, 7, 11]) {
     ctx.beginPath();
     ctx.arc(offset + c * cell, offset + r * cell, 3, 0, Math.PI * 2);
-    ctx.fillStyle = "#765631";
+    ctx.fillStyle = boardSkin.grid;
     ctx.fill();
   }
   if (!match) return;
+  const last = match.moves && match.moves[match.moves.length - 1];
   for (let i = 0; i < match.board.length; i++) {
     const color = match.board[i];
     if (!color) continue;
     const x = offset + (i % 15) * cell;
     const y = offset + Math.floor(i / 15) * cell;
-    ctx.beginPath();
-    ctx.arc(x, y, 15, 0, Math.PI * 2);
-    ctx.fillStyle = color === 1 ? "#18191e" : "#fffdf4";
-    ctx.fill();
-    ctx.strokeStyle = color === 1 ? "#050608" : "#aaa49a";
-    ctx.stroke();
-  }
-  const last = match.moves && match.moves[match.moves.length - 1];
-  if (last) {
-    const x = offset + (last.cellIndex % 15) * cell;
-    const y = offset + Math.floor(last.cellIndex / 15) * cell;
-    ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = "#ed5148";
-    ctx.fill();
+    const isLast = !!last && last.cellIndex === i;
+    if (pieceSkin.cat) {
+      drawCatStone(ctx, x, y, color, pieceSkin, isLast);
+    } else {
+      ctx.beginPath();
+      ctx.arc(x, y, 15, 0, Math.PI * 2);
+      ctx.fillStyle = color === 1 ? pieceSkin.black : pieceSkin.white;
+      ctx.shadowColor = "#0005";
+      ctx.shadowBlur = 3;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = pieceSkin.ring;
+      ctx.lineWidth = pieceSkin.gloss ? 2.2 : 0.8;
+      ctx.stroke();
+      if (pieceSkin.gloss) {
+        ctx.beginPath();
+        ctx.arc(x - 4, y - 5, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff66";
+        ctx.fill();
+      }
+      if (isLast) {
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "#f34c42";
+        ctx.fill();
+      }
+    }
   }
 }
 
