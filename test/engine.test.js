@@ -52,6 +52,7 @@ test("depth-2 evaluation ranks an immediate win at Top-1",()=>{
 test("must-block errors are severe and input board remains unchanged",()=>{
  const b=Array(CELLS).fill(0);
  for(let c=4;c<8;c++)b[spot(7,c)]=2;
+ b[spot(7,3)]=1; // Only one winning endpoint remains, so defense is possible.
  const old=b.slice();
  const q=analyzeMove(b,1,spot(9,9));
  assert.equal(q.severe,true);
