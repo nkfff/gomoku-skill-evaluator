@@ -8,7 +8,7 @@
     "dev": "npx wrangler dev",
     "deploy": "npx wrangler deploy",
     "migrate": "npx wrangler d1 migrations apply gomoku-v2 --remote",
-    "check": "node --check src/app.js && node --check src/account.js && node --check src/assessment.js && node --check src/engine.js && node --check src/pvp.js && node --check worker/index.js && node --check worker/v3.js && node --check worker/pvp-room.js"
+    "check": "node --check src/app.js && node --check src/account.js && node --check src/assessment.js && node --check src/engine.js && node --check src/pvp.js && node --check worker/index.js && node --check worker/v3.js && node --check worker/pvp-room.js && node --check v3.0/pvp-ui.js"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
