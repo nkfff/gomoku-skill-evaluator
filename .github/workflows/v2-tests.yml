@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install dependencies
+        run: npm install
       - name: Run deterministic engine tests
         run: npm test
       - name: Verify front-end and Worker JavaScript syntax
