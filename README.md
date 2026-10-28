@@ -1,10 +1,22 @@
-# 五子棋 V2.2 · 稳定版与账号个性化升级
+# 五子棋 V2.2 稳定版与 V2.3 预览版
 
-**当前稳定版：V2.2 · V2.3 开发中（本地即时对局与猫猫主题）**
+**当前稳定版：V2.2 · V2.3 预览版已部署（本地即时对局与猫猫主题）**
 
-[🎮 V2.2 稳定版在线入口](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/)** · [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) · [GitHub Actions 部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions)
+[🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) · [🐱 V2.3 预览版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) · [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) · [GitHub Actions 部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions)
 
-> **最近更新：2026-10-28。** 本分支保留 V2.2 稳定版源代码；独立入口已部署，V2.1 根路径继续作为兼容旧版。GitHub Actions 自动化测试、GitHub Pages 前端部署与 Cloudflare Worker 部署均已成功。
+> **最近更新：2026-10-28。** V2.2 继续作为稳定版；V2.3 已部署到独立 `/v2.3/` 预览入口，V2.1 根路径继续兼容。V2.3 自动化检查、Cloudflare Worker/D1 部署与最新 GitHub Pages 发布均成功；真实浏览器端到端验收仍待完成。
+
+## V2.3 预览版发布记录（2026-10-28）
+
+在线入口：[打开 V2.3 猫猫主题预览版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/)。
+
+- **本地即时对局**：落子、AI 行棋、计时与棋谱在浏览器本地运行，不再逐手等待 Worker 响应。
+- **终局云端结算**：登录用户在对局结束后提交事件流，由 Worker 验证棋谱、AI 应手、胜负与悔棋费用后结算。
+- **断网重试与防重复结算**：成绩暂存浏览器待同步队列；恢复网络或手动重试时重新提交，D1 migration 0003 使用 `settled_at` 标记避免重复发放。
+- **猫猫主题与音效**：奶油粉猫咪咖啡馆棋盘、猫爪装饰、猫猫头棋子、可开关的 Web Audio 落子音效。
+- **部署与自动化检查**：[Worker 部署及线上健康检查](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158103)、[V2.3 测试](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670158258)、[GitHub Pages 最新发布](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/40670508182)。
+
+**验收边界：** 自动化测试、D1 迁移、Worker 健康检查和 Pages 发布均已通过；三档 AI 全流程、胜负积分、断网恢复及移动端布局仍需真实浏览器人工验收。V2.2 稳定入口保持不变。
 
 ## V2.2 功能清单与本轮更新
 
