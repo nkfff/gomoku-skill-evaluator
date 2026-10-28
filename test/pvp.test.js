@@ -4,6 +4,7 @@ import {
   createMatchState, applyPvpMove, finishByResign, finishByTimeout,
   calculateElo, ratingTier, publicMatchState
 } from "../src/pvp.js";
+import {winLine} from "../src/engine.js";
 
 const makeState = (now = 1000) => createMatchState({
   roomId: "room-1", matchId: "match-1",
@@ -54,20 +55,10 @@ test("horizontal five ends the match and freezes further moves", () => {
   assert.throws(() => applyPvpMove(state, {playerId: "bob", cellIndex: 19, now: 3000}), /MATCH_NOT_ACTIVE/);
 });
 
-test("overline is a win under standard no-forbidden-move rules", () => {
-  let state = makeState();
-  const seq = [
-    ["alice", 0], ["bob", 15], ["alice", 1], ["bob", 16],
-    ["alice", 2], ["bob", 17], ["alice", 3], ["bob", 18],
-    ["alice", 4], ["bob", 19], ["alice", 5]
-  ];
-  for (let i = 0; i < seq.length; i++) {
-    const [playerId, cellIndex] = seq[i];
-    state = applyPvpMove(state, {playerId, cellIndex, now: 1000 + (i + 1) * 100}).state;
-    if (state.status === "finished" && i < seq.length - 1) break;
-  }
-  assert.equal(state.status, "finished");
-  assert.equal(state.result, "black_win");
+test("six in a row is a winning line under standard no-forbidden-move rules", () => {
+  const board = Array(225).fill(0);
+  for (let i = 0; i < 6; i++) board[i] = 1;
+  assert.equal(winLine(board, 5, 1).length, 6);
 });
 
 test("resign and timeout give victory to the opponent", () => {
