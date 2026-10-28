@@ -1,4 +1,5 @@
-import {SIZE,CELLS,LEVELS,coord,inside,spot,winLine,chooseAI,advice,replay} from "./engine.js";
+import {SIZE,CELLS,LEVELS,coord,inside,spot,winLine,chooseAI,advice,replay,rankedMoves} from "./engine.js";
+import {initAccount,bearer,loggedIn,cloudConfigured} from "./account.js";
 import {summarizeQuality} from "./assessment.js";
 const $=id=>document.getElementById(id);
 const skins=[
@@ -8,14 +9,29 @@ const skins=[
 {id:"cherry",name:"樱花庭院",cost:260,bg:"#f0c8cd",grid:"#a96a76",black:"#73334f",white:"#fff1f6"},
 {id:"gold",name:"曜金棋局",cost:500,bg:"#3c3131",grid:"#ac884a",black:"#171414",white:"#efd19a"}
 ];
+const pieceSkins=[
+ {id:"classic",name:"经典玉石",cost:0,black:"#18191e",white:"#fffdf4",ring:"#74706d",gloss:false},
+ {id:"crystal",name:"水晶冰魄",cost:45,black:"#2367b3",white:"#d5faff",ring:"#86d3ff",gloss:true},
+ {id:"ink",name:"水墨丹青",cost:85,black:"#14262c",white:"#f5e9d8",ring:"#c28d5e",gloss:false},
+ {id:"neon",name:"霓虹宇宙",cost:140,black:"#bb35fe",white:"#42f7ed",ring:"#f0a4ff",gloss:true},
+ {id:"pearl",name:"黑曜珍珠",cost:220,black:"#2c182a",white:"#ffdcf0",ring:"#d7a0b9",gloss:true}
+];
 const STORE="gomoku-v2-local-player";
 const API_URL=(window.GOMOKU_API_URL||"").replace(/\/$/,"");
+const cloudMode=()=>cloudConfigured()&&loggedIn();
 let remoteGame=null,remoteBusy=false;
-async function api(path,payload){const r=await fetch(API_URL+"/api/"+path,{method:payload?"POST":"GET",headers:{"Content-Type":"application/json"},body:payload?JSON.stringify({playerId:profile.id,...payload}):undefined});const v=await r.json();if(!r.ok)throw Error(v.error||"Cloud API unavailable");return v;}
-function applyRemoteProfile(p){if(!p)return;profile.points=p.points;profile.wins=p.wins;profile.losses=p.losses;profile.draws=p.draws;profile.owned=p.inventory;profile.skin=p.selected_skin;profile.name=p.name;save();}
-const freshProfile=()=>({id:crypto.randomUUID(),name:"匿名棋手",points:0,owned:["classic"],skin:"classic",wins:0,losses:0,draws:0,claimed:[]});
-function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&&typeof s.id==="string"&&Array.isArray(s.owned))return {...freshProfile(),...s};}catch{}return freshProfile();}
+async function api(path,payload){const token=await bearer();if(!token)throw Error("请先登录以使用云端功能");
+ const r=await fetch(API_URL+"/api/"+path,{method:payload?"POST":"GET",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:payload?JSON.stringify(payload):undefined});
+ const v=await r.json();if(!r.ok)throw Error(v.error||"Cloud API unavailable");return v;
+}
+function applyRemoteProfile(p){if(!p)return;
+ profile.points=p.points;profile.earnedPoints=p.earned_points;profile.wins=p.wins;profile.losses=p.losses;profile.draws=p.draws;
+ profile.owned=p.inventory;profile.boardSkin=p.selected_board||"classic";profile.pieceSkin=p.selected_piece||"classic";profile.name=p.name;save();
+}
+const freshProfile=()=>({id:crypto.randomUUID(),name:"匿名棋手",points:0,earnedPoints:0,owned:["classic","board:classic","piece:classic"],skin:"classic",boardSkin:"classic",pieceSkin:"classic",wins:0,losses:0,draws:0,claimed:[]});
+function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&&typeof s.id==="string"&&Array.isArray(s.owned))return {...freshProfile(),...s,boardSkin:s.boardSkin||s.skin||"classic",pieceSkin:s.pieceSkin||"classic"};}catch{}return freshProfile();}
 let profile=loadProfile(),game,task=null,turnToken=0,activeTab="game",endedAt=0,replayStep=0,lastResult=null,cloudEnabled=false;
+let hints=[],previewBoard="classic",previewPiece="classic";
 const analysisWorker = typeof Worker !== "undefined" ? new Worker(new URL("./analysis.worker.js", import.meta.url), {type:"module"}) : null;
 if (analysisWorker) {
  analysisWorker.onmessage = ({data})=>{
@@ -37,14 +53,16 @@ async function newGame(){
  clearTimeout(task);turnToken++;
  const now=performance.now();
  game={id:crypto.randomUUID(),b:Array(CELLS).fill(0),moves:[],events:[],level:$("difficulty").value,turn:1,started:now,turnStart:now,ended:0,result:0,undo:0};
+ hints=[];$("hintPanel").hidden=true;
  endedAt=0;replayStep=0;lastResult=null;remoteGame=null;remoteBusy=false;
- if(API_URL){try{const v=await api("start",{level:game.level});remoteGame={gameId:v.gameId,revision:v.revision};}catch(e){$("cloudBanner").textContent="云端暂不可用，已切换到本地模式："+e.message;}}
+ if(cloudMode()){try{const v=await api("start",{level:game.level});remoteGame={gameId:v.gameId,revision:v.revision};}catch(e){$("cloudBanner").textContent="云端暂不可用，已切换到本地模式："+e.message;}}
  $("review").disabled=true;$("undo").disabled=true;
  $("recommend").textContent="选一手落子后，这里将显示推荐与棋形解释。";
  activate("game");render();
 }
 function drop(i,p,elapsed,analysis=null){
  const before=game.b.slice();
+ hints=[];$("hintPanel").hidden=true;
  game.b[i]=p;
  const record={id:crypto.randomUUID(),i,p,coord:coord(i),seconds:+elapsed.toFixed(2),at:new Date().toISOString(),analysis,quality:null};
  game.moves.push(record);game.events.push({type:"move",id:record.id,i,p,coord:record.coord,seconds:record.seconds,at:record.at,analysis});
@@ -56,7 +74,7 @@ function finish(result){
  game.result=result;game.turn=0;game.ended=performance.now();endedAt=game.ended;clearTimeout(task);task=null;
  game.events.push({type:"end",result,at:new Date().toISOString()});
  $("undo").disabled=true;$("review").disabled=false;
- if(!remoteGame){if(result===1){profile.wins++;profile.points+=LEVELS[game.level].reward;}
+ if(!remoteGame){if(result===1){profile.wins++;profile.points+=LEVELS[game.level].reward;profile.earnedPoints+=LEVELS[game.level].reward;}
  else if(result===2)profile.losses++;else profile.draws++;save();}
  render();
 }
