@@ -56,7 +56,7 @@ function validateSubmittedTimeline(events,level,reportedResult,reportedUndoCount
     else pendingAI=true;
    }else if(event.p===2){
     if(!pendingAI||moves.length%2!==1)throw invalid("AI 落子顺序不合法",409);
-    if(chooseAI(b,level).index!==event.i)throw invalid("AI 棋步与当前难度引擎不一致",409);
+    if(!rankedMoves(b,2,LEVELS[level].width).includes(event.i))throw invalid("AI 落子不在当前难度的候选范围内",409);
     moves.push({i:event.i,p:2});b[event.i]=2;pendingAI=false;
     if(winLine(b,event.i,2).length)terminal=2;
     else if(moves.length===CELLS)terminal=3;
@@ -122,6 +122,7 @@ export default {
    if(request.method!=="POST")throw invalid("路径不存在",404);
    if(Number(request.headers.get("Content-Length")||0)>25000)throw invalid("请求过大",413);
    const body=await request.json();
+   if(JSON.stringify(body).length>25000)throw invalid("请求过大",413);
    if(url.pathname==="/api/profile")return reply({profile:await profile(env,user.id)},200,cors);
    if(url.pathname==="/api/name"){
     const name=clean(body.name);
@@ -176,7 +177,7 @@ export default {
    if(url.pathname==="/api/submit"){
     if(!uuid(body.gameId)||!LEVELS[body.level]||![1,2,3].includes(body.result)||!Number.isInteger(body.undoCount)||body.undoCount<0||body.undoCount>112)throw invalid("对局提交参数不合法");
     const validated=validateSubmittedTimeline(body.events,body.level,body.result,body.undoCount);
-    const finalMoves=JSON.stringify(validated.moves),eventJson=JSON.stringify(body.events);
+    const finalMoves=JSON.stringify(validated.moves),cleanEvents=body.events.map(event=>event.type==="move"?{type:"move",i:event.i,p:event.p}:event.type==="undo"?{type:"undo",removed:event.removed,paid:event.paid,cost:event.cost}:{type:"end",result:event.result}),eventJson=JSON.stringify(cleanEvents);
     const existing=await env.DB.prepare("SELECT player_id,level,moves,status,events,settled_at FROM games WHERE id=?").bind(body.gameId).first();
     if(!existing)throw invalid("云端对局会话不存在，请重试同步",409);
     if(existing.player_id!==user.id)throw invalid("对局 ID 已被使用",409);
