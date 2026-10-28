@@ -7,6 +7,7 @@ const ui = readFileSync(new URL("../v3.0/pvp-ui.js", import.meta.url), "utf8");
 const config = readFileSync(new URL("../v3.0/config.js", import.meta.url), "utf8");
 const worker = readFileSync(new URL("../worker/v3.js", import.meta.url), "utf8");
 const room = readFileSync(new URL("../worker/pvp-room.js", import.meta.url), "utf8");
+const schema = readFileSync(new URL("../migrations/0003_pvp.sql", import.meta.url), "utf8");
 
 test("V3 page has a dedicated PVP tab, board and room controls", () => {
   for (const id of [
@@ -42,7 +43,7 @@ test("PVP API validates Supabase JWT and only issues short-lived one-use WebSock
 test("room service validates turn and revision and persists rating events idempotently", () => {
   assert.ok(room.includes("applyPvpMove"));
   assert.ok(room.includes("STALE_REVISION"));
-  assert.ok(room.includes("UNIQUE(match_id, player_id)"));
+  assert.ok(schema.includes("UNIQUE(match_id, player_id)"));
   assert.ok(room.includes("INSERT OR IGNORE INTO pvp_rating_events"));
   assert.ok(room.includes("settlementPending"));
 });
