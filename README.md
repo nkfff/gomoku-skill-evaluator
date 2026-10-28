@@ -32,7 +32,7 @@
 - **娱乐化本局小结**：以更轻松的文字总结胜负、落子表现和关键机会。
 - **账号与管理员界面**：邮箱注册/登录、找回密码、用户查询、积分调整、封禁及审计日志的代码已开发，等待云端服务配置。
 
-> **当前 V2.2 只完成了独立游客预览部署。** `v2.2/config.js` 已填入 Supabase Project URL；Worker URL 与 publishable key 尚未配置。账号注册、云端积分、管理员操作和跨玩家排行榜目前仍不可用；游客积分存储在本浏览器中，不应视为正式成绩。
+> **当前 V2.2 只完成了独立游客预览部署。** `v2.2/config.js` 已配置 Supabase Project URL 与 Publishable Key；Worker URL 和 D1 数据库尚未配置。账号注册、云端积分、管理员操作和跨玩家排行榜目前仍不可用；游客积分存储在本浏览器中，不应视为正式成绩。
 
 ## V2.1 评分说明
 
@@ -60,60 +60,49 @@
 
 ## V2.2 云端账号系统部署
 
-V2.2 使用 **Supabase Auth + Cloudflare Workers + Cloudflare D1**：Supabase 负责账号认证，Worker 验证 JWT 并处理游戏 API，D1 保存用户资料、积分、皮肤、棋谱和管理审计记录。
+V2.2 使用 **Supabase Auth + Cloudflare Workers + Cloudflare D1**。当前 Supabase Project URL 与 Publishable Key 已写入 `v2.2/config.js`；账号注册仍未启用，因为 Worker URL 和 D1 数据库尚未部署。
 
-**登录 Supabase 控制台并不等于已连接项目。** 需要创建项目并完成以下步骤后，V2.2 账号功能才会启用。
+### 1. 配置 Supabase
 
-1. **创建 Supabase 项目**，在 Authentication 中启用 Email/Password；配置 Site URL 与 Redirect URLs，加入 `https://nkfff.github.io/gomoku-skill-evaluator/v2.2/`。建议开启邮箱验证。
-2. **配置 JWT 签名密钥**：Worker 使用 Supabase 项目的 JWKS 验证用户令牌；按开发分支说明启用兼容的非对称 ES256 或 RS256 签名密钥。参考 [Supabase JWT Signing Keys](https://supabase.com/docs/guides/auth/signing-keys)。
-3. **创建 Cloudflare D1**，登录 Cloudflare 并运行：
-   ```bash
-   npx wrangler login
-   npx wrangler d1 create gomoku-v2
-   ```
-   将返回的数据库 ID 写入开发分支的 `wrangler.toml`，替换 `REPLACE_WITH_YOUR_D1_DATABASE_ID`。
-4. **部署数据库迁移**：在开发分支安装依赖后运行 `npx wrangler d1 migrations apply gomoku-v2 --remote`。
-5. **配置 Worker 环境变量**：
-   ```bash
-   npx wrangler secret put SUPABASE_URL
-   npx wrangler secret put ADMIN_USER_ID
-   ```
-   分别输入 Supabase Project URL，以及管理员本人在 Supabase Authentication → Users 中的真实 User ID。管理员应先注册自己的账号，再设置该 ID。不要将 `service_role` 或任何私密密钥放进前端。
-6. **部署 Worker**：运行 `npx wrangler deploy`，记录 Worker URL。
-7. **配置前端**：修改开发分支及预览目录的 `config.js`，填入 Worker URL、Supabase Project URL 与 Supabase **publishable key**：
-   ```js
-   window.GOMOKU_API_URL = "https://your-worker.your-subdomain.workers.dev";
-   window.GOMOKU_SUPABASE_URL = "https://your-project.supabase.co";
-   window.GOMOKU_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_xxx";
-   ```
-8. 完成注册、邮箱验证、登录/登出、胜局积分、皮肤购买、付费悔棋、管理员调分/封禁和审计日志的端到端验收后，再考虑将 V2.2 提升为正式主页。
+项目：`https://khnlxucuvagtpdbooexa.supabase.co`
 
-详细代码和部署说明见 [V2.2 开发分支 README](https://github.com/nkfff/gomoku-skill-evaluator/tree/feature/v2.2-accounts-customization)。**不要在云端服务未配置、权限与积分事务未验收前公开启用管理员 API。**
+- 在 **Authentication → Providers** 启用 Email/Password。
+- 在 **Authentication → URL Configuration** 的 Redirect URLs 加入 `https://nkfff.github.io/gomoku-skill-evaluator/v2.2/`。
+- 在 **JWT Signing Keys** 确认用户访问令牌使用 Worker 支持的 ES256 或 RS256 签名密钥。参考 [Supabase JWT Signing Keys](https://supabase.com/docs/guides/auth/signing-keys)。
 
-## 本地开发与测试
+### 2. 准备 Cloudflare D1 和部署凭据
 
-V2.1 / V2.2 使用 ES Modules，需通过 HTTP 运行，不能直接双击 `index.html`。
+1. 在 Cloudflare 创建 D1 数据库，名称设为 `gomoku-v2`，复制数据库 UUID。
+2. 创建 Cloudflare API Token，至少授予目标账号 **Workers Scripts: Edit**、**D1: Edit** 权限。
+3. 在 GitHub 仓库 **Settings → Secrets and variables → Actions** 添加以下 repository secrets：
 
-```bash
-python3 -m http.server 8080
-# V2.1: http://localhost:8080/
-# V2.2 预览文件放在 v2.2/ 目录时访问：
-# http://localhost:8080/v2.2/
+| Secret | 内容 |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API Token，**不要发到聊天或写入代码** |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
+| `CLOUDFLARE_D1_DATABASE_ID` | D1 数据库 UUID |
+| `SUPABASE_URL` | `https://khnlxucuvagtpdbooexa.supabase.co` |
+| `ADMIN_USER_ID` | 可暂不设置，管理员账号注册后再添加 |
+
+### 3. 运行自动部署
+
+在 GitHub 的 **Actions → Deploy V2.2 Cloudflare Worker → Run workflow** 中选择源分支 `feature/v2.2-accounts-customization`。工作流会运行测试、执行 D1 迁移并部署 Worker。
+
+部署成功后，从 Actions 日志复制 Worker 的 `workers.dev` URL，写入 `v2.2/config.js`：
+
+```js
+window.GOMOKU_API_URL = "https://your-worker.your-subdomain.workers.dev";
+window.GOMOKU_SUPABASE_URL = "https://khnlxucuvagtpdbooexa.supabase.co";
+window.GOMOKU_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_...";
 ```
 
-在 V2.2 开发分支运行：
+Supabase URL 和 Publishable Key 已配置；这里只需替换 Worker URL。提交后等待 GitHub Pages 部署成功。
 
-```bash
-npm install
-npm test
-npm run check
-```
+### 4. 启用管理员
 
-GitHub Pages 从 `main / (root)` 发布。根目录为 V2.1 稳定版，`v2.1/` 与 `v2.2/` 为独立静态快照；V2.2 开发源代码保存在 `feature/v2.2-accounts-customization` 分支。
+先通过预览页注册账号并完成邮箱验证，再到 Supabase **Authentication → Users** 复制自己的 User ID，将其添加为 GitHub Actions secret `ADMIN_USER_ID`，重新运行 Worker 部署工作流。管理员权限只由服务端配置的 UUID 决定。
 
-## 隐私与积分
+### 5. 上线前检查
 
-- 云端账号启用前，昵称、积分、皮肤和游客 ID 仅保存在当前浏览器的 `localStorage`，不会跨设备同步；清除网站数据可能丢失。
-- 正式账号使用认证服务返回的唯一用户 ID，不应使用 IP 地址作为账号标识。IP 可能共享、变化，不适合作为稳定身份。
-- 管理员操作需要服务端校验权限并写入审计日志；积分增减应同时写入流水。
-- 任何公开排行榜还需要限流、防刷、滥用监控与端到端测试。
+测试注册、邮件验证、登录/登出、胜局积分、皮肤购买、额外悔棋、管理员调分、封禁、审计日志与游客隔离。未完成端到端测试前，不要把 V2.2 提升为正式主页。
+
