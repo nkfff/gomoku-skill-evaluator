@@ -1,0 +1,12 @@
+name = "gomoku-v2-api"
+main = "worker/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+FRONTEND_ORIGIN = "https://nkfff.github.io"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gomoku-v2"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
