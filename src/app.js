@@ -186,7 +186,7 @@ function activate(tab){
   if(button)button.classList.toggle("active",name===tab);
   if(panel)panel.hidden=name!==tab;
  }
- const layout=$("mainLayout"),aiPanel=$("aiPanel");
+ const layout=document.querySelector(".layout"),aiPanel=document.getElementById("aiPanel");
  if(layout)layout.classList.toggle("pvp-mode",tab==="pvp");
  if(aiPanel)aiPanel.hidden=tab==="pvp";
  render();
