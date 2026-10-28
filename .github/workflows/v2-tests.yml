@@ -1,7 +1,7 @@
 name: V2 engine tests
 on:
   push:
-    branches: [feature/v2-major-upgrade, feature/v2.1-scoring]
+    branches: [feature/v2-major-upgrade, feature/v2.1-scoring, feature/v2.2-accounts-customization]
   pull_request:
     branches: [main]
 jobs:
@@ -14,3 +14,5 @@ jobs:
           node-version: '22'
       - name: Run deterministic engine tests
         run: npm test
+      - name: Verify front-end and Worker JavaScript syntax
+        run: npm run check
