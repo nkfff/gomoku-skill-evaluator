@@ -57,9 +57,12 @@ jobs:
               if Path("v3.0/src/" + filename).read_bytes() != Path("v2.3/src/" + filename).read_bytes():
                   raise SystemExit(f"V3.0 must reuse the current V2.3 module: {filename}")
           app = Path("v3.0/src/app.js").read_text(encoding="utf-8")
-          if "window.activateGomokuTab=activate;" not in app or "body[data-board-theme]" in v30_style:
-              if "window.activateGomokuTab=activate;" not in app:
-                  raise SystemExit("V3.0 app does not expose PVP tab routing.")
+          if "window.activateGomokuTab=activate;" not in app:
+              raise SystemExit("V3.0 app does not expose PVP tab routing.")
+          v23_config = Path("v2.3/config.js").read_text(encoding="utf-8").strip()
+          v30_config_base = config.split("window.GOMOKU_PVP_API_URL", 1)[0].strip()
+          if v30_config_base != v23_config:
+              raise SystemExit("V3.0 must reuse the current V2.3 auth and API configuration.")
           if "GOMOKU_PVP_API_URL" not in config:
               raise SystemExit("PVP API endpoint is missing.")
           print("V3.0 inherits current V2.3 modules and global themes; PVP wiring OK")
