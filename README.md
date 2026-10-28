@@ -24,7 +24,7 @@
 
 ## 创建真正的账号系统
 
-> 仅登录 Supabase 控制台或创建组织还不够。必须在组织内创建一个 Supabase **项目**，取得 Project URL 与 publishable key，并完成以下配置。V2.2 预览页当前的 `config.js` 仍是空值，因此账号页会提示未连接。
+> 仅登录 Supabase 控制台或创建组织还不够。必须在组织内创建一个 Supabase **项目**，取得 Project URL 与 publishable key，并完成以下配置。V2.2 预览页的 `config.js` 已填入 Project URL，但 Worker URL 与 publishable key 仍待配置，因此账号页仍会提示未连接。
 
 1. 在 Supabase 组织内新建项目，在 **Authentication → Providers** 启用 Email/Password；配置 Site URL 与 Redirect URLs，加入 `https://nkfff.github.io/gomoku-skill-evaluator/v2.2/`，建议开启邮件验证。
 2. 在 Supabase 的 JWT Signing Keys 启用并激活**非对称 ES256 或 RS256 签名密钥**。Worker 通过项目 JWKS 验签，不支持旧 HS256 token。参见 [Supabase JWT Signing Keys](https://supabase.com/docs/guides/auth/signing-keys)。
