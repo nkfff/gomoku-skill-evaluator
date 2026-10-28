@@ -24,23 +24,28 @@
 
 ## 创建真正的账号系统
 
-> 仅登录 Supabase 控制台或创建组织还不够。必须在组织内创建一个 Supabase **项目**，取得 Project URL 与 publishable key，并完成以下配置。V2.2 预览页的 `config.js` 已填入 Project URL，但 Worker URL 与 publishable key 仍待配置，因此账号页仍会提示未连接。
+> Supabase Project URL 与 Publishable Key 已配置在开发分支的 config.js 和 V2.2 预览配置中。Cloudflare Worker URL 与 D1 数据库尚未配置，所以在线账号功能仍未启用。
 
-1. 在 Supabase 组织内新建项目，在 **Authentication → Providers** 启用 Email/Password；配置 Site URL 与 Redirect URLs，加入 `https://nkfff.github.io/gomoku-skill-evaluator/v2.2/`，建议开启邮件验证。
-2. 在 Supabase 的 JWT Signing Keys 启用并激活**非对称 ES256 或 RS256 签名密钥**。Worker 通过项目 JWKS 验签，不支持旧 HS256 token。参见 [Supabase JWT Signing Keys](https://supabase.com/docs/guides/auth/signing-keys)。
-3. 安装依赖 `npm install`，使用 `npx wrangler login` 登录 Cloudflare。
-4. 使用 `npx wrangler d1 create gomoku-v2` 创建 D1 数据库，将返回的 `database_id` 写入 `wrangler.toml`，替换示例占位符。
-5. 运行 `npx wrangler d1 migrations apply gomoku-v2 --remote` 执行 `0001_init.sql`、`0002_accounts.sql`。
-6. 在 **Worker 环境配置** 设置 `SUPABASE_URL`（项目 URL）、`ADMIN_USER_ID`（管理员在 Supabase Auth 中的 UUID），并保持 `FRONTEND_ORIGIN = "https://nkfff.github.io"`。管理员应先正常注册，再将自己真实的用户 ID 配为 `ADMIN_USER_ID`。
-7. 运行 `npx wrangler deploy`。拿到公开的 Worker URL 后，在开发分支的 `config.js` 以及部署预览的 `v2.2/config.js` 中填入 Worker URL、Supabase Project URL、Supabase **publishable** key。前端配置只允许使用公开的 publishable key，绝不能写入 `service_role` 或其他 secret。
-8. 用独立 V2.2 预览环境完整测试：注册、邮件验证、登录、登出、胜利计分、扣分、管理员操作、游客隔离、悔棋和商店兑换。验收后才合并到 `main`。
+1. 在 Supabase Authentication → Providers 启用 Email/Password；在 Authentication → URL Configuration 的 Redirect URLs 中加入 https://nkfff.github.io/gomoku-skill-evaluator/v2.2/，建议开启邮箱验证。
+2. 在 Supabase JWT Signing Keys 确认用户访问令牌使用 Worker 支持的非对称 ES256 或 RS256 签名密钥。参考 https://supabase.com/docs/guides/auth/signing-keys。
+3. 在 Cloudflare 控制台创建 D1 数据库，名称为 gomoku-v2，复制数据库 UUID。
+4. 创建 Cloudflare API Token，至少授予目标账号 Workers Scripts: Edit 和 D1: Edit 权限；记下 Cloudflare Account ID。
+5. 在 GitHub 仓库 Settings → Secrets and variables → Actions 添加以下 repository secrets：
 
-```js
-// config.js：仅可公开的项目配置。不要放 service_role / secret 密钥。
-window.GOMOKU_API_URL = "https://your-worker.your-subdomain.workers.dev";
-window.GOMOKU_SUPABASE_URL = "https://your-project.supabase.co";
-window.GOMOKU_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_xxx";
-```
+| Secret | 内容 |
+|---|---|
+| CLOUDFLARE_API_TOKEN | Cloudflare API Token，不要发到聊天或写入代码 |
+| CLOUDFLARE_ACCOUNT_ID | Cloudflare Account ID |
+| CLOUDFLARE_D1_DATABASE_ID | D1 数据库 UUID |
+| SUPABASE_URL | https://khnlxucuvagtpdbooexa.supabase.co |
+| ADMIN_USER_ID | 可先不设置，管理员注册账号后再添加 |
+
+6. 在 GitHub Actions → Deploy V2.2 Cloudflare Worker → Run workflow 中选择源分支 feature/v2.2-accounts-customization。工作流会安装依赖、运行测试、执行 0001_init.sql 和 0002_accounts.sql 迁移并部署 Worker。
+7. 从 Actions 日志复制 Worker 的 workers.dev URL，写入 main 分支 v2.2/config.js 的 GOMOKU_API_URL。Supabase Project URL 和 Publishable Key 已配置。提交后等待 GitHub Pages 部署成功。
+8. 首次部署后，通过预览页注册并验证管理员邮箱。在 Supabase Authentication → Users 复制自己的 User ID，将其添加为 GitHub Actions secret ADMIN_USER_ID，再运行一次 Worker 部署工作流。只有服务端配置的 UUID 才拥有管理员权限。
+9. 上线前完整测试注册、邮件验证、登录/登出、胜局积分、皮肤购买、额外悔棋、管理员调分、封禁、审计日志与游客隔离。完成端到端测试后再考虑合并到 main。
+
+前端只允许包含 Supabase Project URL 和 Publishable Key。绝不能把 service_role、数据库密码或 Cloudflare API Token 放入 config.js 或其他公开文件。
 
 ### 安全说明
 
@@ -88,7 +93,7 @@ npm run check
 - `src/engine.js` / `src/assessment.js`：棋局引擎与复盘
 - `worker/index.js`：受认证保护的云端玩家、积分、管理员 API
 - `migrations/0002_accounts.sql`：账号与积分审计表升级
-- `config.js`：三个公开配置，默认空值
+- `config.js`：三个公开配置；Supabase URL 和 Publishable Key 已配置，Worker URL 待部署后填写
 - `test/v2.2-ui.test.js`：提示与 UI 结构验收
 
 正式上线仍需单独部署认证和数据库，未经安全验证不要把开发中的管理员 API 暴露给公众。
