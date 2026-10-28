@@ -63,13 +63,6 @@ gomoku-skill-evaluator/
 └── .nojekyll     # GitHub Pages 直接发布静态文件
 ```
 
-## GitHub Pages 部署与更新
-
-当前使用 **`main` 分支根目录 `/(root)`** 发布静态站点。
-
-如需检查部署：前往 [Settings → Pages](https://github.com/nkfff/gomoku-skill-evaluator/settings/pages) 确认 Source 为 **Deploy from a branch**、Branch 为 **main / (root)**；再前往 [Actions](https://github.com/nkfff/gomoku-skill-evaluator/actions) 查看最近一次 `pages build and deployment` 是否成功。
-
-未来更新 `main` 分支的 `index.html` 后，GitHub Pages 会自动构建并重新发布。项目没有运行时服务器，也无需把个人棋谱提交到仓库。
 
 ## 后续改进方向
 
