@@ -16,3 +16,10 @@ fieldset input:disabled{cursor:not-allowed}
 
 .auth-feedback{margin:12px 0;padding:12px 15px;border-radius:10px;border:1px solid #2d9b73;background:#173a32;color:#baf4d5;line-height:1.55;font-weight:600}
 .auth-feedback.error{border-color:#b95a52;background:#45262b;color:#ffd0ca}
+
+/* V3.0 PVP room layout */
+.layout.pvp-mode{grid-template-columns:minmax(0,1fr)}
+.pvp-board{display:block;width:min(100%,600px);height:auto;aspect-ratio:1;margin:16px auto;background:#e5c58d;border-radius:10px;touch-action:manipulation;cursor:crosshair}
+#panel-pvp .tableWrap{max-width:100%;overflow-x:auto}
+#panel-pvp .controls button{flex:0 1 auto}
+#panel-pvp .hint{overflow-wrap:anywhere}
