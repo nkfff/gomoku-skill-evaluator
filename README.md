@@ -1,69 +1,97 @@
-# 五子棋棋力评估 · Gomoku Skill Evaluator
+# 五子棋棋力评估 V2（开发分支）
 
-**一个可以在线游玩、记录思考时间和导出棋谱的五子棋小游戏。**  
-A browser-based Gomoku game with move timing, undo tracking and a lightweight skill report.
+> **当前稳定线上版本仍为 V1（main）。V2 位于 feature/v2-major-upgrade，尚未上线。**
 
-### 🎮 在线体验
+- V1 在线版：https://nkfff.github.io/gomoku-skill-evaluator/
+- V2 开发分支：https://github.com/nkfff/gomoku-skill-evaluator/tree/feature/v2-major-upgrade
 
-**[立即开始下棋 → https://nkfff.github.io/gomoku-skill-evaluator/](https://nkfff.github.io/gomoku-skill-evaluator/)**
+## V2 已实现（开发预览）
 
-- [查看源代码](https://github.com/nkfff/gomoku-skill-evaluator/blob/main/index.html)
-- [查看 GitHub Pages 部署记录](https://github.com/nkfff/gomoku-skill-evaluator/actions/workflows/pages/pages-build-deployment)
+| 模块 | V2 功能 | 状态 |
+| --- | --- | --- |
+| 复盘 | 玩家和 AI 每手落点、耗时、推荐候选，任意步快进/快退 | 开发完成，待浏览器验收 |
+| 终局计时 | 结束时记录固定时间，之后不继续增长 | 开发完成，待验收 |
+| 终局悔棋 | 终局禁用悔棋（无法通过悔棋修改结算） | 开发完成，待验收 |
+| 三档难度 | 新手、进阶、大师，使用启发式与有限 Alpha-Beta 搜索 | 开发完成，待引擎基准测试 |
+| 皮肤商店 | 五套棋盘及配套棋子配色，兑换成本 0/60/150/260/500 | 本地可用；云端需部署 |
+| 胜局积分 | 新手 +10、进阶 +30、大师 +80 | 本地可用；云端需部署 |
+| 排行榜 | D1 存储玩家总积分和胜负数，排名前 30 | **服务端代码已写，尚未部署** |
+| 玩家标识 | 浏览器内生成 UUID，跨对局持久保存 | 本地/云端都能使用 |
 
-> 站点通过 GitHub Pages 发布。若刚修改了 Pages 设置或提交代码，网页可能需要短暂同步；以仓库的 Actions 部署结果和实际网页可访问性为准。
+注意：启发式复盘提示不等于经过专业求解器认证的最佳着；“大师”难度也不是职业段位水平。
 
-## 功能
+## 本地运行
 
-| 功能 | 说明 |
-| --- | --- |
-| 🏁 五子棋对战 | 15 × 15 棋盘，玩家黑棋先手，AI 白棋后手；自由规则（不设禁手） |
-| ⏱️ 落子计时 | 记录每手思考秒数、落子位置及对局时长 |
-| ↩️ 悔棋记录 | 支持悔棋并累计悔棋次数，导出事件日志保留悔棋痕迹 |
-| 🔎 棋形提示 | 基于启发式规则识别直接成五、漏防及部分活三、冲四、活四棋形 |
-| 📊 棋力参考报告 | 汇总思考时间、失误、关键防守和棋形事件，生成 0–100 的内部参考分 |
-| 💾 JSON 导出 | 导出当前有效棋谱及操作事件，可用于之后进一步复盘 |
-| 🔒 本地隐私 | 游戏逻辑在浏览器内执行，不需要注册账号，也不会自动上传棋谱 |
+项目使用 ES modules，需要通过本地 HTTP 服务（不能仅双击 V2 的 index.html）：
 
-## 开始使用
+~~~bash
+python3 -m http.server 8080
+# 浏览器访问 http://localhost:8080/
+~~~
 
-**在线游玩：** 打开 [GitHub Pages 游戏网址](https://nkfff.github.io/gomoku-skill-evaluator/)，点击棋盘交叉点下黑棋，电脑会自动应招。
+V2 默认使用本地模式，不依赖服务器。积分、昵称和已购皮肤保存在 localStorage，不能充当可信全球排行榜积分；刷新页面仍能保留这些资料，但更换浏览器或清理数据后可能丢失。
 
-**离线游玩：** 下载仓库根目录的 [`index.html`](./index.html)，双击使用现代浏览器打开，无需安装依赖、启动后端或运行构建命令。
+## 多人排行榜部署（Cloudflare Workers + D1）
 
-**查看测评：** 对局过程中或结束后点击“生成报告”。“复制报告”可复制文字，“导出 JSON”可保存完整记录用于复盘。
+GitHub Pages 是静态托管，不能独立实现跨用户排行榜。因此服务端位于 \`worker/index.js\`，使用 D1 数据库处理服务器对局、积分、兑换和排行榜。
 
-**悔棋：** 会撤销最近一轮已完成的黑白落子；如果 AI 尚未落子，则只撤销刚下的黑棋。悔棋次数保留在本局统计中。
+部署时需拥有 Cloudflare 账号，且可能产生相应服务使用费（视额度和访问量而定）。
 
-## 棋谱数据
+1. 安装依赖：\`npm install\`
+2. 登录：\`npx wrangler login\`
+3. 创建 D1 数据库：\`npx wrangler d1 create gomoku-v2\`
+4. 把输出的真实 \`database_id\` 填到 \`wrangler.toml\`（替换占位字符串）。
+5. 执行迁移：\`npx wrangler d1 migrations apply gomoku-v2 --remote\`
+6. 部署 Worker：\`npx wrangler deploy\`
+7. 将 Worker 地址写入 \`config.js\`，例如：
+   \`window.GOMOKU_API_URL = "https://gomoku-v2-api.<your-subdomain>.workers.dev";\`
+8. 将本分支发布到独立预览环境（不要直接覆盖 main）以便测试。
 
-导出的 `gomoku-evaluation.json` 包含：
+Worker 必须限制前端 Origin（当前为 \`https://nkfff.github.io\`），不应当开放任意来源的写入；在公开上线前还应增加速率限制、滥用监控和强身份验证。
 
-- `moves`：当前有效的落子序列，每手含棋手、坐标、思考时间、启发式评语及时间戳。
-- `events`：按时间记录落子、悔棋和终局事件（撤销前的着法也可以在这里找到）。
-- `undoCount`、`outcome`：悔棋累计次数和结果。
-- `report`：生成时的棋力参考报告。
+### API
 
-> 页面刷新或关闭后，未导出的本局数据不会自动恢复；需要留档请先导出 JSON。
+- \`GET /api/health\`
+- \`GET /api/leaderboard\`
+- \`POST /api/profile\`
+- \`POST /api/name\`
+- \`POST /api/start\`
+- \`POST /api/move\`（AI 决策在服务端，胜负也在服务端判定）
+- \`POST /api/shop\`
 
-## 棋力评分的边界
+**云端模式下禁用悔棋**，避免本地撤销与服务端已结算对局分歧；若要实现云端悔棋，需要增加服务端撤销协议和明确的积分结算规则。
 
-**请勿把报告的分数当作专业五子棋棋力等级。**
+### 身份与 IP 的说明
 
-- 当前 AI 采用**直接胜点检测、必防检测和启发式棋形评分**，没有完整 Minimax / Alpha-Beta 搜索，也没有验证过的 VCF/VCT 完整杀棋搜索。
-- 报告基于部分局面模式和行为统计。所谓“最佳着排名”只来自启发式评分，并非经过深层搜索证明的最优着。
-- 0–100 分只适合同一版本、类似难度对局中的娱乐性对比，**不能换算 Elo、业余段位，也不能仅凭思考时间或悔棋次数断定水平**。
-- 默认自由规则：先连成五子或以上即获胜，未实现标准竞赛中的禁手、开局交换等规则。
+不能把 IP 当成“唯一玩家 ID”：
+- 同一 Wi-Fi / 公司 / 校园网可能有多位玩家共享公网 IP。
+- 一位玩家的 IP 可能变化（移动网络、VPN、IPv6 等）。
+- IP 是个人数据，直接保存、展示 IP 会带来隐私和合规风险。
 
-## 项目结构
+本版使用浏览器 localStorage 中持久匿名 UUID 来归并同一浏览器的多局战绩。它不能识别清除浏览数据后的同一人，也不能保证跨设备身份一致。**云端 UUID 仍属于轻量身份，不能防恶意伪造；公开积分排名上线前推荐用 OAuth/Passkey/账号登录，服务端绑定凭据，并加入限流与风控。** 当前后端不保存原始 IP，也不把 IP 显示在排行榜里。
 
-```text
-gomoku-skill-evaluator/
-├── index.html    # HTML + CSS + JavaScript，完整游戏
-├── README.md     # 使用及技术说明
-└── .nojekyll     # GitHub Pages 直接发布静态文件
-```
+## 测试
 
+~~~bash
+npm test
+~~~
 
-## 后续改进方向
+测试涵盖五连判断、直接取胜/防守、开局候选、复盘状态重建与非法重复落子。还需要实机检查浏览器交互和云端接口部署。
 
-提高 AI 搜索深度、增加更严格的棋形检测与对局复盘、支持本地存档，以及开展有基准数据的棋力评估。
+## 文件
+
+~~~text
+index.html                 V2 主页面
+config.js                  API 地址配置（空为本地模式）
+src/style.css              界面皮肤与响应式样式
+src/app.js                 对弈、复盘、商店和云端连接
+src/engine.js              纯棋局逻辑和 AI
+worker/index.js            Cloudflare Worker 排行榜/对局后端
+migrations/0001_init.sql   D1 数据库结构
+wrangler.toml              Worker 部署配置
+test/engine.test.js        Node 引擎测试
+~~~
+
+## 合并建议
+
+先完成测试与云端防作弊增强，在独立 V2 预览站点验收后，再向 \`main\` 发 PR。不要用本地可修改的积分直接同步到云端排名。
