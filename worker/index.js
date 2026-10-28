@@ -39,7 +39,7 @@ function validMoves(moves){
  }
  return b;
 }
-function validateSubmittedTimeline(events,level,reportedResult,reportedUndoCount){
+export function validateSubmittedTimeline(events,level,reportedResult,reportedUndoCount){
  if(!Array.isArray(events)||events.length<2||events.length>500)throw invalid("终局事件数量不合法");
  const b=Array(CELLS).fill(0),moves=[];
  let pendingAI=false,terminal=0,seenEnd=false,undoCount=0;
