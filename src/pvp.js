@@ -138,7 +138,8 @@ export function calculateElo(blackRating, whiteRating, result, k = ELO_K) {
   const actualBlack = result === "black_win" ? 1 : result === "white_win" ? 0 : result === "draw" ? 0.5 : null;
   if (actualBlack === null) throw new Error("INVALID_MATCH_RESULT");
   const deltaBlack = Math.round(k * (actualBlack - expectedBlack));
-  return {deltaBlack, deltaWhite: -deltaBlack, blackAfter: blackRating + deltaBlack, whiteAfter: whiteRating - deltaBlack};
+  const deltaWhite = deltaBlack === 0 ? 0 : -deltaBlack;
+  return {deltaBlack, deltaWhite, blackAfter: blackRating + deltaBlack, whiteAfter: whiteRating + deltaWhite};
 }
 
 export function ratingTier(rating, ratedGames = 10) {
