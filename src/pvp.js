@@ -114,11 +114,14 @@ export function finishByResign(state, playerId, now = Date.now()) {
 
 export function finishByTimeout(state, timedOutPlayerId, now = Date.now()) {
   if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
-  if (!state.colorByPlayer[timedOutPlayerId]) throw new Error("NOT_A_MATCH_PLAYER");
-  const winnerColor = state.colorByPlayer[timedOutPlayerId] === PVP_COLORS.BLACK ? PVP_COLORS.WHITE : PVP_COLORS.BLACK;
+  const timedOutColor = state.colorByPlayer[timedOutPlayerId];
+  if (!timedOutColor) throw new Error("NOT_A_MATCH_PLAYER");
+  const winnerColor = timedOutColor === PVP_COLORS.BLACK ? PVP_COLORS.WHITE : PVP_COLORS.BLACK;
   const winnerPlayerId = state.playerByColor[winnerColor];
+  const clockKey = timedOutColor === PVP_COLORS.BLACK ? "black" : "white";
   return {
     ...state,
+    clocksMs: {...state.clocksMs, [clockKey]: 0},
     status: "finished",
     result: winnerColor === PVP_COLORS.BLACK ? "black_win" : "white_win",
     winnerPlayerId,
