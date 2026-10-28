@@ -38,6 +38,17 @@ const freshProfile=()=>({id:crypto.randomUUID(),name:"匿名棋手",points:0,ear
 function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&&typeof s.id==="string"&&Array.isArray(s.owned))return {...freshProfile(),...s,boardSkin:s.boardSkin||s.skin||"classic",pieceSkin:s.pieceSkin||"classic"};}catch{}return freshProfile();}
 let profile=loadProfile(),game,task=null,turnToken=0,activeTab="game",endedAt=0,replayStep=0,lastResult=null,cloudEnabled=false;
 let hints=[],hintVisible=false,hintRequest=0,previewBoard="classic",previewPiece="classic";
+
+// Real transparent image assets for the black/white cat pieces. If they load after
+// the first paint, redraw the board and the shop preview so both update immediately.
+const catPieceImages={black:new Image(),white:new Image()};
+for(const image of Object.values(catPieceImages)){
+ image.decoding="async";
+ image.onload=()=>{if(game)render();};
+}
+catPieceImages.black.src=new URL("../assets/cat-black.webp",import.meta.url).href;
+catPieceImages.white.src=new URL("../assets/cat-white.webp",import.meta.url).href;
+
 const analysisWorker = typeof Worker !== "undefined" ? new Worker(new URL("./analysis.worker.js", import.meta.url), {type:"module"}) : null;
 if (analysisWorker) {
  analysisWorker.onmessage = ({data})=>{
@@ -283,6 +294,15 @@ function drawPaw(ctx,x,y,scale=1,color="#d78eac"){
  ctx.restore();
 }
 function drawCatPiece(ctx,x,y,p,piece,isLast=false){
+ const image=p===1?catPieceImages.black:catPieceImages.white;
+ if(image.complete&&image.naturalWidth>0){
+  ctx.save();
+  ctx.shadowColor="rgba(0,0,0,.16)";ctx.shadowBlur=1.5;
+  ctx.drawImage(image,x-19,y-19,38,38);
+  ctx.restore();
+  if(isLast){ctx.beginPath();ctx.arc(x,y,19.1,0,Math.PI*2);ctx.strokeStyle="#f34c42";ctx.lineWidth=1.8;ctx.stroke();}
+  return;
+ }
  ctx.save();ctx.translate(x,y);
  const fill=p===1?piece.black:piece.white,outline=p===1?"#f7c0d7":piece.ring;
  ctx.beginPath();ctx.moveTo(-10,-7);ctx.lineTo(-13,-15);ctx.quadraticCurveTo(-14,-18,-10,-16);

@@ -35,3 +35,16 @@ test("skin previews keep their own swatch border colors", () => {
   assert.match(app, /style='background:/);
   assert.doesNotMatch(css, /\.skin \.swatch\{border-color:var\(--accent\)!important/);
 });
+
+const catBlack = readFileSync(new URL("./assets/cat-black.webp", import.meta.url));
+const catWhite = readFileSync(new URL("./assets/cat-white.webp", import.meta.url));
+
+test("cat pieces use real transparent image assets", () => {
+  for (const image of [catBlack, catWhite]) {
+    assert.equal(image.toString("ascii", 0, 4), "RIFF");
+    assert.equal(image.toString("ascii", 8, 12), "WEBP");
+  }
+  assert.match(app, /new URL\("\.\.\/assets\/cat-black\.webp",\s*import\.meta\.url\)/);
+  assert.match(app, /new URL\("\.\.\/assets\/cat-white\.webp",\s*import\.meta\.url\)/);
+  assert.match(app, /ctx\.drawImage\(image,\s*x-19,\s*y-19,\s*38,\s*38\)/);
+});
