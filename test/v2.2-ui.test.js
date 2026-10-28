@@ -59,8 +59,10 @@ test("email confirmation shows a visible message outside the account tab",()=>{
 test("V2.3 AI matches are local-first and only submit the completed game",()=>{
  assert.match(app,/function startGame\(\)/);
  const start=app.slice(app.indexOf("function startGame"),app.indexOf("function drop"));
- assert.doesNotMatch(start,/api\("start"/);
+ assert.match(start,/api\("start"/);
+ assert.doesNotMatch(start,/await\s+api\("start"/);
  assert.match(app,/api\("submit"/);
+ assert.match(app,/await api\("start",\{level:entry\.payload\.level,gameId:entry\.payload\.gameId\}\)/);
  assert.match(worker,/url\.pathname==="\/api\/submit"/);
  assert.match(worker,/validateSubmittedTimeline/);
 });
@@ -68,4 +70,17 @@ test("V2.3 provides a cat-themed board, cat-head pieces and optional move sound"
  assert.ok(app.includes('id:"catcafe"'));assert.ok(app.includes('id:"cat"'));
  assert.match(app,/function drawCatPiece/);assert.match(app,/function playMoveSound/);
  assert.ok(html.includes('id="soundToggle"'));assert.ok(html.includes('id="retrySync"'));
+});
+
+test("V2.3 creates a server session without blocking the local first move",()=>{
+ const start=app.slice(app.indexOf("function startGame"),app.indexOf("function drop"));
+ assert.match(start,/api\("start",\{level,gameId\}\)\.catch/);
+ assert.doesNotMatch(start,/await\s+api\("start"/);
+ assert.match(worker,/INSERT OR IGNORE INTO games/);
+});
+test("V2.3 settlement is idempotent and only settles a registered session once",()=>{
+ assert.match(worker,/settled_at/);
+ assert.match(worker,/status='active' AND \(SELECT points FROM players/);
+ assert.match(worker,/SET settled_at=datetime\('now'\)/);
+ assert.match(worker,/existing\.status==="finished"&&existing\.settled_at/);
 });
