@@ -39,15 +39,24 @@ function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&
 let profile=loadProfile(),game,task=null,turnToken=0,activeTab="game",endedAt=0,replayStep=0,lastResult=null,cloudEnabled=false;
 let hints=[],hintVisible=false,hintRequest=0,previewBoard="classic",previewPiece="classic";
 
-// Real transparent image assets for the black/white cat pieces. If they load after
-// the first paint, redraw the board and the shop preview so both update immediately.
+// Versioned image URLs avoid stale CDN/browser caches after a Pages deployment.
+// The vector renderer remains available until each image has definitely loaded.
+const CAT_IMAGE_VERSION="20261028-cat-image-fix";
 const catPieceImages={black:new Image(),white:new Image()};
 for(const image of Object.values(catPieceImages)){
  image.decoding="async";
- image.onload=()=>{if(game)render();};
+ image.dataset.catLoaded="false";
+ image.onload=()=>{
+  image.dataset.catLoaded=String(image.naturalWidth>0&&image.naturalHeight>0);
+  if(game)render();
+ };
+ image.onerror=()=>{
+  image.dataset.catLoaded="false";
+  if(game)render();
+ };
 }
-catPieceImages.black.src=new URL("../assets/cat-black.webp",import.meta.url).href;
-catPieceImages.white.src=new URL("../assets/cat-white.webp",import.meta.url).href;
+catPieceImages.black.src=new URL("../assets/cat-black.webp?v="+CAT_IMAGE_VERSION,import.meta.url).href;
+catPieceImages.white.src=new URL("../assets/cat-white.webp?v="+CAT_IMAGE_VERSION,import.meta.url).href;
 
 const analysisWorker = typeof Worker !== "undefined" ? new Worker(new URL("./analysis.worker.js", import.meta.url), {type:"module"}) : null;
 if (analysisWorker) {
@@ -295,7 +304,7 @@ function drawPaw(ctx,x,y,scale=1,color="#d78eac"){
 }
 function drawCatPiece(ctx,x,y,p,piece,isLast=false){
  const image=p===1?catPieceImages.black:catPieceImages.white;
- if(image.complete&&image.naturalWidth>0){
+ if(image.dataset.catLoaded==="true"&&image.complete&&image.naturalWidth>0){
   ctx.save();
   ctx.shadowColor="rgba(0,0,0,.16)";ctx.shadowBlur=1.5;
   ctx.drawImage(image,x-19,y-19,38,38);
