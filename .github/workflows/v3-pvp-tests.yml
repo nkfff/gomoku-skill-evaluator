@@ -1,0 +1,43 @@
+name: V3.0 PVP tests
+on:
+  push:
+    branches:
+      - feature/v3.0-pvp
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm install
+      - name: Check JavaScript syntax
+        run: npm run check
+      - name: Run automated tests
+        run: npm test
+      - name: Validate all D1 migrations
+        run: |
+          python3 - <<'PY'
+          import sqlite3
+          from pathlib import Path
+          db = sqlite3.connect(":memory:")
+          for path in sorted(Path("migrations").glob("000*.sql")):
+              db.executescript(path.read_text(encoding="utf-8"))
+              print(f"OK {path}")
+          names = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          required = {"pvp_rooms", "pvp_matches", "pvp_moves", "pvp_ratings", "pvp_rating_events", "pvp_active_players", "pvp_connection_tickets"}
+          missing = required - names
+          if missing:
+              raise SystemExit(f"Missing PVP tables: {sorted(missing)}")
+          print("All PVP tables created successfully.")
+          PY
