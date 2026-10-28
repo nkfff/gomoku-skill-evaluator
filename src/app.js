@@ -25,7 +25,7 @@ async function api(path,payload){const token=await bearer();if(!token)throw Erro
  const v=await r.json();if(!r.ok)throw Error(v.error||"Cloud API unavailable");return v;
 }
 function applyRemoteProfile(p){if(!p)return;
- profile.points=p.points;profile.earnedPoints=p.earned_points;profile.wins=p.wins;profile.losses=p.losses;profile.draws=p.draws;
+ profile.id=p.id;profile.points=p.points;profile.earnedPoints=p.earned_points;profile.wins=p.wins;profile.losses=p.losses;profile.draws=p.draws;
  profile.owned=p.inventory;profile.boardSkin=p.selected_board||"classic";profile.pieceSkin=p.selected_piece||"classic";profile.name=p.name;save();
 }
 const freshProfile=()=>({id:crypto.randomUUID(),name:"匿名棋手",points:0,earnedPoints:0,owned:["classic","board:classic","piece:classic"],skin:"classic",boardSkin:"classic",pieceSkin:"classic",wins:0,losses:0,draws:0,claimed:[]});
@@ -234,12 +234,7 @@ function render(){
    stats.excluded+" 手属于不可避免的直接失利局面。"+stats.confidenceNote+
    (completed&&game.result?" 本局终局分析已完成。":" 当前结果仅作阶段性参考。")):
   "落子后开始后台逐手分析。";
- $("report").textContent=(game.result?"本局结束。终局计时已冻结，悔棋锁定。":"对局进行中。")+
- " 玩家落子 "+stats.total+" 手，悔棋 "+game.undo+" 次，"+
- "难度 "+LEVELS[game.level].label+"。"+
- (stats.scored?" 平均单步准确度 "+stats.accuracy+"/100，加权准确度 "+stats.weightedAccuracy+
- "/100，平均思考 "+stats.avgTime+" 秒。":" 暂无可评分的落子。")+
- " Top-1 和 Top-3 仅展示，不直接加分；无战术机会时战术项不计分。";
+ $("report").textContent=storyForGame(stats);
  const latest=[...game.moves].reverse().find(x=>x.p===1);
  $("recommend").textContent=latest?(latest.quality?
   "最近玩家着 "+latest.coord+"："+latest.quality.category+"；建议 "+latest.quality.alternatives.map(coord).join("、")+"。":
@@ -261,6 +256,27 @@ function drawSkinPreview(){
   if(piece.gloss){ctx.beginPath();ctx.arc(x-5,y-5,4,0,7);ctx.fillStyle="#ffffff88";ctx.fill();}
  }
  $("skinPreviewTitle").textContent=board.name+" + "+piece.name;
+}
+function storyForGame(stats){
+ const n=stats.total,score=stats.score;
+ if(!n)return "棋盘刚刚铺开，黑白两军都在等你写下第一笔。来吧，天元附近或许藏着故事的开头！";
+ const intro=game.result===1?"漂亮！这局你把胜利装进口袋，棋盘可以为你鼓掌了。":
+ game.result===2?"这局电脑抢先连五，但精彩的对抗不只看终点，复盘还有翻盘线索。":
+ game.result===3?"棋盘被塞得满满当当，双方握手言和，这是一场耐心拉锯战。":
+ "战局正在发酵，棋子像在写悬疑小说：下一手也许就是伏笔。";
+ const quality=score===null?"分析师还在翻棋谱，暂时先不贴分数标签。":
+ score>=90?"目前落子相当利落，像提前看过剧本。":
+ score>=75?"思路挺清楚，偶尔绕路，但攻防节奏跟得上。":
+ score>=55?"棋形意识正在长出来，几个关键转折值得回头看看。":
+ "这盘有些惊险转角，建议挑几手失误点复盘，提升会很快。";
+ const chances=stats.tacticalOpportunities
+ ? ("出现 "+stats.tacticalOpportunities+" 次明确的关键攻防机会，你成功处理了 "+
+ (stats.attackSuccess+stats.defenseSuccess)+" 次。")
+ : "本局尚无算法确认的直接攻防机会，这一项先留白，不随便扣分。";
+ const end="你共下了 "+n+" 手，"+(game.result?"本局":"当前")+"用掉 "+game.undo+
+ " 次悔棋；评分可信度："+stats.confidence+"。"+
+ (stats.ready<stats.total?"还有 "+(stats.total-stats.ready)+" 手等待后台分析。":"");
+ return intro+" "+quality+" "+chances+" "+end;
 }
 function renderShop(){
  function card(kind,item){
@@ -303,23 +319,24 @@ function renderShop(){
  drawSkinPreview();
 }
 function formatTime(){if(!game)return;const now=game.ended||performance.now(),total=Math.max(0,Math.floor((now-game.started)/1000));$("totalTime").textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");$("thinkTime").textContent=game.result?"已停止":game.turn===1?((performance.now()-game.turnStart)/1000).toFixed(1)+"s":"AI 行棋";}
-function download(){const payload={version:"2.1",identity:profile.id,level:game.level,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v2.1-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
+function download(){const payload={version:"2.2",identity:profile.id,level:game.level,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v2.2-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
 async function localRank(){
- if(API_URL){try{const result=await api("leaderboard");$("leaderboardMode").textContent="全球排行榜（云端 D1，按累计积分排序）";$("rankRows").innerHTML=result.players.map((p,i)=>"<tr><td>"+(i+1)+"</td><td>"+escapeText(p.name)+"</td><td>"+p.wins+"</td><td>"+p.points+"</td></tr>").join("");return;}catch(e){$("leaderboardMode").textContent="排行榜暂不可用："+e.message;return;}}
+ if(cloudMode()){try{const result=await api("leaderboard");$("leaderboardMode").textContent="全球排行榜（云端 D1，按累计积分排序）";$("rankRows").innerHTML=result.players.map((p,i)=>"<tr><td>"+(i+1)+"</td><td>"+escapeText(p.name)+"</td><td>"+p.wins+"</td><td>"+p.earned_points+"</td></tr>").join("");return;}catch(e){$("leaderboardMode").textContent="排行榜暂不可用："+e.message;return;}}
  $("leaderboardMode").textContent="本地模式：仅显示当前浏览器玩家的统计。多人共享排行榜须部署并配置独立服务端。";
  $("rankRows").innerHTML="<tr><td>1</td><td>"+escapeText(profile.name)+"</td><td>"+profile.wins+"</td><td>"+profile.points+"</td></tr>";
 }
 function escapeText(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-async function setName(){const name=$("nickname").value.trim().slice(0,20);if(!name)return;if(API_URL){try{const v=await api("name",{name});applyRemoteProfile(v.profile);}catch(e){alert("保存失败："+e.message);return;}}else{profile.name=name;save();}render();localRank();}
-for(const name of ["game","replay","store","leaderboard"])$("tab-"+name).onclick=()=>activate(name);
+async function setName(){const name=$("nickname").value.trim().slice(0,20);if(!name)return;if(cloudMode()){try{const v=await api("name",{name});applyRemoteProfile(v.profile);}catch(e){alert("保存失败："+e.message);return;}}else{profile.name=name;save();}render();localRank();}
+for(const name of ["game","replay","store","leaderboard","account"])$("tab-"+name).onclick=()=>activate(name);
 $("board").addEventListener("click",e=>{
- if(activeTab==="replay"||activeTab==="store"||activeTab==="leaderboard")return;
+ if(activeTab!=="game")return;
  const rect=$("board").getBoundingClientRect(),x=(e.clientX-rect.left)*640/rect.width,y=(e.clientY-rect.top)*640/rect.height;
  const c=Math.round((x-32)/40),r=Math.round((y-32)/40);
  if(inside(r,c)&&Math.hypot(x-(32+c*40),y-(32+r*40))<19)human(spot(r,c));
 });
 $("newGame").onclick=newGame;
 $("undo").onclick=undo;
+$("hint").onclick=hintMove;
 $("review").onclick=()=>{replayStep=game.moves.length;activate("replay");};
 $("prev").onclick=()=>{replayStep=Math.max(0,replayStep-1);render();};
 $("next").onclick=()=>{replayStep=Math.min(game.moves.length,replayStep+1);render();};
@@ -328,5 +345,13 @@ $("end").onclick=()=>{replayStep=game.moves.length;render();};
 $("export").onclick=download;
 $("setName").onclick=setName;
 $("difficulty").onchange=()=>{if(game.moves.length&&!game.result){$("difficulty").value=game.level;alert("请先结束或重新开始本局以更改难度。");}};
-if(API_URL){api("profile",{}).then(v=>{applyRemoteProfile(v.profile);render();}).catch(e=>$("cloudBanner").textContent="云端连接失败："+e.message);}else{$("cloudBanner").textContent="本地模式 · 云端排行榜尚未部署";}
-newGame();localRank();setInterval(formatTime,150);
+$("cloudBanner").textContent=cloudConfigured()?"账号服务可连接，未登录时使用游客模式":"游客模式 · 账号服务尚未配置";
+newGame();
+initAccount(async signedIn=>{
+ if(signedIn&&cloudConfigured()){
+  try{const v=await api("profile",{});applyRemoteProfile(v.profile);$("cloudBanner").textContent="云端账号已连接";}
+  catch(e){$("cloudBanner").textContent="云端身份验证失败："+e.message;}
+ }else $("cloudBanner").textContent="游客模式 · 数据保存在此浏览器";
+ await newGame();await localRank();render();
+}).catch(e=>$("cloudBanner").textContent="账号组件错误："+e.message);
+localRank();setInterval(formatTime,150);
