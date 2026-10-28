@@ -21,13 +21,13 @@ test("every piece skin has a global accent palette", () => {
 });
 
 test("equipped board and piece skins drive the page theme", () => {
-  assert.match(app, /document\\.body\\.dataset\\.boardTheme\\s*=\\s*skin\\.id/);
-  assert.match(app, /document\\.body\\.dataset\\.pieceTheme\\s*=\\s*piece\\.id/);
-  assert.match(css, /body\\[data-board-theme\\] \\.panel/);
-  assert.match(css, /body\\[data-board-theme\\] button\\.primary/);
+  assert.match(app, /document\.body\.dataset\.boardTheme\s*=\s*skin\.id/);
+  assert.match(app, /document\.body\.dataset\.pieceTheme\s*=\s*piece\.id/);
+  assert.match(css, /body\[data-board-theme\] \.panel/);
+  assert.match(css, /body\[data-board-theme\] button\.primary/);
 });
 
 test("skin previews keep their own swatch border colors", () => {
   assert.match(app, /style='background:/);
-  assert.doesNotMatch(css, /\\.skin \\.swatch\\{border-color:var\\(--accent\\)!important/);
+  assert.doesNotMatch(css, /\.skin \.swatch\{border-color:var\(--accent\)!important/);
 });
