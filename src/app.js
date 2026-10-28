@@ -85,13 +85,17 @@ async function human(i){
  if(remoteGame){
   if(remoteBusy)return;remoteBusy=true;game.turn=2;render();
   try{
-   const started=performance.now(),result=await api("move",{gameId:remoteGame.gameId,revision:remoteGame.revision,index:i});
-   game.turn=1;drop(i,1,(started-game.turnStart)/1000,evaluation);
-   if(result.ai&&result.moves.length>game.moves.length){const prior=game.b.slice();drop(result.ai.index,2,(performance.now()-started)/1000,{...advice(prior,2,result.ai.index),reason:result.ai.reason});}
+   const started=performance.now(),turnSeconds=(started-game.turnStart)/1000;
+   const result=await api("move",{gameId:remoteGame.gameId,revision:remoteGame.revision,index:i});
+   game.turn=1;drop(i,1,turnSeconds,evaluation);
+   if(result.ai&&result.moves.length>game.moves.length){
+    const prior=game.b.slice();drop(result.ai.index,2,(performance.now()-started)/1000,
+     {...advice(prior,2,result.ai.index),reason:result.ai.reason});
+   }
    remoteGame.revision=result.revision;
    if(result.profile)applyRemoteProfile(result.profile);
    if(!game.result){game.turn=1;game.turnStart=performance.now();}
-  }catch(e){game.turn=1;game.turnStart=performance.now();alert("云端落子未成功："+e.message+"。本局仍保持云端状态，请重新尝试。");}
+  }catch(e){game.turn=1;game.turnStart=performance.now();alert("云端落子未成功："+e.message);}
   remoteBusy=false;render();return;
  }
  drop(i,1,(performance.now()-game.turnStart)/1000,evaluation);
@@ -107,18 +111,48 @@ async function human(i){
  }
  render();
 }
-function undo(){
- if(!game.moves.length||game.result||remoteGame)return;
- clearTimeout(task);turnToken++;
- const count=game.moves.at(-1).p===2?2:1;
- const removed=game.moves.splice(-count);
- for(const m of removed)game.b[m.i]=0;
- game.undo++;game.events.push({type:"undo",removed:removed.map(m=>m.coord),at:new Date().toISOString()});
+async function undo(){
+ if(!game.moves.length||game.result||game.turn!==1||remoteBusy)return;
+ const paid=game.undo>=3;
+ if(paid&&profile.points<10){alert("免费悔棋已用尽；再悔棋需要 10 积分。当前积分不足。");return;}
+ if(paid&&!confirm("免费悔棋已用完，本次扣除 10 积分，确定吗？"))return;
+ clearTimeout(task);turnToken++;hints=[];$("hintPanel").hidden=true;
+ if(remoteGame){
+  remoteBusy=true;render();
+  try{
+   const result=await api("undo",{gameId:remoteGame.gameId,revision:remoteGame.revision});
+   const removed=game.moves.splice(result.moves.length);
+   for(const m of removed)game.b[m.i]=0;
+   remoteGame.revision=result.revision;game.undo=result.undoCount;
+   applyRemoteProfile(result.profile);
+   game.events.push({type:"undo",paid:result.paid,cost:result.cost,removed:removed.map(m=>m.coord),at:new Date().toISOString()});
+  }catch(e){alert("悔棋失败："+e.message);}
+  remoteBusy=false;
+ }else{
+  const count=game.moves.at(-1).p===2?2:1;
+  const removed=game.moves.splice(-count);
+  for(const m of removed)game.b[m.i]=0;
+  game.undo++;
+  if(paid){profile.points-=10;save();}
+  game.events.push({type:"undo",paid,cost:paid?10:0,removed:removed.map(m=>m.coord),at:new Date().toISOString()});
+ }
  game.turn=1;game.turnStart=performance.now();render();
+}
+async function hintMove(){
+ if(!game||game.turn!==1||game.result||remoteBusy)return;
+ try{
+  if(remoteGame){
+   const v=await api("hint",{gameId:remoteGame.gameId,revision:remoteGame.revision});
+   hints=v.suggestions.map(x=>x.index);
+  }else hints=rankedMoves(game.b,1,3).slice(0,3);
+  $("hintPanel").hidden=false;
+  $("hintPanel").textContent="战术参谋给你圈出 "+hints.map((i,n)=>(n+1)+". "+coord(i)).join("，")+"。数字越小表示当前搜索优先级越高。⚠️ 这不是真实胜率或必胜保证。";
+  render();
+ }catch(e){alert("获取提示失败："+e.message);}
 }
 function activate(tab){
  activeTab=tab;
- for(const name of ["game","replay","store","leaderboard"]){
+ for(const name of ["game","replay","store","leaderboard","account"]){
   $("tab-"+name).classList.toggle("active",name===tab);
   $("panel-"+name).hidden=name!==tab;
  }
@@ -126,7 +160,8 @@ function activate(tab){
 }
 function draw(b,last=-1){
  const canvas=$("board"),ctx=canvas.getContext("2d");
- const skin=skins.find(x=>x.id===profile.skin)||skins[0];
+ const skin=skins.find(x=>x.id===profile.boardSkin)||skins[0];
+ const piece=pieceSkins.find(x=>x.id===profile.pieceSkin)||pieceSkins[0];
  const cell=40,offset=32;
  ctx.clearRect(0,0,640,640);ctx.fillStyle=skin.bg;ctx.fillRect(0,0,640,640);
  ctx.strokeStyle=skin.grid;ctx.lineWidth=1.3;
@@ -134,8 +169,17 @@ function draw(b,last=-1){
  for(const r of [3,7,11])for(const c of [3,7,11]){ctx.fillStyle=skin.grid;ctx.beginPath();ctx.arc(offset+c*cell,offset+r*cell,3.5,0,7);ctx.fill();}
  for(let i=0;i<CELLS;i++)if(b[i]){
   const x=offset+i%15*cell,y=offset+Math.floor(i/15)*cell;
-  ctx.beginPath();ctx.arc(x,y,16.5,0,7);ctx.fillStyle=b[i]===1?skin.black:skin.white;ctx.shadowColor="#0005";ctx.shadowBlur=4;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=skin.grid;ctx.lineWidth=.6;ctx.stroke();
+  ctx.beginPath();ctx.arc(x,y,16.5,0,7);ctx.fillStyle=b[i]===1?piece.black:piece.white;ctx.shadowColor="#0005";ctx.shadowBlur=4;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=piece.ring;ctx.lineWidth=piece.gloss?2.6:.8;ctx.stroke();
+  if(piece.gloss){ctx.beginPath();ctx.arc(x-4,y-5,4,0,7);ctx.fillStyle="#ffffff66";ctx.fill();}
   if(i===last){ctx.beginPath();ctx.arc(x,y,4.5,0,7);ctx.fillStyle="#f34c42";ctx.fill();}
+ }
+ if(activeTab==="game"&&game.turn===1&&!game.result){
+  hints.forEach((i,j)=>{if(b[i])return;
+   const x=offset+i%15*cell,y=offset+Math.floor(i/15)*cell;
+   ctx.beginPath();ctx.arc(x,y,15,0,7);ctx.fillStyle=["#3af7ba99","#70b6ffaa","#ffc77199"][j];ctx.fill();
+   ctx.strokeStyle="#f9fff6";ctx.lineWidth=2;ctx.stroke();
+   ctx.fillStyle="#172436";ctx.font="bold 17px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(j+1),x,y);
+  });
  }
 }
 function render(){
@@ -145,7 +189,10 @@ function render(){
  $("scoreboard").textContent="胜 "+profile.wins+" / 负 "+profile.losses+" / 平 "+profile.draws;
  $("undoCount").textContent=game.undo;
  $("status").textContent=game.result?({1:"胜利！获得 "+LEVELS[game.level].reward+" 积分",2:"电脑获胜",3:"平局"}[game.result]):game.turn===1?"轮到你（黑棋）":"电脑思考中";
- $("undo").disabled=!!game.result||!game.moves.length||!!remoteGame;
+ $("undo").disabled=!!game.result||!game.moves.length||game.turn!==1||remoteBusy;
+ const left=Math.max(0,3-game.undo);
+ $("undo").textContent=left?"悔棋（剩 "+left+" 次免费）":"悔棋（10 积分/次）";
+ $("hint").disabled=!!game.result||game.turn!==1||remoteBusy;
  $("review").disabled=!game.moves.length;
  const display=activeTab==="replay"?replay(game.moves)[replayStep]:game.b;
  draw(display,activeTab==="replay"?(replayStep?game.moves[replayStep-1].i:-1):game.moves.at(-1)?.i??-1);
