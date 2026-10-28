@@ -333,9 +333,23 @@ function renderShop(){
 function formatTime(){if(!game)return;const now=game.ended||performance.now(),total=Math.max(0,Math.floor((now-game.started)/1000));$("totalTime").textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");$("thinkTime").textContent=game.result?"已停止":game.turn===1?((performance.now()-game.turnStart)/1000).toFixed(1)+"s":"AI 行棋";}
 function download(){const payload={version:"2.2",identity:profile.id,level:game.level,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v2.2-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
 async function localRank(){
- if(cloudMode()){try{const result=await api("leaderboard");$("leaderboardMode").textContent="全球排行榜（云端 D1，按累计积分排序）";$("rankRows").innerHTML=result.players.map((p,i)=>"<tr><td>"+(i+1)+"</td><td>"+escapeText(p.name)+"</td><td>"+p.wins+"</td><td>"+p.earned_points+"</td></tr>").join("");return;}catch(e){$("leaderboardMode").textContent="排行榜暂不可用："+e.message;return;}}
- $("leaderboardMode").textContent="本地模式：仅显示当前浏览器玩家的统计。多人共享排行榜须部署并配置独立服务端。";
- $("rankRows").innerHTML="<tr><td>1</td><td>"+escapeText(profile.name)+"</td><td>"+profile.wins+"</td><td>"+profile.points+"</td></tr>";
+ if(cloudMode()){
+  try{
+   const result=await api("leaderboard");
+   $("leaderboardMode").textContent="云端综合排行榜：胜率=胜局/总对局数；排名按修正胜率、总对局数、累计获胜积分排序。";
+   $("rankRows").innerHTML=result.players.map((p,i)=>{
+    const wins=Number(p.wins||0),losses=Number(p.losses||0),draws=Number(p.draws||0);
+    const games=Number(p.games_played??(wins+losses+draws));
+    const winRate=Number(p.win_rate??(games?100*wins/games:0));
+    return "<tr><td>"+(i+1)+"</td><td>"+escapeText(p.name)+"</td><td>"+wins+"</td><td>"+games+"</td><td>"+winRate.toFixed(1)+"%</td><td>"+Number(p.earned_points||0)+"</td></tr>";
+   }).join("");
+   return;
+  }catch(e){$("leaderboardMode").textContent="排行榜暂不可用："+e.message;return;}
+ }
+ const wins=Number(profile.wins||0),losses=Number(profile.losses||0),draws=Number(profile.draws||0);
+ const games=wins+losses+draws,winRate=games?100*wins/games:0;
+ $("leaderboardMode").textContent="本地模式：仅显示当前浏览器玩家；游客榜单不参与云端排名。";
+ $("rankRows").innerHTML="<tr><td>1</td><td>"+escapeText(profile.name)+"</td><td>"+wins+"</td><td>"+games+"</td><td>"+winRate.toFixed(1)+"%</td><td>"+Number(profile.earnedPoints??profile.points??0)+"</td></tr>";
 }
 function escapeText(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function setName(){const name=$("nickname").value.trim().slice(0,24);if(name.length<2||name.length>24||/[<>]/.test(name)){alert("显示名称需为 2–24 个字符，且不能包含 < 或 >");return;}if(cloudMode()){try{const v=await api("name",{name});applyRemoteProfile(v.profile);}catch(e){alert("保存失败："+e.message);return;}}else{profile.name=name;save();}if($("accountDisplayName"))$("accountDisplayName").value=profile.name;render();localRank();}
