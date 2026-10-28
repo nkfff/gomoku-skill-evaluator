@@ -1,0 +1,36 @@
+name: V2.3 theme checks
+
+on:
+  push:
+    branches:
+      - main
+      - fix/v2.3-all-skins-global-themes
+    paths:
+      - "v2.3/**"
+      - ".github/workflows/v2.3-theme-check.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "v2.3/**"
+      - ".github/workflows/v2.3-theme-check.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check V2.3 JavaScript syntax
+        run: |
+          set -eu
+          for file in v2.3/src/app.js v2.3/src/account.js v2.3/src/assessment.js v2.3/src/engine.js v2.3/src/analysis.worker.js; do
+            node --input-type=module --check < "$file"
+          done
+      - name: Test global skin theme coverage
+        run: node --test v2.3/theme.test.mjs
