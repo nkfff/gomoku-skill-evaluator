@@ -1,0 +1,102 @@
+name: Deploy V3.0 PVP Cloudflare Worker
+
+on:
+  push:
+    branches:
+      - feature/v3.0-pvp
+    paths:
+      - ".github/workflows/deploy-v3-pvp.yml"
+      - "worker/v3.js"
+      - "worker/pvp-room.js"
+      - "src/pvp.js"
+      - "migrations/**"
+      - "wrangler.v3.toml"
+      - "package.json"
+      - "test/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies and verify source
+        run: |
+          npm install
+          npm run check
+          npm test
+
+      - name: Validate deployment secrets
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          set -eu
+          test -n "$CF_TOKEN" || (echo "Missing CLOUDFLARE_API_TOKEN" && exit 1)
+          test -n "$CF_ACCOUNT" || (echo "Missing CLOUDFLARE_ACCOUNT_ID" && exit 1)
+          test -n "$D1_ID" || (echo "Missing CLOUDFLARE_D1_DATABASE_ID" && exit 1)
+          test -n "$SUPABASE_URL" || (echo "Missing SUPABASE_URL" && exit 1)
+
+      - name: Configure V3 D1 binding
+        env:
+          D1_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          path = Path("wrangler.v3.toml")
+          config = path.read_text(encoding="utf-8")
+          placeholder = "REPLACE_WITH_V2_D1_DATABASE_ID"
+          database_id = os.environ["D1_ID"].strip()
+          if not database_id or database_id == placeholder:
+              raise SystemExit("CLOUDFLARE_D1_DATABASE_ID must be the actual D1 database UUID.")
+          if config.count(placeholder) != 1:
+              raise SystemExit("Expected exactly one D1 placeholder; refusing an unsafe config rewrite.")
+          path.write_text(config.replace(placeholder, database_id), encoding="utf-8")
+          PY
+
+      - name: Apply additive PVP D1 migration
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply gomoku-v2 --remote --config wrangler.v3.toml
+
+      - name: Configure Supabase JWT verification
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: printf '%s' "$SUPABASE_URL" | npx wrangler secret put SUPABASE_URL --config wrangler.v3.toml
+
+      - name: Deploy V3 Worker and Durable Object
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config wrangler.v3.toml
+
+      - name: Verify deployed Worker health
+        run: |
+          set -eu
+          curl --fail --silent --show-error --retry 8 --retry-delay 2 --retry-all-errors \
+            https://gomoku-v3-api.1395598907.workers.dev/api/health -o /tmp/pvp-health.json
+          python3 - <<'PY'
+          import json
+          with open("/tmp/pvp-health.json", encoding="utf-8") as file:
+              health = json.load(file)
+          print(json.dumps(health, ensure_ascii=False))
+          required = ("ok", "configured", "pvpConfigured", "databaseConfigured")
+          if not all(health.get(key) for key in required):
+              raise SystemExit("Deployed Worker health check failed.")
+          PY
