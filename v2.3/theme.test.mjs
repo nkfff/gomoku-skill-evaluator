@@ -14,10 +14,14 @@ test("every board skin has its own global page palette", () => {
   }
 });
 
-test("every piece skin has a global accent palette", () => {
+test("every piece skin has a global accent palette and page ambience", () => {
   for (const id of pieceThemes) {
-    assert.match(css, new RegExp('body\\[data-piece-theme="' + id + '"\\]'));
+    const rule = css.match(new RegExp('body\\[data-piece-theme="' + id + '"\\]\\{([^}]*)\\}'));
+    assert.ok(rule, "missing piece theme rule: " + id);
+    assert.match(rule[1], /--accent:/);
+    assert.match(rule[1], /--piece-glow:/);
   }
+  assert.match(css, /var\\(--piece-glow\\)/);
 });
 
 test("equipped board and piece skins drive the page theme", () => {
