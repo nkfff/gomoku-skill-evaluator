@@ -63,7 +63,7 @@ export default {
   if(url.pathname==="/api/health")return reply({ok:true,version:"2.2",configured:!!env.SUPABASE_URL},200,cors);
   try{
    if(url.pathname==="/api/leaderboard"&&request.method==="GET"){
-    const {results}=await env.DB.prepare("SELECT name,earned_points,wins,losses,draws,(wins+losses+draws) AS games_played,CASE WHEN (wins+losses+draws)>0 THEN ROUND(100.0*wins/(wins+losses+draws),1) ELSE 0 END AS win_rate,ROUND(100.0*(wins+2.5)/(wins+losses+draws+5),1) AS adjusted_win_rate FROM players WHERE banned=0 AND (wins+losses+draws)>0 ORDER BY adjusted_win_rate DESC,games_played DESC,earned_points DESC LIMIT 30").all();
+    const {results}=await env.DB.prepare("WITH base AS (SELECT name,COALESCE(earned_points,0) AS earned_points,wins,losses,draws,(wins+losses+draws) AS games_played,ROUND(100.0*wins/(wins+losses+draws),1) AS win_rate,100.0*(wins+2.5)/(wins+losses+draws+5) AS adjusted_win_rate FROM players WHERE banned=0 AND (wins+losses+draws)>0) SELECT name,earned_points,wins,losses,draws,games_played,win_rate,ROUND(adjusted_win_rate,1) AS adjusted_win_rate,ROUND(earned_points+MAX(0,adjusted_win_rate-50)*MIN(games_played,20)/10.0) AS rank_points FROM base ORDER BY rank_points DESC,earned_points DESC,wins DESC,games_played DESC LIMIT 30").all();
     return reply({players:results},200,cors);
    }
    const user=await authenticate(request,env);
