@@ -31,3 +31,11 @@ fieldset input:disabled{cursor:not-allowed}
 .cat-theme .auth-feedback{background:#e7f8ef;color:#23694b;border-color:#9bd9b7}
 .cat-theme .audit{background:#fff3f7;color:#65485a}
 #retrySync{font-size:12px;padding:5px 8px}
+
+/* V3.0 friend PVP panel */
+.layout.pvp-mode{grid-template-columns:minmax(0,1fr)}
+.layout.pvp-mode>section:first-child{display:none}
+.pvp-board{display:block;width:min(100%,600px);height:auto;aspect-ratio:1;margin:16px auto;background:#e5c58d;border-radius:10px;touch-action:manipulation;cursor:crosshair}
+#panel-pvp .tableWrap{max-width:100%;overflow-x:auto}
+#panel-pvp .controls button{flex:0 1 auto}
+#panel-pvp .hint{overflow-wrap:anywhere}
