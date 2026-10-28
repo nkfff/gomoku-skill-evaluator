@@ -1,0 +1,15 @@
+{
+  "name": "gomoku-skill-evaluator",
+  "version": "2.0.0-dev",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "dev": "npx wrangler dev",
+    "deploy": "npx wrangler deploy",
+    "migrate": "npx wrangler d1 migrations apply gomoku-v2 --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
