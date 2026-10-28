@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {validateSubmittedTimeline} from "../worker/index.js";
 const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
 const app=readFileSync(new URL("../src/app.js",import.meta.url),"utf8");
 const account=readFileSync(new URL("../src/account.js",import.meta.url),"utf8");
@@ -83,4 +84,15 @@ test("V2.3 settlement is idempotent and only settles a registered session once",
  assert.match(worker,/status='active' AND \(SELECT points FROM players/);
  assert.match(worker,/SET settled_at=datetime\('now'\)/);
  assert.match(worker,/existing\.status==="finished"&&existing\.settled_at/);
+});
+
+test("V2.3 server validator rejects a forged AI reply",()=>{
+ assert.throws(
+  ()=>validateSubmittedTimeline([
+   {type:"move",i:112,p:1},
+   {type:"move",i:0,p:2},
+   {type:"end",result:1}
+  ],"easy",1,0),
+  error=>error&&error.status===409
+ );
 });
