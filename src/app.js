@@ -1,4 +1,5 @@
 import {SIZE,CELLS,LEVELS,coord,inside,spot,winLine,chooseAI,advice,replay} from "./engine.js";
+import {summarizeQuality} from "./assessment.js";
 const $=id=>document.getElementById(id);
 const skins=[
 {id:"classic",name:"经典榉木",cost:0,bg:"#dcb77b",grid:"#815830",black:"#18191e",white:"#fffdf4"},
@@ -15,11 +16,27 @@ function applyRemoteProfile(p){if(!p)return;profile.points=p.points;profile.wins
 const freshProfile=()=>({id:crypto.randomUUID(),name:"匿名棋手",points:0,owned:["classic"],skin:"classic",wins:0,losses:0,draws:0,claimed:[]});
 function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&&typeof s.id==="string"&&Array.isArray(s.owned))return {...freshProfile(),...s};}catch{}return freshProfile();}
 let profile=loadProfile(),game,task=null,turnToken=0,activeTab="game",endedAt=0,replayStep=0,lastResult=null,cloudEnabled=false;
+const analysisWorker = typeof Worker !== "undefined" ? new Worker(new URL("./analysis.worker.js", import.meta.url), {type:"module"}) : null;
+if (analysisWorker) {
+ analysisWorker.onmessage = ({data})=>{
+  if(!game || data.gameId!==game.id)return;
+  const move=game.moves.find(m=>m.id===data.moveId);
+  if(!move)return;
+  if(data.quality)move.quality=data.quality;
+  else move.analysisError=data.error;
+  render();
+ };
+ analysisWorker.onerror = ()=>{ $("qualityNotice").textContent="后台分析失败，请刷新重试；棋局不受影响。"; };
+}
+function requestAnalysis(before,move){
+ if(analysisWorker)analysisWorker.postMessage({gameId:game.id,moveId:move.id,board:before,player:move.p,played:move.i});
+ else move.analysisError="当前浏览器不支持后台分析";
+}
 function save(){localStorage.setItem(STORE,JSON.stringify(profile));}
 async function newGame(){
  clearTimeout(task);turnToken++;
  const now=performance.now();
- game={b:Array(CELLS).fill(0),moves:[],events:[],level:$("difficulty").value,turn:1,started:now,turnStart:now,ended:0,result:0,undo:0};
+ game={id:crypto.randomUUID(),b:Array(CELLS).fill(0),moves:[],events:[],level:$("difficulty").value,turn:1,started:now,turnStart:now,ended:0,result:0,undo:0};
  endedAt=0;replayStep=0;lastResult=null;remoteGame=null;remoteBusy=false;
  if(API_URL){try{const v=await api("start",{level:game.level});remoteGame={gameId:v.gameId,revision:v.revision};}catch(e){$("cloudBanner").textContent="云端暂不可用，已切换到本地模式："+e.message;}}
  $("review").disabled=true;$("undo").disabled=true;
@@ -27,9 +44,11 @@ async function newGame(){
  activate("game");render();
 }
 function drop(i,p,elapsed,analysis=null){
+ const before=game.b.slice();
  game.b[i]=p;
- const record={i,p,coord:coord(i),seconds:+elapsed.toFixed(2),at:new Date().toISOString(),analysis};
- game.moves.push(record);game.events.push({type:"move",...record});
+ const record={id:crypto.randomUUID(),i,p,coord:coord(i),seconds:+elapsed.toFixed(2),at:new Date().toISOString(),analysis,quality:null};
+ game.moves.push(record);game.events.push({type:"move",id:record.id,i,p,coord:record.coord,seconds:record.seconds,at:record.at,analysis});
+ requestAnalysis(before,record);
  if(winLine(game.b,i,p).length){finish(p);return;}
  if(game.moves.length===225)finish(3);
 }
@@ -118,8 +137,29 @@ function render(){
  $("replayList").innerHTML=game.moves.map((m,j)=>"<button class='move "+(replayStep===j+1?"selected":"")+"' data-review='"+(j+1)+"'>"+(j+1)+". "+(m.p===1?"●":"○")+" "+m.coord+"</button>").join("");
  $("replayList").querySelectorAll("[data-review]").forEach(x=>x.onclick=()=>{replayStep=Number(x.dataset.review);render();});
  const m=game.moves[replayStep-1];
- $("analysis").textContent=!m?"选择一手查看攻防提示。":("第 "+replayStep+" 手 "+(m.p===1?"玩家":"电脑")+" "+m.coord+"： "+(m.analysis?.category||"未分析")+"。推荐 "+(m.analysis?.alternatives||[]).map(coord).join("、")+"。推荐是启发式结果，并非证明的最优着。");
- $("report").textContent=game.result?("本局结束。共 "+game.moves.length+" 手，悔棋 "+game.undo+" 次。终局计时已冻结，悔棋锁定。"):("当前已下 "+game.moves.length+" 手。复盘中也可在对局结束后逐手查看。");
+ if(!m)$("analysis").textContent="选择一手查看攻防提示。";
+ else if(m.quality){
+  const q=m.quality;
+  $("analysis").textContent="第 "+replayStep+" 手 "+(m.p===1?"玩家":"电脑")+" "+m.coord+
+  " · "+q.category+" · 搜索排名 "+q.rank+"/"+q.candidateCount+
+  " · Top-1 "+(q.top1?"是":"否")+" · Top-3 "+(q.top3?"是":"否")+
+  " · 落子损失 "+q.loss.toFixed(1)+"/200（启发式优势差）"+
+  " · 单步准确度 "+q.accuracy+"/100。推荐："+q.alternatives.map(coord).join("、")+
+  "。搜索深度 "+q.depth+" 层；非职业引擎结论。";
+ } else $("analysis").textContent=m.analysisError||"正在后台搜索评估这一步……";
+ const stats=summarizeQuality(game.moves),completed=stats.ready===stats.total&&stats.total>0;
+ $("qualityScore").textContent=completed?stats.score+" / 100":"分析中 "+stats.ready+"/"+stats.total;
+ $("top1Rate").textContent=stats.ready?(stats.top1*100).toFixed(1)+"%":"—";
+ $("top3Rate").textContent=stats.ready?(stats.top3*100).toFixed(1)+"%":"—";
+ $("severeRate").textContent=stats.ready?(stats.severeRate*100).toFixed(1)+"%":"—";
+ $("qualityNotice").textContent=completed?"评估完成：只统计玩家落子，采用有限搜索；不代表 Elo 或真实段位。":stats.total?"已分析 "+stats.ready+"/"+stats.total+" 手玩家棋。仅已分析着法参与临时比例。":"落子后生成逐手评估。";
+ $("report").textContent=(game.result?"本局结束。终局计时已冻结，悔棋锁定。":"对局进行中。")+
+ " 总落子 "+game.moves.length+" 手，悔棋 "+game.undo+" 次。"+
+ (completed?" 平均单步准确度 "+stats.accuracy+"/100，玩家平均思考 "+stats.avgTime+" 秒。":"");
+ const latest=[...game.moves].reverse().find(x=>x.p===1);
+ $("recommend").textContent=latest?(latest.quality?
+  "最近玩家着 "+latest.coord+"："+latest.quality.category+"；建议 "+latest.quality.alternatives.map(coord).join("、")+"。":
+  "最近玩家着 "+latest.coord+"：正在后台计算搜索建议。"):"第一手请落子，系统随后分析。";
  renderShop();
 }
 function renderShop(){
@@ -139,7 +179,7 @@ function renderShop(){
  });
 }
 function formatTime(){if(!game)return;const now=game.ended||performance.now(),total=Math.max(0,Math.floor((now-game.started)/1000));$("totalTime").textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");$("thinkTime").textContent=game.result?"已停止":game.turn===1?((performance.now()-game.turnStart)/1000).toFixed(1)+"s":"AI 行棋";}
-function download(){const payload={version:2,identity:profile.id,level:game.level,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v2-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
+function download(){const payload={version:2,identity:profile.id,level:game.level,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v2-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
 async function localRank(){
  if(API_URL){try{const result=await api("leaderboard");$("leaderboardMode").textContent="全球排行榜（云端 D1，按累计积分排序）";$("rankRows").innerHTML=result.players.map((p,i)=>"<tr><td>"+(i+1)+"</td><td>"+escapeText(p.name)+"</td><td>"+p.wins+"</td><td>"+p.points+"</td></tr>").join("");return;}catch(e){$("leaderboardMode").textContent="排行榜暂不可用："+e.message;return;}}
  $("leaderboardMode").textContent="本地模式：仅显示当前浏览器玩家的统计。多人共享排行榜须部署并配置独立服务端。";
