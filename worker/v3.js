@@ -1,7 +1,7 @@
 import {createRemoteJWKSet, jwtVerify} from "jose";
 import {DEFAULT_TIME_CONTROL_MS, ratingTier} from "../src/pvp.js";
 import {PvpRoom} from "./pvp-room.js";
-import {generatePuzzle, PUZZLE_LEVELS, findPuzzleSolution} from "../src/special-modes.js";
+import {generatePuzzle, PUZZLE_LEVELS, verifyPuzzleLine} from "../src/special-modes.js";
 export {PvpRoom};
 
 const reply = (value, status = 200, headers = {}) => new Response(JSON.stringify(value), {
@@ -249,29 +249,102 @@ async function createPuzzleChallenge(request, env, user, headers) {
   crypto.getRandomValues(bytes);
   const seed = bytes[0] || (Date.now() >>> 0);
   const puzzle = generatePuzzle(difficulty, seed);
+  if (!verifyPuzzleLine(puzzle)) throw fail("服务端多步残局校验失败，请重新生成", 500);
   const id = crypto.randomUUID();
   await env.DB.prepare(
-    "INSERT INTO mode_challenges(id,player_id,mode,difficulty,size,connect,board,solution_index,reward,status,created_at,expires_at) VALUES(?,?,'puzzle',?,?,?,?,?,?,'open',datetime('now'),datetime('now','+20 minutes'))"
-  ).bind(id, user.id, difficulty, puzzle.size, puzzle.connect, JSON.stringify(puzzle.board), puzzle.solutionIndex, puzzle.reward).run();
+    "INSERT INTO mode_challenges(id,player_id,mode,difficulty,size,connect,board,solution_index,solution_moves,solution_responses,solution_wins,reward,status,created_at,expires_at) VALUES(?,?,'puzzle',?,?,?,?,?,?,?,?,?,'open',datetime('now'),datetime('now','+20 minutes'))"
+  ).bind(
+    id, user.id, difficulty, puzzle.size, puzzle.connect, JSON.stringify(puzzle.board),
+    puzzle.solutionMoves[0], JSON.stringify(puzzle.solutionMoves),
+    JSON.stringify(puzzle.solutionResponses), JSON.stringify(puzzle.finalWins), puzzle.reward
+  ).run();
   return reply({
     puzzle: {
       id, difficulty, size: puzzle.size, connect: puzzle.connect,
       board: puzzle.board, reward: puzzle.reward, objective: puzzle.objective,
+      steps: puzzle.steps,
       expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString()
     }
   }, 200, headers);
 }
 
-async function claimPuzzleReward(request, env, user, headers) {
+async function readOpenPuzzle(env, user, challengeId) {
+  if (!uuid(challengeId)) throw fail("残局编号无效");
+  const challenge = await env.DB.prepare(
+    "SELECT id,player_id,difficulty,size,connect,board,solution_index,solution_moves,solution_responses,solution_wins,reward,status,progress,expires_at FROM mode_challenges WHERE id=? AND player_id=? AND mode='puzzle'"
+  ).bind(challengeId, user.id).first();
+  if (!challenge) throw fail("残局不存在或不属于当前账号", 404);
+  if (challenge.status !== "open") throw fail("这道残局已提交或已领取奖励", 409);
+  const expiry = await env.DB.prepare(
+    "SELECT CASE WHEN expires_at>datetime('now') THEN 1 ELSE 0 END AS valid FROM mode_challenges WHERE id=?"
+  ).bind(challengeId).first();
+  if (!expiry?.valid) {
+    await env.DB.prepare("UPDATE mode_challenges SET status='expired' WHERE id=? AND status='open'").bind(challengeId).run();
+    throw fail("残局已过期，请重新生成", 410);
+  }
+  let board, solutionMoves, solutionResponses, solutionWins;
+  try {
+    board = JSON.parse(challenge.board);
+    solutionMoves = JSON.parse(challenge.solution_moves || "[]");
+    solutionResponses = JSON.parse(challenge.solution_responses || "[]");
+    solutionWins = JSON.parse(challenge.solution_wins || "[]");
+  } catch { throw fail("残局数据损坏", 500); }
+  if (!Array.isArray(solutionMoves) || !Array.isArray(solutionResponses) || !Array.isArray(solutionWins) ||
+      solutionMoves.length !== PUZZLE_LEVELS[challenge.difficulty]?.steps ||
+      solutionResponses.length !== solutionMoves.length - 1 ||
+      Number(challenge.solution_index) !== solutionMoves[0]) {
+    throw fail("残局解题序列损坏，请重新生成", 500);
+  }
+  const puzzle = {
+    board, size: Number(challenge.size), connect: Number(challenge.connect),
+    difficulty: challenge.difficulty, moves: solutionMoves, responses: solutionResponses,
+    finalWins: solutionWins, steps: solutionMoves.length
+  };
+  if (!verifyPuzzleLine(puzzle)) throw fail("服务端多步残局校验失败，请重新生成", 500);
+  return {challenge, puzzle};
+}
+
+async function submitPuzzleMove(request, env, user, headers) {
   const body = await parseBody(request);
   const challengeId = String(body.challengeId || "");
   const moveIndex = Number(body.moveIndex);
-  if (!uuid(challengeId) || !Number.isInteger(moveIndex) || moveIndex < 0 || moveIndex >= 225) {
-    throw fail("残局提交数据无效");
+  if (!Number.isInteger(moveIndex) || moveIndex < 0 || moveIndex >= 441) throw fail("落子坐标无效");
+  await ensurePlayer(env, user);
+  const {challenge, puzzle} = await readOpenPuzzle(env, user, challengeId);
+  const progress = Number(challenge.progress || 0);
+  if (progress >= puzzle.moves.length) throw fail("这道残局已经完成，请领取奖励", 409);
+  if (moveIndex !== puzzle.moves[progress]) {
+    return reply({ok:true,correct:false,error:"这一步不是当前唯一标准解法，请重新思考。"}, 200, headers);
   }
+  const nextProgress = progress + 1;
+  const responseIndex = nextProgress < puzzle.moves.length ? puzzle.responses[progress] : null;
+  const update = await env.DB.prepare(
+    "UPDATE mode_challenges SET progress=? WHERE id=? AND player_id=? AND status='open' AND progress=? AND expires_at>datetime('now')"
+  ).bind(nextProgress, challengeId, user.id, progress).run();
+  if (Number(update?.meta?.changes || 0) !== 1) throw fail("棋题状态已更新，请重新生成或刷新页面", 409);
+  return reply({
+    ok:true, correct:true, progress:nextProgress, steps:puzzle.moves.length,
+    responseIndex, solved:nextProgress === puzzle.moves.length
+  }, 200, headers);
+}
+
+async function hintPuzzleMove(request, env, user, headers) {
+  const body = await parseBody(request);
+  const challengeId = String(body.challengeId || "");
+  await ensurePlayer(env, user);
+  const {challenge, puzzle} = await readOpenPuzzle(env, user, challengeId);
+  const progress = Number(challenge.progress || 0);
+  if (progress >= puzzle.moves.length) throw fail("这道残局已经完成", 409);
+  return reply({ok:true,moveIndex:puzzle.moves[progress],progress,steps:puzzle.moves.length},200,headers);
+}
+
+async function claimPuzzleReward(request, env, user, headers) {
+  const body = await parseBody(request);
+  const challengeId = String(body.challengeId || "");
+  if (!uuid(challengeId)) throw fail("残局提交数据无效");
   await ensurePlayer(env, user);
   const challenge = await env.DB.prepare(
-    "SELECT id,player_id,difficulty,size,connect,board,solution_index,reward,status,expires_at FROM mode_challenges WHERE id=? AND player_id=? AND mode='puzzle'"
+    "SELECT id,player_id,difficulty,size,connect,board,solution_index,solution_moves,solution_responses,solution_wins,reward,status,progress,expires_at FROM mode_challenges WHERE id=? AND player_id=? AND mode='puzzle'"
   ).bind(challengeId, user.id).first();
   if (!challenge) throw fail("残局不存在或不属于当前账号", 404);
   if (challenge.status !== "open") {
@@ -279,7 +352,7 @@ async function claimPuzzleReward(request, env, user, headers) {
       const ledger = await env.DB.prepare(
         "SELECT id FROM point_ledger WHERE player_id=? AND reason='puzzle_reward' AND note=? LIMIT 1"
       ).bind(user.id, "puzzle:" + challengeId).first();
-      if (ledger) return reply({ok:true, alreadyClaimed:true, reward:Number(challenge.reward), profile:await modeProfile(env,user.id)}, 200, headers);
+      if (ledger) return reply({ok:true,alreadyClaimed:true,reward:Number(challenge.reward),profile:await modeProfile(env,user.id)},200,headers);
     }
     throw fail("这道残局已提交或已领取奖励", 409);
   }
@@ -287,28 +360,37 @@ async function claimPuzzleReward(request, env, user, headers) {
     "SELECT CASE WHEN expires_at>datetime('now') THEN 1 ELSE 0 END AS valid FROM mode_challenges WHERE id=?"
   ).bind(challengeId).first();
   if (!expiry?.valid) throw fail("残局已过期，请重新生成", 410);
-  let board;
-  try { board = JSON.parse(challenge.board); } catch { throw fail("残局数据损坏", 500); }
-  const verifiedSolution = findPuzzleSolution(board, challenge.difficulty, Number(challenge.size), Number(challenge.connect));
-  if (verifiedSolution === null || verifiedSolution !== Number(challenge.solution_index)) {
-    throw fail("服务端残局校验失败，请重新生成", 500);
+  let board, solutionMoves, solutionResponses, solutionWins;
+  try {
+    board = JSON.parse(challenge.board);
+    solutionMoves = JSON.parse(challenge.solution_moves || "[]");
+    solutionResponses = JSON.parse(challenge.solution_responses || "[]");
+    solutionWins = JSON.parse(challenge.solution_wins || "[]");
+  } catch { throw fail("残局数据损坏", 500); }
+  if (Number(challenge.progress || 0) !== solutionMoves.length) throw fail("请先完成全部解题步骤", 409);
+  const puzzle = {
+    board, size:Number(challenge.size), connect:Number(challenge.connect),
+    difficulty:challenge.difficulty, moves:solutionMoves, responses:solutionResponses,
+    finalWins:solutionWins, steps:solutionMoves.length
+  };
+  if (!verifyPuzzleLine(puzzle) || Number(challenge.solution_index) !== solutionMoves[0]) {
+    throw fail("服务端多步残局校验失败，请重新生成", 500);
   }
-  if (moveIndex !== verifiedSolution) throw fail("这步还不是制胜点，再观察一下棋形", 400);
   const result = await env.DB.batch([
     env.DB.prepare(
-      "UPDATE mode_challenges SET status='claimed',claimed_at=datetime('now') WHERE id=? AND player_id=? AND status='open' AND expires_at>datetime('now') AND (SELECT COUNT(*) FROM mode_challenges WHERE player_id=? AND status='claimed' AND claimed_at>datetime('now','-1 day'))<10"
-    ).bind(challengeId, user.id, user.id),
+      "UPDATE mode_challenges SET status='claimed',claimed_at=datetime('now') WHERE id=? AND player_id=? AND status='open' AND progress=? AND expires_at>datetime('now') AND (SELECT COUNT(*) FROM mode_challenges WHERE player_id=? AND status='claimed' AND claimed_at>datetime('now','-1 day'))<10"
+    ).bind(challengeId,user.id,solutionMoves.length,user.id),
     env.DB.prepare(
       "UPDATE players SET points=points+(SELECT reward FROM mode_challenges WHERE id=? AND status='claimed') WHERE id=? AND changes()=1"
-    ).bind(challengeId, user.id),
+    ).bind(challengeId,user.id),
     env.DB.prepare(
       "INSERT INTO point_ledger(id,player_id,delta,reason,actor_id,note) SELECT ?,player_id,reward,'puzzle_reward',player_id,'puzzle:'||id FROM mode_challenges WHERE id=? AND status='claimed' AND changes()=1"
-    ).bind(crypto.randomUUID(), challengeId)
+    ).bind(crypto.randomUUID(),challengeId)
   ]);
   if (Number(result?.[0]?.meta?.changes || 0) !== 1) {
     const claimed = await env.DB.prepare(
       "SELECT status FROM mode_challenges WHERE id=? AND player_id=?"
-    ).bind(challengeId, user.id).first();
+    ).bind(challengeId,user.id).first();
     if (claimed?.status === "claimed") throw fail("这道残局已领取奖励", 409);
     const daily = await env.DB.prepare(
       "SELECT COUNT(*) AS total FROM mode_challenges WHERE player_id=? AND status='claimed' AND claimed_at>datetime('now','-1 day')"
@@ -316,8 +398,7 @@ async function claimPuzzleReward(request, env, user, headers) {
     if (Number(daily?.total || 0) >= 10) throw fail("每日残局奖励上限为 10 次", 429);
     throw fail("残局已过期或已提交，请重新生成", 409);
   }
-  const profile = await modeProfile(env, user.id);
-  return reply({ok:true, reward:Number(challenge.reward), profile}, 200, headers);
+  return reply({ok:true,reward:Number(challenge.reward),profile:await modeProfile(env,user.id)},200,headers);
 }
 
 export default {
@@ -331,7 +412,7 @@ export default {
 
     try {
       if (url.pathname === "/api/health") return reply({
-        ok: true, version: "3.2.0",
+        ok: true, version: "3.3.0",
         modesConfigured: !!env.DB,
         configured: !!env.SUPABASE_URL,
         pvpConfigured: !!env.PVP_ROOMS,
@@ -349,9 +430,9 @@ export default {
       if (url.pathname === "/api/modes/puzzle/new" && request.method === "POST") {
         return await createPuzzleChallenge(request, env, user, headers);
       }
-      if (url.pathname === "/api/modes/puzzle/claim" && request.method === "POST") {
-        return await claimPuzzleReward(request, env, user, headers);
-      }
+      if (url.pathname === "/api/modes/puzzle/move" && request.method === "POST") return await submitPuzzleMove(request, env, user, headers);
+      if (url.pathname === "/api/modes/puzzle/hint" && request.method === "POST") return await hintPuzzleMove(request, env, user, headers);
+      if (url.pathname === "/api/modes/puzzle/claim" && request.method === "POST") return await claimPuzzleReward(request, env, user, headers);
       if (url.pathname === "/api/pvp/rooms" && request.method === "POST") return await createRoom(request, env, user, headers);
       if (url.pathname === "/api/pvp/rooms/join" && request.method === "POST") return await joinRoom(request, env, user, headers);
       if (url.pathname === "/api/pvp/history" && request.method === "GET") {
