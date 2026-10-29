@@ -1,6 +1,6 @@
 import {bearer, loggedIn, cloudConfigured} from "./src/account.js";
 import {
-  PUZZLE_LEVELS, generatePuzzle, findPuzzleSolution, createRandomConfig,
+  PUZZLE_LEVELS, generatePuzzle, findPuzzleSolution, findPuzzleLine, createRandomConfig,
   modeWinLine, chooseRandomMove
 } from "./src/special-modes.js";
 
@@ -136,11 +136,12 @@ async function newPuzzle(){
       const result=await modeApi("new",{difficulty});
       const p=result.puzzle;
       const solution=findPuzzleSolution(p.board,difficulty,p.size,p.connect);
-      if(solution===null)throw new Error("服务器返回的残局未通过本地解题校验，请重新生成");
-      puzzleState={...p,solutionIndex:solution,server:true,solved:false,claimed:false,showSolution:false};
+      const line=findPuzzleLine(p.board,difficulty,p.size,p.connect);
+      if(solution===null||!line||!Array.isArray(p.solutionSequence)||JSON.stringify(line)!==JSON.stringify(p.solutionSequence))throw new Error("服务器返回的多步残局未通过本地解题校验，请重新生成");
+      puzzleState={...p,solutionIndex:solution,solutionSequence:line,stage:0,server:true,solved:false,claimed:false,showSolution:false};
     }else{
       const puzzle=generatePuzzle(difficulty,randomSeed());
-      puzzleState={...puzzle,id:"guest-"+difficulty+"-"+puzzle.seed,server:false,solved:false,claimed:false,showSolution:false};
+      puzzleState={...puzzle,id:"guest-"+difficulty+"-"+puzzle.seed,solutionSequence:puzzle.solutionSequence,stage:0,server:false,solved:false,claimed:false,showSolution:false};
     }
     $("puzzleStatus").textContent="黑棋先手。请点击唯一制胜点；答错不会扣分。"+(puzzleState.server?"本题 20 分钟内有效。":"");
     renderPuzzle();
@@ -156,7 +157,7 @@ async function claimPuzzleReward(){
   puzzleBusy=true;$("puzzleRetryClaim").hidden=true;
   try{
     if(puzzleState.server){
-      const result=await modeApi("claim",{challengeId:puzzleState.id,moveIndex:puzzleState.solutionIndex});
+      const result=await modeApi("claim",{challengeId:puzzleState.id,moveIndex:puzzleState.solutionIndex,solutionSequence:puzzleState.solutionSequence});
       if(result.profile&&window.gomokuApplyModeProfile)window.gomokuApplyModeProfile(result.profile);
     }else{
       if(localClaims.has(puzzleState.id)){
@@ -178,14 +179,31 @@ async function claimPuzzleReward(){
 }
 function onPuzzleClick(event){
   if(!puzzleState||puzzleBusy||puzzleState.solved)return;
-  const index=clickedIndex(event,$("puzzleBoard"),puzzleState.size);
-  if(index<0||puzzleState.board[index])return;
-  if(index!==puzzleState.solutionIndex){
-    $("puzzleStatus").textContent="这一步还不是制胜点。观察棋形，找到能直接成五或同时制造多路威胁的位置。";
+  const p=puzzleState,index=clickedIndex(event,$("puzzleBoard"),p.size);
+  if(index<0||p.board[index])return;
+  const expected=p.solutionSequence[p.stage===0?0:2];
+  if(index!==expected){
+    $("puzzleStatus").textContent=p.stage===0
+      ?"这不是正确的起手。寻找能制造连续强制威胁的落点。"
+      :"对手已经封堵一路威胁，请找到剩余的唯一制胜点。";
     return;
   }
-  puzzleState.solved=true;puzzleState.showSolution=true;puzzleState.board[index]=1;
-  $("puzzleStatus").textContent="答对了！正在验证通关奖励…";
+  if(p.stage===0){
+    p.board[index]=1;p.stage=1;
+    const defense=p.solutionSequence[1];
+    if(p.board[defense]){ $("puzzleStatus").textContent="残局校验失败，请重新生成。";return; }
+    p.board[defense]=2;
+    $("puzzleStatus").textContent="起手正确！对手被迫封堵一路威胁，现在完成最后一步。";
+    renderPuzzle();
+    return;
+  }
+  p.board[index]=1;
+  if(!modeWinLine(p.board,index,1,p.size,p.connect).length){
+    $("puzzleStatus").textContent="棋题校验失败：最后一步没有形成连珠，请重新生成。";
+    return;
+  }
+  p.solved=true;p.stage=2;p.showSolution=true;
+  $("puzzleStatus").textContent="连续杀棋完成！正在验证通关奖励…";
   renderPuzzle();claimPuzzleReward();
 }
 function showPuzzleHint(){
