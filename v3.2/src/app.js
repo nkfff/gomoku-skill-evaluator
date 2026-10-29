@@ -568,7 +568,7 @@ initAccount(async signedIn=>{
   try{const v=await api("profile",{});applyRemoteProfile(v.profile);$("cloudBanner").textContent="云端账号已连接";}
   catch(e){$("cloudBanner").textContent="云端身份验证失败："+e.message;}
  }else {profile=loadProfile();$("cloudBanner").textContent="游客模式 · 数据保存在此浏览器";}
- await newGame();await localRank();render();
+ await newGame();await localRank();render();window.dispatchEvent(new Event("gomoku:profile-updated"));
  if(signedIn)await syncPendingSubmissions();
 },remoteProfile=>{applyRemoteProfile(remoteProfile);if(document.activeElement!==$("nickname"))$("nickname").value=remoteProfile.name||"";render();localRank();}).catch(e=>$("cloudBanner").textContent="账号组件错误："+e.message);
 localRank();setInterval(formatTime,150);
