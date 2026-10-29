@@ -101,7 +101,7 @@ function boardHasWinner(board,size,connect) {
 }
 function puzzleAttempt(difficulty, random, addClutter) {
   const size=15,connect=5,level=PUZZLE_LEVELS[difficulty];
-  const targetRow=4+Math.floor(random()*7),targetCol=4+Math.floor(random()*7);
+  const targetRow=5+Math.floor(random()*5),targetCol=5+Math.floor(random()*5);
   const target=spot(targetRow,targetCol,size);
   const directions=shuffle(DIRS,random).slice(0,level.threats);
   const board=Array(size*size).fill(0);
