@@ -1,4 +1,4 @@
-name: Deploy V3.2 Modes and V3.0 PVP Cloudflare Worker
+name: Deploy V3.3 Multi-step Puzzles and V3.0 PVP Cloudflare Worker
 
 on:
   push:
@@ -97,8 +97,8 @@ jobs:
               health = json.load(file)
           print(json.dumps(health, ensure_ascii=False))
           required = ("ok", "configured", "pvpConfigured", "databaseConfigured", "modesConfigured")
-          if health.get("version") != "3.2.0":
-              raise SystemExit("Deployed Worker version is not V3.2.")
+          if health.get("version") != "3.3.0":
+              raise SystemExit("Deployed Worker version is not V3.3.")
           if not all(health.get(key) for key in required):
               raise SystemExit("Deployed Worker health check failed.")
           PY
