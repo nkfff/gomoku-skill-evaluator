@@ -105,17 +105,11 @@ function puzzleAttempt(difficulty, random, addClutter) {
   const target=spot(targetRow,targetCol,size);
   const directions=shuffle(DIRS,random).slice(0,level.threats);
   const board=Array(size*size).fill(0);
-  if(difficulty==="easy") {
-    const [dr,dc]=directions[0];
-    for(let k=1;k<=4;k++) board[spot(targetRow+dr*k,targetCol+dc*k,size)]=1;
-    board[spot(targetRow+dr*5,targetCol+dc*5,size)]=2;
-  } else {
-    for(const [dr,dc] of directions) {
-      board[spot(targetRow-dr*2,targetCol-dc*2,size)]=1;
-      board[spot(targetRow-dr,targetCol-dc,size)]=1;
-      board[spot(targetRow+dr,targetCol+dc,size)]=1;
-      board[spot(targetRow+dr*2,targetCol+dc*2,size)]=2;
-    }
+  for(const [dr,dc] of directions) {
+    board[spot(targetRow-dr*2,targetCol-dc*2,size)]=1;
+    board[spot(targetRow-dr,targetCol-dc,size)]=1;
+    board[spot(targetRow+dr,targetCol+dc,size)]=1;
+    board[spot(targetRow+dr*2,targetCol+dc*2,size)]=2;
   }
   if(addClutter) {
     const fillerCount=difficulty==="easy"?6:difficulty==="normal"?10:14;
@@ -137,8 +131,7 @@ function puzzleAttempt(difficulty, random, addClutter) {
   const blackWins=modeWinningMoves(board,1,size,connect);
   const whiteWins=modeWinningMoves(board,2,size,connect);
   if(whiteWins.length) return null;
-  if(difficulty==="easy" && (blackWins.length!==1 || blackWins[0]!==target)) return null;
-  if(difficulty!=="easy" && blackWins.length) return null;
+  if(blackWins.length) return null;
   const solution=findPuzzleSolution(board,difficulty,size,connect);
   if(solution!==target) return null;
   return {size,connect,board,solutionIndex:target,difficulty,reward:level.reward,objective:level.objective};
