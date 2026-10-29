@@ -42,7 +42,7 @@ test("search does not mutate the caller's board and returns a legal move",()=>{
   assert.equal(original[result.index],0);
   assert.deepEqual(board,original);
   assert.ok(result.nodes>0);
-  assert.match(result.reason,/王者模式/);
+  assert.match(result.reason,/迭代加深/);
 });
 
 
