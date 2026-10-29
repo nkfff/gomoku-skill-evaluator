@@ -6,8 +6,10 @@ const at=(row,col)=>row*15+col;
 
 test("王者难度使用更深、更宽的搜索配置",()=>{
   assert.equal(LEVELS.hard.label,"王者");
-  assert.equal(LEVELS.hard.depth,3);
-  assert.equal(LEVELS.hard.width,9);
+  assert.equal(LEVELS.hard.depth,14);
+  assert.equal(LEVELS.hard.width,14);
+  assert.equal(LEVELS.hard.timeMs,2400);
+  assert.equal(LEVELS.hard.maxDepth,14);
 });
 
 test("AI takes a direct win before considering positional scores",()=>{
@@ -50,21 +52,21 @@ test("difficulty rewards remain exactly 10 / 30 / 80",()=>{
  assert.equal(LEVELS.hard.reward,80);
 });
 test("King AI immediately wins and blocks a one-move loss",()=>{
- const win=Array(CELLS).fill(0);
+ const win=Array(225).fill(0);
  for(let c=4;c<8;c++)win[spot(7,c)]=2;
  const winMove=chooseAI(win,"hard");
- assert.ok(winMove.index===spot(7,3)||winMove.index===spot(7,8));
- const block=Array(CELLS).fill(0);
+ assert.ok(winMove.index===at(7,3)||winMove.index===at(7,8));
+ const block=Array(225).fill(0);
  for(let c=4;c<8;c++)block[spot(7,c)]=1;
  const blockMove=chooseAI(block,"hard");
- assert.ok(blockMove.index===spot(7,3)||blockMove.index===spot(7,8));
+ assert.ok(blockMove.index===at(7,3)||blockMove.index===at(7,8));
 });
 test("time-bounded search returns a legal move and never mutates the source board",()=>{
- const b=Array(CELLS).fill(0);
+ const b=Array(225).fill(0);
  for(const [i,p] of [[112,1],[113,2],[97,1],[128,2],[111,1],[98,2]])b[i]=p;
  const original=b.slice();
  const result=chooseAI(b,"hard",{timeMs:80,maxDepth:3,width:8});
- assert.ok(Number.isInteger(result.index)&&result.index>=0&&result.index<CELLS);
+ assert.ok(Number.isInteger(result.index)&&result.index>=0&&result.index<225);
  assert.equal(original[result.index],0);
  assert.deepEqual(b,original);
  assert.ok(result.nodes>=0);
