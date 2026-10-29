@@ -1,0 +1,67 @@
+name: V3.3 mode engine tests
+
+on:
+  push:
+    branches: [feature/v3.3-mode-engine-backend]
+    paths:
+      - "src/special-modes.js"
+      - "worker/v3.js"
+      - "test/**"
+      - "migrations/**"
+      - ".github/workflows/v3.3-mode-engine-tests.yml"
+  pull_request:
+    branches: [feature/v3.0-pvp]
+    paths:
+      - "src/special-modes.js"
+      - "worker/v3.js"
+      - "test/**"
+      - "migrations/**"
+      - ".github/workflows/v3.3-mode-engine-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies and check syntax
+        run: |
+          npm install
+          node --check src/special-modes.js
+          node --check worker/v3.js
+      - name: Run engine tests
+        run: node --test test/special-modes.test.js
+      - name: Validate additive D1 migration
+        run: |
+          python3 - <<'PY'
+          import sqlite3
+          from pathlib import Path
+          db = sqlite3.connect(":memory:")
+          db.executescript(Path("migrations/0004_modes.sql").read_text(encoding="utf-8"))
+          db.executescript(Path("migrations/0005_multistep_puzzles.sql").read_text(encoding="utf-8"))
+          columns = {row[1] for row in db.execute("PRAGMA table_info(mode_challenges)")}
+          required = {"solution_moves", "solution_responses", "solution_wins", "progress"}
+          if not required.issubset(columns):
+              raise SystemExit(f"Missing columns: {sorted(required - columns)}")
+          print("V3.3 D1 migration OK")
+          PY
+      - name: Verify server-authoritative puzzle endpoints
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          worker = Path("worker/v3.js").read_text(encoding="utf-8")
+          required = [
+              "/api/modes/puzzle/new", "/api/modes/puzzle/move",
+              "/api/modes/puzzle/hint", "/api/modes/puzzle/claim",
+              "solution_moves", "progress", "verifyPuzzleLine"
+          ]
+          missing = [x for x in required if x not in worker]
+          if missing:
+              raise SystemExit(f"Missing server puzzle logic: {missing}")
+          print("V3.3 Worker puzzle endpoints OK")
+          PY
