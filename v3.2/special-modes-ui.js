@@ -264,5 +264,3 @@ window.addEventListener("gomoku:profile-updated",()=>{
   if(puzzleState)renderPuzzle();
   if(randomState)renderRandom();
 });
-newPuzzle();
-newRandomGame(true);
