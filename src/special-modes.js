@@ -1,9 +1,9 @@
 // Shared deterministic puzzle generator and variable-connect Gomoku engine.
 // Pure module: safe to import from both the browser and Cloudflare Worker.
 export const PUZZLE_LEVELS = {
-  easy: {label:"初级", reward:10, threats:1, objective:"找到唯一的直接成五点"},
-  normal: {label:"进阶", reward:30, threats:2, objective:"一手制造双路杀"},
-  hard: {label:"大师", reward:80, threats:3, objective:"一手制造三路杀"}
+  easy: {label:"初级", reward:10, threats:2, objective:"找到唯一的起手，防守后完成制胜点"},
+  normal: {label:"进阶", reward:30, threats:2, objective:"识别双威胁并完成连续杀棋"},
+  hard: {label:"大师", reward:80, threats:2, objective:"在复杂干扰下完成唯一强制杀棋"}
 };
 const DIRS = [[0,1],[1,0],[1,1],[1,-1]];
 const inside = (r,c,size) => r >= 0 && r < size && c >= 0 && c < size;
@@ -83,17 +83,26 @@ function forkThreatCount(board, index, player, size, connect) {
 }
 export function findPuzzleSolution(board, difficulty="easy", size=15, connect=5) {
   const level=PUZZLE_LEVELS[difficulty];
-  if (!level || board.length !== size*size) return null;
-  const direct=modeWinningMoves(board,1,size,connect);
-  if (difficulty==="easy") return direct.length===1 ? direct[0] : null;
-  if (direct.length) return null;
+  if(!level || board.length!==size*size) return null;
+  if(modeWinningMoves(board,1,size,connect).length) return null;
   const wins=[];
-  for(let i=0;i<board.length;i++) {
-    if(board[i]) continue;
-    if(forkThreatCount(board,i,1,size,connect)>=level.threats) wins.push(i);
-    if(wins.length>1) return null;
+  for(let i=0;i<board.length;i++){
+    if(board[i])continue;
+    if(forkThreatCount(board,i,1,size,connect)>=level.threats)wins.push(i);
+    if(wins.length>1)return null;
   }
-  return wins.length===1 ? wins[0] : null;
+  return wins.length===1?wins[0]:null;
+}
+export function findPuzzleLine(board,difficulty="easy",size=15,connect=5){
+  const first=findPuzzleSolution(board,difficulty,size,connect);
+  if(first===null)return null;
+  const state=board.slice();state[first]=1;
+  const threats=modeWinningMoves(state,1,size,connect);
+  if(threats.length<2)return null;
+  const defense=threats[0];state[defense]=2;
+  const finalMoves=modeWinningMoves(state,1,size,connect);
+  if(finalMoves.length!==1)return null;
+  return [first,defense,finalMoves[0]];
 }
 function boardHasWinner(board,size,connect) {
   for(let i=0;i<board.length;i++) if(board[i] && modeWinLine(board,i,board[i],size,connect).length) return true;
@@ -105,17 +114,11 @@ function puzzleAttempt(difficulty, random, addClutter) {
   const target=spot(targetRow,targetCol,size);
   const directions=shuffle(DIRS,random).slice(0,level.threats);
   const board=Array(size*size).fill(0);
-  if(difficulty==="easy") {
-    const [dr,dc]=directions[0];
-    for(let k=1;k<=4;k++) board[spot(targetRow+dr*k,targetCol+dc*k,size)]=1;
-    board[spot(targetRow+dr*5,targetCol+dc*5,size)]=2;
-  } else {
-    for(const [dr,dc] of directions) {
-      board[spot(targetRow-dr*2,targetCol-dc*2,size)]=1;
-      board[spot(targetRow-dr,targetCol-dc,size)]=1;
-      board[spot(targetRow+dr,targetCol+dc,size)]=1;
-      board[spot(targetRow+dr*2,targetCol+dc*2,size)]=2;
-    }
+  for(const [dr,dc] of directions) {
+    board[spot(targetRow-dr*2,targetCol-dc*2,size)]=1;
+    board[spot(targetRow-dr,targetCol-dc,size)]=1;
+    board[spot(targetRow+dr,targetCol+dc,size)]=1;
+    board[spot(targetRow+dr*2,targetCol+dc*2,size)]=2;
   }
   if(addClutter) {
     const fillerCount=difficulty==="easy"?6:difficulty==="normal"?10:14;
@@ -137,11 +140,11 @@ function puzzleAttempt(difficulty, random, addClutter) {
   const blackWins=modeWinningMoves(board,1,size,connect);
   const whiteWins=modeWinningMoves(board,2,size,connect);
   if(whiteWins.length) return null;
-  if(difficulty==="easy" && (blackWins.length!==1 || blackWins[0]!==target)) return null;
-  if(difficulty!=="easy" && blackWins.length) return null;
+  if(blackWins.length) return null;
   const solution=findPuzzleSolution(board,difficulty,size,connect);
-  if(solution!==target) return null;
-  return {size,connect,board,solutionIndex:target,difficulty,reward:level.reward,objective:level.objective};
+  const solutionSequence=findPuzzleLine(board,difficulty,size,connect);
+  if(solution!==target || !solutionSequence || solutionSequence[0]!==target) return null;
+  return {size,connect,board,solutionIndex:target,solutionSequence,difficulty,reward:level.reward,objective:level.objective};
 }
 export function generatePuzzle(difficulty="easy", seed=Date.now()) {
   if(!PUZZLE_LEVELS[difficulty]) throw new Error("未知残局难度");
