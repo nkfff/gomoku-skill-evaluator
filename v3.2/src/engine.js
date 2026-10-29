@@ -120,12 +120,10 @@ export function chooseAI(b,level="normal"){
   if(blocks.length>1){
     let best=possible[0]??-1,bestThreats=Infinity,bestScore=-Infinity;
     for(const i of possible){
-      b[i]=2;
-      const ownWinsAfter=immediateWins(b,2);
-      const enemyThreats=immediateWins(b,1).length;
       const score=pointValue(b,i,2);
+      b[i]=2;
+      const enemyThreats=immediateWins(b,1).length;
       b[i]=0;
-      if(ownWinsAfter.length){return {index:i,reason:"反制双重威胁",nodes:0};}
       if(enemyThreats<bestThreats||(enemyThreats===bestThreats&&score>bestScore)){
         best=i;bestThreats=enemyThreats;bestScore=score;
       }
