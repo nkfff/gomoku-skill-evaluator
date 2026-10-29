@@ -1,7 +1,7 @@
 import {bearer, loggedIn, cloudConfigured} from "./src/account.js";
 import {
-  PUZZLE_LEVELS, generatePuzzle, findPuzzleSolution, createRandomConfig,
-  modeWinLine, chooseRandomMove
+  PUZZLE_LEVELS, generatePuzzle, verifyPuzzleLine, createRandomConfig,
+  modeWinLine, modeWinningMoves, chooseRandomMove
 } from "./src/special-modes.js";
 
 const $=id=>document.getElementById(id);
@@ -115,40 +115,41 @@ function clickedIndex(event,canvas,size){
 function renderPuzzle(){
   if(!puzzleState)return;
   const p=puzzleState,level=PUZZLE_LEVELS[p.difficulty];
-  $("puzzleLevelLabel").textContent=level.label;
+  $("puzzleLevelLabel").textContent=level.label+" · "+p.progress+"/"+p.steps+" 步";
   $("puzzleObjective").textContent=level.objective;
   $("puzzleReward").textContent="+"+p.reward;
-  drawBoard($("puzzleBoard"),p.board,p.size,p.connect,p.solved?p.solutionIndex:-1,p.showSolution?p.solutionIndex:-1);
-  $("puzzleHint").disabled=p.solved;
+  drawBoard($("puzzleBoard"),p.board,p.size,p.connect,p.lastMove??-1,p.hintIndex??-1);
+  $("puzzleHint").disabled=p.solved||puzzleBusy;
   $("puzzleRetryClaim").hidden=!p.solved||p.claimed||!p.server;
   $("puzzleRewardStatus").textContent=p.claimed
     ?("已领取 +"+p.reward+" 积分。"+(p.server?"奖励已记入云端账号。":"游客奖励保存在当前浏览器。"))
-    :("通关奖励 +"+p.reward+" 积分"+(p.server?"（服务器验证，单题只能领取一次）":"（游客模式保存在本浏览器）"));
+    :("通关奖励 +"+p.reward+" 积分"+(p.server?"（服务端逐步验证，单题只能领取一次）":"（游客模式保存在本浏览器）"));
 }
 async function newPuzzle(){
   if(puzzleBusy)return;
   puzzleBusy=true;
-  $("puzzleStatus").textContent="正在生成并验证残局…";
+  $("puzzleStatus").textContent="正在生成并验证多步残局…";
   $("puzzleNew").disabled=true;$("puzzleHint").disabled=true;$("puzzleRetryClaim").hidden=true;
   try{
     const difficulty=$("puzzleDifficulty").value;
     if(isCloudUser()){
       const result=await modeApi("new",{difficulty});
       const p=result.puzzle;
-      const solution=findPuzzleSolution(p.board,difficulty,p.size,p.connect);
-      if(solution===null)throw new Error("服务器返回的残局未通过本地解题校验，请重新生成");
-      puzzleState={...p,solutionIndex:solution,server:true,solved:false,claimed:false,showSolution:false};
+      if(!Array.isArray(p.board)||p.steps!==PUZZLE_LEVELS[difficulty].steps)throw new Error("服务端残局格式或步数校验失败");
+      puzzleState={...p,server:true,solved:false,claimed:false,progress:0,playerMoves:[],lastMove:-1,hintIndex:-1};
     }else{
-      const puzzle=generatePuzzle(difficulty,randomSeed());
-      puzzleState={...puzzle,id:"guest-"+difficulty+"-"+puzzle.seed,server:false,solved:false,claimed:false,showSolution:false};
+      const p=generatePuzzle(difficulty,randomSeed());
+      if(!verifyPuzzleLine(p))throw new Error("本地残局未通过强制杀校验");
+      puzzleState={...p,id:"guest-"+difficulty+"-"+p.seed,server:false,solved:false,claimed:false,progress:0,playerMoves:[],lastMove:-1,hintIndex:-1};
     }
-    $("puzzleStatus").textContent="黑棋先手。请点击唯一制胜点；答错不会扣分。"+(puzzleState.server?"本题 20 分钟内有效。":"");
+    $("puzzleStatus").textContent="黑棋先手。请依次完成 "+puzzleState.steps+" 步；每一步都要制造唯一胜点，AI 会自动封堵，最后一步形成双重威胁。"+(puzzleState.server?"本题 20 分钟内有效。":"");
     renderPuzzle();
   }catch(error){
     $("puzzleStatus").textContent="生成失败："+error.message;
   }finally{
     puzzleBusy=false;$("puzzleNew").disabled=false;
     $("puzzleHint").disabled=!puzzleState||puzzleState.solved;
+    renderPuzzle();
   }
 }
 async function claimPuzzleReward(){
@@ -156,7 +157,7 @@ async function claimPuzzleReward(){
   puzzleBusy=true;$("puzzleRetryClaim").hidden=true;
   try{
     if(puzzleState.server){
-      const result=await modeApi("claim",{challengeId:puzzleState.id,moveIndex:puzzleState.solutionIndex});
+      const result=await modeApi("claim",{challengeId:puzzleState.id});
       if(result.profile&&window.gomokuApplyModeProfile)window.gomokuApplyModeProfile(result.profile);
     }else{
       if(localClaims.has(puzzleState.id)){
@@ -169,29 +170,80 @@ async function claimPuzzleReward(){
       saveClaim(puzzleState.id);
     }
     puzzleState.claimed=true;
-    $("puzzleStatus").textContent="漂亮！制胜点 "+coord(puzzleState.solutionIndex,puzzleState.size)+" 已验证，获得 +"+puzzleState.reward+" 积分。";
+    $("puzzleStatus").textContent="漂亮！完整 "+puzzleState.steps+" 步强制杀已验证，获得 +"+puzzleState.reward+" 积分。";
     renderPuzzle();
   }catch(error){
     $("puzzleStatus").textContent="棋题已解出，但积分同步失败："+error.message+"。可以点击“重试领取积分”。";
     $("puzzleRetryClaim").hidden=false;
   }finally{puzzleBusy=false;}
 }
-function onPuzzleClick(event){
+async function onPuzzleClick(event){
   if(!puzzleState||puzzleBusy||puzzleState.solved)return;
   const index=clickedIndex(event,$("puzzleBoard"),puzzleState.size);
   if(index<0||puzzleState.board[index])return;
-  if(index!==puzzleState.solutionIndex){
-    $("puzzleStatus").textContent="这一步还不是制胜点。观察棋形，找到能直接成五或同时制造多路威胁的位置。";
-    return;
+  const p=puzzleState;
+  let completed=false;
+  puzzleBusy=true;
+  try{
+    if(p.server){
+      const result=await modeApi("move",{challengeId:p.id,moveIndex:index});
+      if(!result.correct){
+        $("puzzleStatus").textContent=result.error||"这一步不是当前唯一解法，请重新思考。";
+        return;
+      }
+      p.board[index]=1;p.playerMoves.push(index);p.progress=result.progress;p.lastMove=index;p.hintIndex=-1;
+      if(Number.isInteger(result.responseIndex)){
+        if(p.board[result.responseIndex])throw new Error("服务端返回的强制防守点已被占用");
+        p.board[result.responseIndex]=2;p.lastMove=result.responseIndex;
+      }
+      if(result.solved){
+        p.solved=true;
+        $("puzzleStatus").textContent="最后一步形成双重威胁！完整强制杀已完成，正在领取奖励…";
+        completed=true;
+      }else{
+        $("puzzleStatus").textContent="第 "+p.progress+"/"+p.steps+" 步正确，AI 被迫封堵于 "+coord(result.responseIndex,p.size)+"。继续寻找下一步。";
+      }
+    }else{
+      if(index!==p.solutionMoves[p.progress]){
+        $("puzzleStatus").textContent="这一步不是唯一标准解法，棋子未落下。寻找能制造唯一胜点的进攻。";
+        return;
+      }
+      p.board[index]=1;p.playerMoves.push(index);p.lastMove=index;p.hintIndex=-1;p.progress++;
+      if(p.progress<p.steps){
+        const response=p.solutionResponses[p.progress-1];
+        if(p.board[response])throw new Error("本地强制防守点已被占用");
+        p.board[response]=2;p.lastMove=response;
+        $("puzzleStatus").textContent="第 "+p.progress+"/"+p.steps+" 步正确，AI 被迫封堵于 "+coord(response,p.size)+"。继续下一步。";
+      }else{
+        p.solved=true;
+        $("puzzleStatus").textContent="最后一步形成双重威胁！完整强制杀已完成，正在领取奖励…";
+        completed=true;
+      }
+    }
+    renderPuzzle();
+  }catch(error){
+    $("puzzleStatus").textContent="走子验证失败："+error.message;
+  }finally{
+    puzzleBusy=false;
+    renderPuzzle();
   }
-  puzzleState.solved=true;puzzleState.showSolution=true;puzzleState.board[index]=1;
-  $("puzzleStatus").textContent="答对了！正在验证通关奖励…";
-  renderPuzzle();claimPuzzleReward();
+  if(completed)await claimPuzzleReward();
 }
-function showPuzzleHint(){
-  if(!puzzleState||puzzleState.solved)return;
-  puzzleState.showSolution=true;
-  $("puzzleStatus").textContent="提示：制胜点是 "+coord(puzzleState.solutionIndex,puzzleState.size)+"。";
+async function showPuzzleHint(){
+  if(!puzzleState||puzzleState.solved||puzzleBusy)return;
+  if(puzzleState.server){
+    puzzleBusy=true;
+    try{
+      const result=await modeApi("hint",{challengeId:puzzleState.id});
+      puzzleState.hintIndex=result.moveIndex;
+      $("puzzleStatus").textContent="提示：下一步落在 "+coord(result.moveIndex,puzzleState.size)+"。";
+    }catch(error){
+      $("puzzleStatus").textContent="暂时无法获取提示："+error.message;
+    }finally{puzzleBusy=false;}
+  }else{
+    puzzleState.hintIndex=puzzleState.solutionMoves[puzzleState.progress];
+    $("puzzleStatus").textContent="提示：下一步落在 "+coord(puzzleState.hintIndex,puzzleState.size)+"。";
+  }
   renderPuzzle();
 }
 function renderRandom(){
@@ -235,7 +287,7 @@ function onRandomClick(event){
   const index=clickedIndex(event,$("randomBoard"),g.size);
   if(index<0||g.board[index])return;
   if(placeRandom(index,1))return;
-  g.thinking=true;randomStatus("AI 正在计算落点…");renderRandom();
+  g.thinking=true;randomStatus("AI 正在分析当前连珠目标、进攻威胁与对手回应…");renderRandom();
   aiTimer=setTimeout(()=>{
     if(!randomState||randomState!==g||g.result)return;
     const move=chooseRandomMove(g.board,g.size,g.connect,2);
