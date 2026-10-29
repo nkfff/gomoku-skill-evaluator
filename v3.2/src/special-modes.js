@@ -56,29 +56,10 @@ function forkThreatCount(board, index, player, size, connect) {
     board[index] = 0;
     return 99;
   }
-  const row=Math.floor(index/size), col=index%size;
-  let threats=0;
-  for (const [dr,dc] of DIRS) {
-    let count=1;
-    for (const sign of [-1,1]) {
-      let r=row+dr*sign,c=col+dc*sign;
-      while (inside(r,c,size) && board[spot(r,c,size)]===player) {
-        count++; r+=dr*sign; c+=dc*sign;
-      }
-    }
-    if (count === connect-1) {
-      let open=false;
-      for (const sign of [-1,1]) {
-        let r=row+dr*sign,c=col+dc*sign;
-        while (inside(r,c,size) && board[spot(r,c,size)]===player) {
-          r+=dr*sign; c+=dc*sign;
-        }
-        if (inside(r,c,size) && board[spot(r,c,size)]===0) open=true;
-      }
-      if (open) threats++;
-    }
-  }
-  board[index]=0;
+  // Count actual immediate winning cells after this candidate move, rather
+  // than estimating from contiguous runs; this is robust for every connect N.
+  const threats = modeWinningMoves(board,player,size,connect).length;
+  board[index] = 0;
   return threats;
 }
 export function findPuzzleSolution(board, difficulty="easy", size=15, connect=5) {
