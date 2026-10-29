@@ -1,8 +1,8 @@
 # 五子棋棋力评估 · Gomoku Skill Evaluator
 
-**当前稳定版：V2.2** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🎯 V3.3 战术 AI 与多步残局版](https://nkfff.github.io/gomoku-skill-evaluator/v3.2/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
+**当前稳定版：V2.2** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-> **最近更新：2026-10-29** · V3.3 战术更新已部署：随机模式采用随连珠数调整的攻防评估与前瞻搜索；残局升级为三步强制组合并验证唯一首着。
+> **最近更新：2026-10-29** · V3.3 独立入口整合王者 AI、自适应随机连珠 AI 与多步残局验证；前端发布状态以 GitHub Actions 为准。
 
 一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V2.3 为已部署的预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 前端 Pages、Cloudflare Worker 与 D1 迁移均已部署，自动化检查通过；完整真实浏览器验收仍待完成。
 
@@ -13,7 +13,7 @@
 | **V2.2 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.2/ | 当前稳定入口；前端与 Worker 部署成功，自动化测试通过（2026-10-28） |
 | **V2.3 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.3/ | 已部署：本地即时对局、猫猫主题棋盘/棋子、落子音效与终局云端结算；仍需真实浏览器验收 |
 | **V3.1 UI 优化版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.1/ | 基于 V3.0；开始下棋按钮仅在对弈页显示，AI 棋盘仅在对弈/复盘页显示 |
-| **V3.2 特殊模式测试版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.2/ | 新增多步唯一解残局、通关积分，以及采用连珠数适配评分与浅层搜索的随机 3–10 连珠 AI |
+| **V3.3 王者 AI 与战术模式版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.3/ | 王者难度深层攻防搜索、随机 3–10 连珠自适应策略、多步唯一解残局与自动化回归测试；真实浏览器验收仍待完成 |\n| V3.2 特殊模式兼容入口 | https://nkfff.github.io/gomoku-skill-evaluator/v3.2/ | 保留原入口；功能以当前兼容代码为准，后续开发与测试以 V3.3 为主 |
 | **V3.0 PVP 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.0/ | 以当前 V2.3 页面、主题系统、账号与本地棋力引擎为基础，新增好友真人 PVP 与独立 Elo；好友 PVP 已通过用户实测 |
 | V2.1 旧版主页 | https://nkfff.github.io/gomoku-skill-evaluator/ | 保留兼容，不作为当前版本入口 |
 | V2.1 预览快照 | https://nkfff.github.io/gomoku-skill-evaluator/v2.1/ | 旧预览备份 |
@@ -170,9 +170,21 @@ V3.1 基于 V3.0 创建独立入口，不覆盖 V3.0、V2.3 或稳定版。
 - **验收状态：** 自动化检查覆盖按钮/棋盘显示规则与资源引用；部署完成后仍建议实际切换各个页面验收。
 
 
-## V3.2 特殊模式（测试版）
+## V3.3 王者 AI 与战术模式（2026-10-29）
 
-V3.2 基于 V3.0 创建独立入口，原 V3.0、V2.3 和稳定版入口不覆盖。
+V3.3 建立独立的 `/v3.3/` 发布入口，整合普通 AI 对弈的王者难度、随机连珠 AI 的连珠数自适应搜索，以及经过程序验证的多步残局。V3.2 入口继续保留，不覆盖旧链接。
+
+- **王者 AI**：最高难度显示为“王者”，保留既有 `hard` 配置键与 +80 积分规则。相比旧版，搜索参数由深度 2 / 候选宽度 7 调整为深度 3 / 候选宽度 9；每个根候选使用独立节点预算，避免搜索预算耗尽后只评估前几个候选。AI 优先处理直接成五、唯一即时防守点，并在多重即时威胁下尽量减少剩余威胁。
+- **随机连珠 AI**：连珠数为 3–10，棋盘尺寸满足 `size >= 2 × connect + 3`。策略按连珠数调整深度、候选宽度、回应宽度与节点预算：3–4 连珠（3/12/8/180）、5–6 连珠（2/14/8/220）、7–8 连珠（2/12/7/180）、9–10 连珠（2/10/6/140）。算法会优先检查即时胜负，再评估攻防与后续局势。
+- **多步唯一解残局**：要求唯一正确起手制造双路制胜威胁；对手封堵一路后，玩家必须沿另一路完成制胜。程序验证初始局面没有一步制胜点、正确起手唯一、双路威胁成立、封堵与终结落点合法且最后一步确实获胜；云端生成的残局也会在前端复核。
+- **自动化回归**：`v3.3/test/engine.test.js` 覆盖王者难度配置、直接获胜、唯一必防点及棋盘状态完整性；`v3.3/test/special-modes.test.js` 覆盖残局验证与随机连珠策略。运行命令：`node --experimental-default-type=module --test v3.3/test/*.test.js`。
+- **在线入口**：https://nkfff.github.io/gomoku-skill-evaluator/v3.3/
+- **账号提示**：若 Supabase Auth 使用严格的 Redirect URL allowlist，需要在 Supabase Authentication → URL Configuration 中添加 `https://nkfff.github.io/gomoku-skill-evaluator/v3.3/`。前端复用当前配置的 Cloudflare Worker 与 Supabase 项目，不在代码中新增服务端密钥。
+- **已知限制**：王者 AI 仍是启发式 Alpha-Beta 搜索，不是穷举证明最优的专业求解器；随机模式参数是待实战基准继续调优的初始值。残局验证保证唯一首着与指定强制组合成立，不代表整盘棋的所有分支只有一条完整棋谱。发布后仍需真实浏览器测试登录回跳、积分领取、手机端布局和实际对局棋力。
+
+## V3.2 兼容入口（保留）
+
+V3.2 路径作为兼容入口保留；最新 AI 改进、自动化测试与后续迭代以 V3.3 为主。原 V3.0、V2.3 和稳定版入口均不覆盖。
 
 - **残局挑战：** 初级/进阶/大师都要求多步组合：唯一正确起手制造双路威胁，对手封堵一路后，再完成另一条制胜线。不同难度固定干扰棋子数量（6/10/14），随机棋形经程序校验。通关奖励分别为 10/30/80 积分；云端奖励由服务端验证完整解法序列。
 - **积分安全：** 登录用户由 V3 API 生成挑战、校验制胜点并在 D1 记录一次性领取；每日最多生成 30 道、领取 10 次。游客奖励保存在本地浏览器。
