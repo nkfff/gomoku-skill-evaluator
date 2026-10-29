@@ -33,8 +33,8 @@ jobs:
           node --check v3.2/src/special-modes.js
           node --check v3.2/special-modes-ui.js
           node --check v3.2/pvp-ui.js
-      - name: Test puzzle generation and random connect engine
-        run: node --experimental-default-type=module --test v3.2/test/special-modes.test.js
+      - name: Test game AI, puzzle generation and random connect engine
+        run: node --experimental-default-type=module --test v3.2/test/*.test.js
       - name: Verify UI and API wiring
         run: |
           python3 - <<'PY'
