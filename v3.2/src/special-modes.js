@@ -124,8 +124,32 @@ function puzzleAttempt(difficulty, random, addClutter) {
   const blockIndex=spot(targetRow-directions[0][0]*3,targetCol-directions[0][1]*3,size);
   const finishIndex=spot(targetRow-directions[1][0]*3,targetCol-directions[1][1]*3,size);
   if(board[blockIndex] || board[finishIndex] || blockIndex===finishIndex || blockIndex===target || finishIndex===target) return null;
-  return {size,connect,board,solutionIndex:target,solutionSequence:[target,blockIndex,finishIndex],difficulty,reward:level.reward,objective:level.objective};
+  const puzzle={size,connect,board,solutionIndex:target,solutionSequence:[target,blockIndex,finishIndex],difficulty,reward:level.reward,objective:level.objective};
+  if(!validatePuzzleSolution(puzzle)) return null;
+  return puzzle;
 }
+export function validatePuzzleSolution(puzzle) {
+  if (!puzzle || !Array.isArray(puzzle.board)) return false;
+  const {board,size,connect,solutionIndex,solutionSequence,difficulty}=puzzle;
+  if (!Number.isInteger(size) || !Number.isInteger(connect) || board.length!==size*size ||
+      !Array.isArray(solutionSequence) || solutionSequence.length!==3 ||
+      new Set(solutionSequence).size!==3) return false;
+  if (boardHasWinner(board,size,connect) ||
+      modeWinningMoves(board,1,size,connect).length ||
+      modeWinningMoves(board,2,size,connect).length) return false;
+  if (findPuzzleSolution(board,difficulty,size,connect)!==solutionIndex ||
+      solutionSequence[0]!==solutionIndex) return false;
+  const next=board.slice();
+  const [first,block,finish]=solutionSequence;
+  if (solutionSequence.some(i=>!Number.isInteger(i)||i<0||i>=next.length||next[i])) return false;
+  next[first]=1;
+  const winningEndpoints=modeWinningMoves(next,1,size,connect);
+  if (winningEndpoints.length!==2 || !winningEndpoints.includes(block) || !winningEndpoints.includes(finish)) return false;
+  next[block]=2;
+  next[finish]=1;
+  return modeWinLine(next,finish,1,size,connect).length>=connect;
+}
+
 export function generatePuzzle(difficulty="easy", seed=Date.now()) {
   if(!PUZZLE_LEVELS[difficulty]) throw new Error("未知残局难度");
   const base=(Number(seed)>>>0)||0x6d2b79f5;
