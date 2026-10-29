@@ -1,4 +1,4 @@
-name: V3.2/V3.3 AI and special modes checks
+name: V3.2/V3.3/V3.4 AI and special modes checks
 
 on:
   push:
@@ -13,6 +13,7 @@ on:
     paths:
       - "v3.2/**"
       - "v3.3/**"
+      - "v3.4/**"
       - "README.md"
       - ".github/workflows/v3.2-mode-check.yml"
 
@@ -27,24 +28,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Check JavaScript syntax for V3.2 and V3.3
+      - name: Check JavaScript syntax for V3.2, V3.3 and V3.4
         run: |
           for version in v3.2 v3.3 v3.4; do
             node --check "$version/src/app.js"
             node --check "$version/src/account.js"
             node --check "$version/src/assessment.js"
             node --check "$version/src/engine.js"
-            node --check "$version/src/ai.worker.js"
+            if [ -f "$version/src/ai.worker.js" ]; then node --check "$version/src/ai.worker.js"; fi
             node --check "$version/src/special-modes.js"
             node --check "$version/special-modes-ui.js"
             node --check "$version/pvp-ui.js"
           done
       - name: Test AI, puzzle generation and random connect engine
         run: |
-          for version in v3.2 v3.3; do
+          for version in v3.2 v3.3 v3.4; do
             node --experimental-default-type=module --test "$version"/test/*.test.js
           done
-      - name: Verify UI and API wiring for both versions
+      - name: Verify UI and API wiring for all supported versions
         run: |
           python3 - <<'PY'
           from pathlib import Path
