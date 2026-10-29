@@ -1,0 +1,66 @@
+name: V3.2 special modes frontend checks
+
+on:
+  push:
+    branches: [feature/v3.2-special-modes-frontend]
+    paths:
+      - "v3.2/**"
+      - ".github/workflows/v3.2-mode-check.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "v3.2/**"
+      - "README.md"
+      - ".github/workflows/v3.2-mode-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check JavaScript syntax
+        run: |
+          node --check v3.2/src/app.js
+          node --check v3.2/src/account.js
+          node --check v3.2/src/assessment.js
+          node --check v3.2/src/engine.js
+          node --check v3.2/src/special-modes.js
+          node --check v3.2/special-modes-ui.js
+          node --check v3.2/pvp-ui.js
+      - name: Test puzzle generation and random connect engine
+        run: node --experimental-default-type=module --test v3.2/test/special-modes.test.js
+      - name: Verify UI and API wiring
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path("v3.2/index.html").read_text(encoding="utf-8")
+          app = Path("v3.2/src/app.js").read_text(encoding="utf-8")
+          ui = Path("v3.2/special-modes-ui.js").read_text(encoding="utf-8")
+          config = Path("v3.2/config.js").read_text(encoding="utf-8")
+          required = [
+              "tab-puzzle", "tab-random", "panel-puzzle", "panel-random",
+              "puzzleBoard", "puzzleNew", "puzzleRetryClaim", "randomBoard",
+              "randomNew", "randomRestart", "tab-pvp", "pvpBoard"
+          ]
+          missing = [item for item in required if f'id="{item}"' not in html]
+          if missing:
+              raise SystemExit(f"Missing UI elements: {missing}")
+          for asset in ["./src/app.js", "./pvp-ui.js", "./special-modes-ui.js"]:
+              if asset not in html:
+                  raise SystemExit(f"Missing page asset: {asset}")
+          for marker in ['"puzzle","random"', "gomoku:tab-change", "gomokuApplyModeProfile", "gomokuAwardLocalModePoints"]:
+              if marker not in app:
+                  raise SystemExit(f"Missing app integration marker: {marker}")
+          for marker in ['"/api/modes/puzzle/"+path', 'modeApi("new"', 'modeApi("claim"', "chooseRandomMove", "createRandomConfig"]:
+              if marker not in ui:
+                  raise SystemExit(f"Missing special mode behavior: {marker}")
+          if "GOMOKU_PVP_API_URL" not in config:
+              raise SystemExit("PVP API URL is missing.")
+          print("V3.2 UI wiring OK")
+          PY
