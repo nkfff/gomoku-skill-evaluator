@@ -181,42 +181,106 @@ export function randomCandidates(board,size,radius=2) {
 }
 function windowValue(count,connect) {
   if(count<=0) return 1;
-  if(count>=connect) return 1e14;
-  return Math.pow(5.5,count) * (count>=connect-2 ? 7 : count>=connect-3 ? 2.5 : 1);
+  if(count>=connect) return 1e12;
+  const remaining=connect-count;
+  const base=connect<=4?12:connect<=6?7:4.2;
+  return Math.pow(base,count) * (remaining===1?30:remaining===2?7:remaining===3?2:1);
 }
 function candidateValue(board,index,player,size,connect) {
   const opponent=3-player,row=Math.floor(index/size),col=index%size;
   board[index]=player;
-  if(modeWinLine(board,index,player,size,connect).length) {board[index]=0;return 1e15;}
-  let own=0,block=0;
+  if(modeWinLine(board,index,player,size,connect).length) {board[index]=0;return 1e14;}
+  let own=0,block=0,openThrees=0,openFours=0;
+  for(const [dr,dc] of DIRS) {
+    let count=1,openEnds=0;
+    for(const sign of [-1,1]){
+      let r=row+dr*sign,c=col+dc*sign;
+      while(inside(r,c,size)&&board[spot(r,c,size)]===player){count++;r+=dr*sign;c+=dc*sign;}
+      if(inside(r,c,size)&&board[spot(r,c,size)]===0)openEnds++;
+    }
+    if(count===connect-1&&openEnds===2)openFours++;
+    if(count===connect-2&&openEnds===2)openThrees++;
+  }
   for(const [dr,dc] of DIRS) for(let offset=0;offset<connect;offset++) {
     const sr=row-dr*offset,sc=col-dc*offset,er=sr+dr*(connect-1),ec=sc+dc*(connect-1);
     if(!inside(sr,sc,size)||!inside(er,ec,size)) continue;
-    let mine=0,theirs=0;
-    for(let k=0;k<connect;k++) {
+    let mine=0,theirs=0,empty=0;
+    for(let k=0;k<connect;k++){
       const v=board[spot(sr+dr*k,sc+dc*k,size)];
-      if(v===player)mine++;
-      else if(v===opponent)theirs++;
+      if(v===player)mine++;else if(v===opponent)theirs++;else empty++;
     }
-    if(!theirs) own=Math.max(own,windowValue(mine,connect));
-    if(!mine) block=Math.max(block,windowValue(theirs,connect));
+    if(!theirs)own=Math.max(own,windowValue(mine,connect));
+    if(!mine)block=Math.max(block,windowValue(theirs,connect));
   }
   board[index]=0;
   const center=(size-1)/2;
   const centrality=Math.max(0,size-Math.abs(row-center)-Math.abs(col-center));
-  return own+block*0.94+centrality*0.25;
+  return own+block*1.12+openFours*2e8+openThrees*1.8e5+centrality*0.2;
 }
-export function chooseRandomMove(board,size,connect,player=2) {
-  const possible=randomCandidates(board,size);
-  const wins=[];
-  for(const i of possible) {board[i]=player;const won=modeWinLine(board,i,player,size,connect).length>0;board[i]=0;if(won)wins.push(i);}
+function evaluateBoard(board,size,connect,player){
+  const opponent=3-player;
+  let score=0;
+  for(const [dr,dc] of DIRS) for(let r=0;r<size;r++) for(let c=0;c<size;c++){
+    const er=r+dr*(connect-1),ec=c+dc*(connect-1);
+    if(!inside(er,ec,size))continue;
+    let mine=0,theirs=0;
+    for(let k=0;k<connect;k++){
+      const v=board[spot(r+dr*k,c+dc*k,size)];
+      if(v===player)mine++;else if(v===opponent)theirs++;
+    }
+    if(mine&&theirs)continue;
+    if(mine)score+=windowValue(mine,connect);
+    else if(theirs)score-=windowValue(theirs,connect)*1.08;
+  }
+  return score;
+}
+function rankedCandidates(board,size,connect,player,limit){
+  const candidates=randomCandidates(board,size,2);
+  const immediate=modeWinningMoves(board,player,size,connect);
+  if(immediate.length)return immediate;
+  const mustBlock=modeWinningMoves(board,3-player,size,connect);
+  if(mustBlock.length)return mustBlock;
+  return candidates.map(i=>({i,score:Math.max(candidateValue(board,i,player,size,connect),candidateValue(board,i,3-player,size,connect)*0.98)}))
+    .sort((a,b)=>b.score-a.score).slice(0,limit).map(x=>x.i);
+}
+function search(board,size,connect,player,depth,alpha,beta,ply=0){
+  const opponent=3-player;
+  const last=board.lastIndexOf(3-player);
+  if(last>=0&&modeWinLine(board,last,3-player,size,connect).length)return -1e13+ply;
+  if(depth<=0||board.every(Boolean))return evaluateBoard(board,size,connect,player);
+  const wins=modeWinningMoves(board,player,size,connect);
+  if(wins.length)return 1e13-ply;
+  const oppWins=modeWinningMoves(board,opponent,size,connect);
+  if(oppWins.length>1)return -1e12+ply;
+  let moves=rankedCandidates(board,size,connect,player,depth>=3?7:9);
+  if(!moves.length)return 0;
+  let best=-Infinity;
+  for(const i of moves){
+    board[i]=player;
+    const score=modeWinLine(board,i,player,size,connect).length?1e13-ply:-search(board,size,connect,opponent,depth-1,-beta,-alpha,ply+1);
+    board[i]=0;
+    if(score>best)best=score;
+    if(score>alpha)alpha=score;
+    if(alpha>=beta)break;
+  }
+  return best;
+}
+export function chooseRandomMove(board,size,connect,player=2){
+  if(!Array.isArray(board)||board.length!==size*size||connect<3||connect>10||size<connect)return -1;
+  const wins=modeWinningMoves(board,player,size,connect);
   if(wins.length)return wins[0];
-  const blocks=[];
-  for(const i of possible) {board[i]=3-player;const won=modeWinLine(board,i,3-player,size,connect).length>0;board[i]=0;if(won)blocks.push(i);}
+  const blocks=modeWinningMoves(board,3-player,size,connect);
   if(blocks.length)return blocks[0];
-  let best=possible[0],bestScore=-Infinity;
-  for(const i of possible) {
-    const score=candidateValue(board,i,player,size,connect);
+  const empty=board.filter(v=>v===0).length;
+  if(!empty)return -1;
+  const depth=connect<=3?4:connect<=5?3:connect<=7?2:2;
+  const limit=connect<=4?10:connect<=6?8:7;
+  const moves=rankedCandidates(board,size,connect,player,limit);
+  let best=moves[0]??Math.floor(size/2)*size+Math.floor(size/2),bestScore=-Infinity;
+  for(const i of moves){
+    board[i]=player;
+    const score=modeWinLine(board,i,player,size,connect).length?1e13: -search(board,size,connect,3-player,depth-1,-Infinity,-bestScore);
+    board[i]=0;
     if(score>bestScore){bestScore=score;best=i;}
   }
   return best;
