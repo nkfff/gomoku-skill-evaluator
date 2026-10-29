@@ -4,7 +4,7 @@ export const CELLS = SIZE * SIZE;
 export const LEVELS = {
   easy:   {label:"新手",reward:10,depth:0,width:6},
   normal: {label:"进阶",reward:30,depth:1,width:6},
-  hard:   {label:"大师",reward:80,depth:2,width:7}
+  hard:   {label:"王者",reward:80,depth:3,width:9}
 };
 export const inside = (r,c)=>r>=0&&r<15&&c>=0&&c<15;
 export const spot = (r,c)=>r*15+c;
@@ -112,19 +112,47 @@ export function chooseAI(b,level="normal"){
   const wins=immediateWins(b,2,possible);
   if(wins.length)return {index:wins[0],reason:"直接成五",nodes:0};
   const blocks=immediateWins(b,1,possible);
-  if(blocks.length)return {index:blocks[0],reason:"紧急堵五",nodes:0};
+  if(blocks.length===1)return {index:blocks[0],reason:"紧急堵五",nodes:0};
+
+  // If the opponent has several immediate winning points, a single block
+  // cannot save the game. Prefer a forcing move that creates our own threat,
+  // otherwise minimize the number of remaining enemy winning points.
+  if(blocks.length>1){
+    let best=possible[0]??-1,bestThreats=Infinity,bestScore=-Infinity;
+    for(const i of possible){
+      b[i]=2;
+      const ownWinsAfter=immediateWins(b,2);
+      const enemyThreats=immediateWins(b,1).length;
+      const score=pointValue(b,i,2);
+      b[i]=0;
+      if(ownWinsAfter.length){return {index:i,reason:"反制双重威胁",nodes:0};}
+      if(enemyThreats<bestThreats||(enemyThreats===bestThreats&&score>bestScore)){
+        best=i;bestThreats=enemyThreats;bestScore=score;
+      }
+    }
+    return {index:best,reason:"化解多重威胁",nodes:0};
+  }
+
   const options=rankedMoves(b,2,cfg.width);
   if(!cfg.depth||options.length===1)return {index:options[0],reason:"棋形判断",nodes:0};
-  const visits={count:0};
-  let best=-Infinity,index=options[0];
+
+  const hard=level==="hard";
+  const perRootLimit=hard?1000:550;
+  let totalNodes=0,best=-Infinity,index=options[0];
+  // Give each root candidate its own node budget. The previous global budget
+  // could expire while evaluating an early move, causing later candidates to
+  // receive only a static score and biasing the choice by move ordering.
   for(const i of options){
     b[i]=2;
-    const value=winLine(b,i,2).length?1e10:-negamax(b,1,cfg.depth,-Infinity,Infinity,level==="hard"?2200:550,visits,1);
+    const visits={count:0};
+    const value=winLine(b,i,2).length
+      ?1e10
+      :-negamax(b,1,cfg.depth,-Infinity,Infinity,perRootLimit,visits,1);
     b[i]=0;
+    totalNodes+=visits.count;
     if(value>best){best=value;index=i;}
-    if(visits.count>=(level==="hard"?2200:550))break;
   }
-  return {index,reason:"Alpha-Beta 搜索",nodes:visits.count};
+  return {index,reason:hard?"王者模式 · 深层攻防搜索":"Alpha-Beta 搜索",nodes:totalNodes};
 }
 export function advice(b,p,played,level="hard"){
   const options=rankedMoves(b,p,5);
