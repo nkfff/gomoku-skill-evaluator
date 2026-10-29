@@ -124,8 +124,32 @@ function puzzleAttempt(difficulty, random, addClutter) {
   const blockIndex=spot(targetRow-directions[0][0]*3,targetCol-directions[0][1]*3,size);
   const finishIndex=spot(targetRow-directions[1][0]*3,targetCol-directions[1][1]*3,size);
   if(board[blockIndex] || board[finishIndex] || blockIndex===finishIndex || blockIndex===target || finishIndex===target) return null;
-  return {size,connect,board,solutionIndex:target,solutionSequence:[target,blockIndex,finishIndex],difficulty,reward:level.reward,objective:level.objective};
+  const puzzle={size,connect,board,solutionIndex:target,solutionSequence:[target,blockIndex,finishIndex],difficulty,reward:level.reward,objective:level.objective};
+  if(!validatePuzzleSolution(puzzle)) return null;
+  return puzzle;
 }
+export function validatePuzzleSolution(puzzle) {
+  if (!puzzle || !Array.isArray(puzzle.board)) return false;
+  const {board,size,connect,solutionIndex,solutionSequence,difficulty}=puzzle;
+  if (!Number.isInteger(size) || !Number.isInteger(connect) || board.length!==size*size ||
+      !Array.isArray(solutionSequence) || solutionSequence.length!==3 ||
+      new Set(solutionSequence).size!==3) return false;
+  if (boardHasWinner(board,size,connect) ||
+      modeWinningMoves(board,1,size,connect).length ||
+      modeWinningMoves(board,2,size,connect).length) return false;
+  if (findPuzzleSolution(board,difficulty,size,connect)!==solutionIndex ||
+      solutionSequence[0]!==solutionIndex) return false;
+  const next=board.slice();
+  const [first,block,finish]=solutionSequence;
+  if (solutionSequence.some(i=>!Number.isInteger(i)||i<0||i>=next.length||next[i])) return false;
+  next[first]=1;
+  const winningEndpoints=modeWinningMoves(next,1,size,connect);
+  if (winningEndpoints.length!==2 || !winningEndpoints.includes(block) || !winningEndpoints.includes(finish)) return false;
+  next[block]=2;
+  next[finish]=1;
+  return modeWinLine(next,finish,1,size,connect).length>=connect;
+}
+
 export function generatePuzzle(difficulty="easy", seed=Date.now()) {
   if(!PUZZLE_LEVELS[difficulty]) throw new Error("未知残局难度");
   const base=(Number(seed)>>>0)||0x6d2b79f5;
@@ -217,59 +241,107 @@ function rankedCandidates(board,size,connect,player,limit=16) {
     .slice(0,limit)
     .map(x=>x.index);
 }
+export function randomAIStrategy(connect) {
+  if (!Number.isInteger(connect) || connect < 3 || connect > 10) throw new RangeError("连珠数必须为 3–10");
+  // Shorter games have denser tactical threats and can afford deeper search;
+  // longer games have much larger boards, so use a wider positional horizon.
+  if (connect <= 4) return { depth: 3, width: 12, replyWidth: 8, nodeLimit: 180 };
+  if (connect <= 6) return { depth: 2, width: 14, replyWidth: 8, nodeLimit: 220 };
+  if (connect <= 8) return { depth: 2, width: 12, replyWidth: 7, nodeLimit: 180 };
+  return { depth: 2, width: 10, replyWidth: 6, nodeLimit: 140 };
+}
+
+function tacticalValue(board, player, size, connect) {
+  const ownWins = modeWinningMoves(board, player, size, connect);
+  if (ownWins.length) return 1e12 + ownWins.length * 1e8;
+  const enemyWins = modeWinningMoves(board, 3-player, size, connect);
+  if (enemyWins.length) return -1e12 - enemyWins.length * 1e8;
+  return evaluatePosition(board, player, size, connect);
+}
+
 export function chooseRandomMove(board,size,connect,player=2) {
-  if(!Array.isArray(board)||board.length!==size*size||connect<3||connect>10||size<connect) return -1;
-  const empty=board.reduce((n,v)=>n+(v===0),0);
-  if(!empty)return -1;
-  // Tactical layer 1: take a win immediately.
-  const ownWins=modeWinningMoves(board,player,size,connect);
-  if(ownWins.length)return ownWins[0];
-  // Tactical layer 2: block an immediate loss, choosing the least damaging
-  // block if the opponent has created multiple simultaneous winning points.
-  const oppWins=modeWinningMoves(board,3-player,size,connect);
-  if(oppWins.length===1)return oppWins[0];
-  if(oppWins.length>1) {
-    const blocks=rankedCandidates(board,size,connect,player,Math.min(24,empty));
-    let best=blocks[0],bestThreats=Infinity,bestScore=-Infinity;
-    for(const i of blocks){
-      board[i]=player;
-      const remaining=modeWinningMoves(board,3-player,size,connect).length;
-      const score=evaluatePosition(board,player,size,connect);
-      board[i]=0;
-      if(remaining<bestThreats||(remaining===bestThreats&&score>bestScore)){best=i;bestThreats=remaining;bestScore=score;}
+  if (!Array.isArray(board) || board.length !== size*size ||
+      !Number.isInteger(size) || connect < 3 || connect > 10 || size < 2*connect+3 ||
+      ![1,2].includes(player)) return -1;
+  if (!board.some(v => v === 0)) return -1;
+
+  // Always resolve immediate wins/losses before positional evaluation.
+  const ownWins = modeWinningMoves(board, player, size, connect);
+  if (ownWins.length) return ownWins[0];
+  const opponent = 3-player;
+  const enemyWins = modeWinningMoves(board, opponent, size, connect);
+  if (enemyWins.length === 1) return enemyWins[0];
+
+  const profile = randomAIStrategy(connect);
+  const candidates = rankedCandidates(board, size, connect, player, profile.width);
+  let bestMove = candidates[0] ?? board.findIndex(v => v === 0);
+  let bestValue = -Infinity;
+  let visited = 0;
+
+  // Negamax-style alpha-beta with connect-dependent depth/width. Every branch
+  // checks immediate wins and forced blocks, so the AI cannot blindly extend
+  // its own line while ignoring a one-move loss.
+  function search(depth, toMove, alpha, beta, lastMove) {
+    if (lastMove >= 0 && modeWinLine(board, lastMove, 3-toMove, size, connect).length) {
+      return (3-toMove === player ? 1 : -1) * (1e11 + depth);
     }
-    return best;
-  }
-  // Tactical layer 3: consider both attack and defence at every candidate.
-  // A short minimax look-ahead stops the old "keep extending my own line"
-  // behavior and adapts evaluation to the actual connect length.
-  const candidates=rankedCandidates(board,size,connect,player,14);
-  let best=candidates[0]??Math.floor(size/2)*size+Math.floor(size/2);
-  let bestScore=-Infinity;
-  for(const move of candidates){
-    board[move]=player;
-    if(modeWinLine(board,move,player,size,connect).length){board[move]=0;return move;}
-    const opponentWins=modeWinningMoves(board,3-player,size,connect);
-    if(opponentWins.length){board[move]=0;continue;}
-    const replies=rankedCandidates(board,size,connect,3-player,8);
-    let worst=Infinity;
-    for(const reply of replies){
-      board[reply]=3-player;
-      const replyWins=modeWinLine(board,reply,3-player,size,connect).length>0;
-      const score=replyWins?-1e13:evaluatePosition(board,player,size,connect);
-      board[reply]=0;
-      if(score<worst)worst=score;
-      if(worst<bestScore)break;
+    if (depth === 0 || visited >= profile.nodeLimit) {
+      return tacticalValue(board, player, size, connect);
     }
-    board[move]=0;
-    const center=(size-1)/2,row=Math.floor(move/size),col=move%size;
-    const score=(worst===Infinity?evaluatePosition(board,player,size,connect):worst)
-      - (Math.abs(row-center)+Math.abs(col-center))*0.05;
-    if(score>bestScore){bestScore=score;best=move;}
+    const wins = modeWinningMoves(board, toMove, size, connect);
+    if (wins.length) return toMove === player ? 1e12 + wins.length : -1e12 - wins.length;
+    const moves = rankedCandidates(board, size, connect, toMove,
+      depth === profile.depth ? profile.width : profile.replyWidth);
+    if (!moves.length) return tacticalValue(board, player, size, connect);
+    const maximizing = toMove === player;
+    let value = maximizing ? -Infinity : Infinity;
+    for (const move of moves) {
+      if (board[move]) continue;
+      board[move] = toMove;
+      visited++;
+      const next = search(depth-1, 3-toMove, alpha, beta, move);
+      board[move] = 0;
+      if (maximizing) {
+        value = Math.max(value, next);
+        alpha = Math.max(alpha, value);
+      } else {
+        value = Math.min(value, next);
+        beta = Math.min(beta, value);
+      }
+      if (alpha >= beta || visited >= profile.nodeLimit) break;
+    }
+    return value === Infinity || value === -Infinity
+      ? tacticalValue(board, player, size, connect) : value;
   }
-  if(bestScore===-Infinity){
-    const fallback=rankedCandidates(board,size,connect,player,1)[0];
-    return fallback??board.findIndex(v=>v===0);
+
+  for (const move of candidates) {
+    if (board[move]) continue;
+    board[move] = player;
+    visited++;
+    const value = modeWinLine(board, move, player, size, connect).length
+      ? 1e12
+      : search(profile.depth-1, opponent, -Infinity, Infinity, move);
+    board[move] = 0;
+    if (value > bestValue) {
+      bestValue = value;
+      bestMove = move;
+    }
+    if (visited >= profile.nodeLimit) break;
   }
-  return best;
+
+  // If all candidate lines lose tactically, prioritize the move that leaves
+  // the fewest immediate enemy winning points, then use positional evaluation.
+  if (bestValue <= -1e11) {
+    let leastBad = Infinity;
+    for (const move of rankedCandidates(board, size, connect, player, Math.min(24, board.length))) {
+      board[move] = player;
+      const threats = modeWinningMoves(board, opponent, size, connect).length;
+      const score = evaluatePosition(board, player, size, connect);
+      board[move] = 0;
+      const value = threats * 1e12 - score;
+      if (value < leastBad) { leastBad = value; bestMove = move; }
+    }
+  }
+  return Number.isInteger(bestMove) && bestMove >= 0 && !board[bestMove]
+    ? bestMove : board.findIndex(v => v === 0);
 }

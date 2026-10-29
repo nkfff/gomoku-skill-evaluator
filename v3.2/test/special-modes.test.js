@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   PUZZLE_LEVELS, generatePuzzle, findPuzzleSolution, modeWinLine,
-  modeWinningMoves, createRandomConfig, chooseRandomMove
+  modeWinningMoves, createRandomConfig, chooseRandomMove, randomAIStrategy, validatePuzzleSolution
 } from "../src/special-modes.js";
 
 function hasExistingWin(board,size,connect) {
@@ -28,6 +28,7 @@ test("each puzzle difficulty generates varied, validated, uniquely solvable posi
       assert.equal(modeWinningMoves(puzzle.board,2,15,5).length,0);
       assert.equal(modeWinningMoves(puzzle.board,1,15,5).length,0,"no one-move win: puzzles must require a sequence");
       assert.equal(puzzle.solutionSequence.length,3);
+      assert.equal(validatePuzzleSolution(puzzle),true,"the complete forced sequence must be valid");
       assert.equal(puzzle.solutionSequence[0],puzzle.solutionIndex);
       assert.equal(new Set(puzzle.solutionSequence).size,3);
       assert.ok(puzzle.solutionSequence.slice(1).every(i=>puzzle.board[i]===0));
@@ -104,4 +105,24 @@ test("AI prefers forcing threats over random extension on connect-5", () => {
   assert.ok(modeWinLine(board,move,2,size,connect).length===0);
   assert.ok(Math.floor(move/size)===row && move>=row*size+3 && move<=row*size+9,
     "AI should extend or support its active threat rather than play far away");
+});
+
+test("random AI explicitly adapts search depth and width to connect length", () => {
+  const short = randomAIStrategy(3);
+  const standard = randomAIStrategy(5);
+  const long = randomAIStrategy(10);
+  assert.ok(short.depth > standard.depth);
+  assert.ok(standard.width > long.width);
+  assert.ok(short.nodeLimit > long.nodeLimit);
+  assert.throws(() => randomAIStrategy(11), /3–10/);
+});
+
+test("puzzle validator rejects a one-move or corrupted solution", () => {
+  const puzzle = generatePuzzle("easy", 445566);
+  assert.equal(validatePuzzleSolution(puzzle), true);
+  const wrong = {...puzzle, solutionSequence: [puzzle.solutionIndex, puzzle.solutionSequence[1], puzzle.solutionIndex]};
+  assert.equal(validatePuzzleSolution(wrong), false);
+  const brokenBoard = {...puzzle, board: puzzle.board.slice()};
+  brokenBoard.board[puzzle.solutionIndex] = 1;
+  assert.equal(validatePuzzleSolution(brokenBoard), false);
 });

@@ -1,7 +1,7 @@
 import {bearer, loggedIn, cloudConfigured} from "./src/account.js";
 import {
   PUZZLE_LEVELS, generatePuzzle, findPuzzleSolution, createRandomConfig,
-  modeWinLine, chooseRandomMove
+  modeWinLine, chooseRandomMove, validatePuzzleSolution
 } from "./src/special-modes.js";
 
 const $=id=>document.getElementById(id);
@@ -139,8 +139,9 @@ async function newPuzzle(){
       if(solution===null)throw new Error("服务器返回的多步残局未通过本地校验，请重新生成");
       const row=Math.floor(solution/p.size),col=solution%p.size;
       const sequence=[solution,row*p.size+col-3,(row-3)*p.size+col];
-      if(sequence.some(i=>!Number.isInteger(i)||i<0||i>=p.board.length)||sequence.slice(1).some(i=>p.board[i]!==0)||new Set(sequence).size!==3)throw new Error("服务器返回的残局解法结构异常，请重新生成");
-      puzzleState={...p,solutionIndex:solution,solutionSequence:sequence,server:true,solved:false,claimed:false,showSolution:false,step:0,lastMove:-1,playedSequence:[]};
+      const verified={...p,solutionIndex:solution,solutionSequence:sequence,difficulty};
+      if(!validatePuzzleSolution(verified))throw new Error("服务器返回的残局未通过完整多步唯一解验证，请重新生成");
+      puzzleState={...verified,server:true,solved:false,claimed:false,showSolution:false,step:0,lastMove:-1,playedSequence:[]};
     }else{
       const puzzle=generatePuzzle(difficulty,randomSeed());
       puzzleState={...puzzle,id:"guest-"+difficulty+"-"+puzzle.seed,server:false,solved:false,claimed:false,showSolution:false,step:0,lastMove:-1,playedSequence:[]};
