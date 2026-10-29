@@ -1,6 +1,7 @@
 import {createRemoteJWKSet, jwtVerify} from "jose";
 import {DEFAULT_TIME_CONTROL_MS, ratingTier} from "../src/pvp.js";
 import {PvpRoom} from "./pvp-room.js";
+import {generatePuzzle, PUZZLE_LEVELS, findPuzzleSolution} from "../src/special-modes.js";
 export {PvpRoom};
 
 const reply = (value, status = 200, headers = {}) => new Response(JSON.stringify(value), {
@@ -218,6 +219,99 @@ async function history(env, playerId, headers) {
   return reply({matches: results}, 200, headers);
 }
 
+async function modeProfile(env, playerId) {
+  const row = await env.DB.prepare(
+    "SELECT id,name,points,earned_points,wins,losses,draws,inventory,selected_board,selected_piece,banned FROM players WHERE id=?"
+  ).bind(playerId).first();
+  if (!row) throw fail("玩家档案不存在", 404);
+  let inventory = [];
+  try { inventory = JSON.parse(row.inventory || "[]"); } catch {}
+  return {
+    id: row.id, name: row.name, points: Number(row.points || 0),
+    earned_points: Number(row.earned_points || 0), wins: Number(row.wins || 0),
+    losses: Number(row.losses || 0), draws: Number(row.draws || 0),
+    inventory, selected_board: row.selected_board || "classic",
+    selected_piece: row.selected_piece || "classic", banned: !!row.banned
+  };
+}
+
+async function createPuzzleChallenge(request, env, user, headers) {
+  const body = await parseBody(request);
+  const difficulty = String(body.difficulty || "easy");
+  const level = PUZZLE_LEVELS[difficulty];
+  if (!level) throw fail("残局难度无效");
+  await ensurePlayer(env, user);
+  const count = await env.DB.prepare(
+    "SELECT COUNT(*) AS total FROM mode_challenges WHERE player_id=? AND created_at>datetime('now','-1 day')"
+  ).bind(user.id).first();
+  if (Number(count?.total || 0) >= 30) throw fail("每日残局生成次数已达上限，请明天再来", 429);
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  const seed = bytes[0] || (Date.now() >>> 0);
+  const puzzle = generatePuzzle(difficulty, seed);
+  const id = crypto.randomUUID();
+  await env.DB.prepare(
+    "INSERT INTO mode_challenges(id,player_id,mode,difficulty,size,connect,board,solution_index,reward,status,created_at,expires_at) VALUES(?,?,'puzzle',?,?,?,?,?,?,'open',datetime('now'),datetime('now','+20 minutes'))"
+  ).bind(id, user.id, difficulty, puzzle.size, puzzle.connect, JSON.stringify(puzzle.board), puzzle.solutionIndex, puzzle.reward).run();
+  return reply({
+    puzzle: {
+      id, difficulty, size: puzzle.size, connect: puzzle.connect,
+      board: puzzle.board, reward: puzzle.reward, objective: puzzle.objective,
+      expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString()
+    }
+  }, 200, headers);
+}
+
+async function claimPuzzleReward(request, env, user, headers) {
+  const body = await parseBody(request);
+  const challengeId = String(body.challengeId || "");
+  const moveIndex = Number(body.moveIndex);
+  if (!uuid(challengeId) || !Number.isInteger(moveIndex) || moveIndex < 0 || moveIndex >= 225) {
+    throw fail("残局提交数据无效");
+  }
+  await ensurePlayer(env, user);
+  const challenge = await env.DB.prepare(
+    "SELECT id,player_id,difficulty,size,connect,board,solution_index,reward,status,expires_at FROM mode_challenges WHERE id=? AND player_id=? AND mode='puzzle'"
+  ).bind(challengeId, user.id).first();
+  if (!challenge) throw fail("残局不存在或不属于当前账号", 404);
+  if (challenge.status !== "open") throw fail("这道残局已提交或已领取奖励", 409);
+  const expiry = await env.DB.prepare(
+    "SELECT CASE WHEN expires_at>datetime('now') THEN 1 ELSE 0 END AS valid FROM mode_challenges WHERE id=?"
+  ).bind(challengeId).first();
+  if (!expiry?.valid) throw fail("残局已过期，请重新生成", 410);
+  let board;
+  try { board = JSON.parse(challenge.board); } catch { throw fail("残局数据损坏", 500); }
+  const verifiedSolution = findPuzzleSolution(board, challenge.difficulty, Number(challenge.size), Number(challenge.connect));
+  if (verifiedSolution === null || verifiedSolution !== Number(challenge.solution_index)) {
+    throw fail("服务端残局校验失败，请重新生成", 500);
+  }
+  if (moveIndex !== verifiedSolution) throw fail("这步还不是制胜点，再观察一下棋形", 400);
+  const result = await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE mode_challenges SET status='claimed',claimed_at=datetime('now') WHERE id=? AND player_id=? AND status='open' AND expires_at>datetime('now') AND (SELECT COUNT(*) FROM mode_challenges WHERE player_id=? AND status='claimed' AND claimed_at>datetime('now','-1 day'))<10"
+    ).bind(challengeId, user.id, user.id),
+    env.DB.prepare(
+      "UPDATE players SET points=points+(SELECT reward FROM mode_challenges WHERE id=? AND status='claimed') WHERE id=? AND changes()=1"
+    ).bind(challengeId, user.id),
+    env.DB.prepare(
+      "INSERT INTO point_ledger(id,player_id,delta,reason,actor_id,note) SELECT ?,player_id,reward,'puzzle_reward',player_id,'残局挑战:'||difficulty FROM mode_challenges WHERE id=? AND status='claimed' AND changes()=1"
+    ).bind(crypto.randomUUID(), challengeId)
+  ]);
+  if (Number(result?.[0]?.meta?.changes || 0) !== 1) {
+    const claimed = await env.DB.prepare(
+      "SELECT status FROM mode_challenges WHERE id=? AND player_id=?"
+    ).bind(challengeId, user.id).first();
+    if (claimed?.status === "claimed") throw fail("这道残局已领取奖励", 409);
+    const daily = await env.DB.prepare(
+      "SELECT COUNT(*) AS total FROM mode_challenges WHERE player_id=? AND status='claimed' AND claimed_at>datetime('now','-1 day')"
+    ).bind(user.id).first();
+    if (Number(daily?.total || 0) >= 10) throw fail("每日残局奖励上限为 10 次", 429);
+    throw fail("残局已过期或已提交，请重新生成", 409);
+  }
+  const profile = await modeProfile(env, user.id);
+  return reply({ok:true, reward:Number(challenge.reward), profile}, 200, headers);
+}
+
 export default {
   async fetch(request, env) {
     const headers = corsHeaders(request, env);
@@ -229,7 +323,8 @@ export default {
 
     try {
       if (url.pathname === "/api/health") return reply({
-        ok: true, version: "3.0.0-alpha.1",
+        ok: true, version: "3.2.0",
+        modesConfigured: !!env.DB,
         configured: !!env.SUPABASE_URL,
         pvpConfigured: !!env.PVP_ROOMS,
         databaseConfigured: !!env.DB
@@ -243,6 +338,12 @@ export default {
       if (url.pathname === "/api/pvp/leaderboard" && request.method === "GET") return await leaderboard(env, headers);
 
       const user = await authenticate(request, env);
+      if (url.pathname === "/api/modes/puzzle/new" && request.method === "POST") {
+        return await createPuzzleChallenge(request, env, user, headers);
+      }
+      if (url.pathname === "/api/modes/puzzle/claim" && request.method === "POST") {
+        return await claimPuzzleReward(request, env, user, headers);
+      }
       if (url.pathname === "/api/pvp/rooms" && request.method === "POST") return await createRoom(request, env, user, headers);
       if (url.pathname === "/api/pvp/rooms/join" && request.method === "POST") return await joinRoom(request, env, user, headers);
       if (url.pathname === "/api/pvp/history" && request.method === "GET") {
