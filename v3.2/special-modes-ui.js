@@ -261,6 +261,7 @@ window.addEventListener("gomoku:tab-change",event=>{
   if(tab==="random")renderRandom();
 });
 window.addEventListener("gomoku:profile-updated",()=>{
-  if(puzzleState)renderPuzzle();
+  if(puzzleState && !puzzleState.solved && puzzleState.server!==isCloudUser() && !$("panel-puzzle").hidden) newPuzzle();
+  else if(puzzleState) renderPuzzle();
   if(randomState)renderRandom();
 });
