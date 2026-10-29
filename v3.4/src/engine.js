@@ -239,7 +239,7 @@ export function chooseAI(b,level="normal",options={}){
     bestMove=iterationBest;bestValue=iterationValue;completedDepth=depth;
     if(Math.abs(bestValue)>=MATE_SCORE-100)break;
   }
-  return {index:bestMove,reason:"迭代加深 α-β + 置换表 + 战术延伸（深度 "+completedDepth+"）",nodes,depth:completedDepth,elapsedMs:timeMs-Math.max(0,deadline-Date.now())};
+  return {index:bestMove,reason:"王者模式 · 迭代加深 α-β + 置换表 + 战术延伸（深度 "+completedDepth+"）",nodes,depth:completedDepth,elapsedMs:timeMs-Math.max(0,deadline-Date.now())};
 }
 export function advice(b,p,played,level="hard"){
   const options=rankedMoves(b,p,5);
