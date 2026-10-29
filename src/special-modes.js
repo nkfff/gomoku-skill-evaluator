@@ -103,7 +103,7 @@ function puzzleAttempt(difficulty, random, addClutter) {
   const size=15,connect=5,level=PUZZLE_LEVELS[difficulty];
   const targetRow=5+Math.floor(random()*5),targetCol=5+Math.floor(random()*5);
   const target=spot(targetRow,targetCol,size);
-  const directions=shuffle(DIRS,random).slice(0,level.threats);
+  const directions=[[0,1],[1,0]]; // perpendicular threats give a verifiable forced fork
   const board=Array(size*size).fill(0);
   for(const [dr,dc] of directions) {
     board[spot(targetRow-dr*2,targetCol-dc*2,size)]=1;
