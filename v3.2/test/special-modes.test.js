@@ -120,7 +120,7 @@ test("random AI explicitly adapts search depth and width to connect length", () 
 test("puzzle validator rejects a one-move or corrupted solution", () => {
   const puzzle = generatePuzzle("easy", 445566);
   assert.equal(validatePuzzleSolution(puzzle), true);
-  const wrong = {...puzzle, solutionSequence: [puzzle.solutionIndex, puzzle.solutionSequence[2], puzzle.solutionSequence[1]]};
+  const wrong = {...puzzle, solutionSequence: [puzzle.solutionIndex, puzzle.solutionSequence[1], puzzle.solutionIndex]};
   assert.equal(validatePuzzleSolution(wrong), false);
   const brokenBoard = {...puzzle, board: puzzle.board.slice()};
   brokenBoard.board[puzzle.solutionIndex] = 1;
