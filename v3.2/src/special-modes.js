@@ -326,7 +326,9 @@ export function chooseRandomMove(board,size,connect,player=2) {
       bestValue = value;
       bestMove = move;
     }
-    if (visited >= profile.nodeLimit) break;
+    // Keep evaluating every root candidate. Once the node budget is exhausted,
+    // deeper calls fall back to static/tactical evaluation instead of biasing
+    // the decision toward whichever root move happened to be searched first.
   }
 
   // If all candidate lines lose tactically, prioritize the move that leaves
