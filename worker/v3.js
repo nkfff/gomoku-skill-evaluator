@@ -256,7 +256,7 @@ async function createPuzzleChallenge(request, env, user, headers) {
   return reply({
     puzzle: {
       id, difficulty, size: puzzle.size, connect: puzzle.connect,
-      board: puzzle.board, solutionSequence: puzzle.solutionSequence, reward: puzzle.reward, objective: puzzle.objective,
+      board: puzzle.board, reward: puzzle.reward, objective: puzzle.objective,
       expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString()
     }
   }, 200, headers);
