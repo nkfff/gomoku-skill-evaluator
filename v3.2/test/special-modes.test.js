@@ -20,6 +20,8 @@ test("each puzzle difficulty generates varied, validated, uniquely solvable posi
       assert.equal(puzzle.size,15);
       assert.equal(puzzle.connect,5);
       assert.equal(puzzle.board.length,225);
+      const expectedStones=difficulty==="easy"?11:difficulty==="normal"?18:26;
+      assert.equal(puzzle.board.filter(Boolean).length,expectedStones,"fixed clue count per difficulty");
       assert.equal(puzzle.board[puzzle.solutionIndex],0);
       assert.equal(findPuzzleSolution(puzzle.board,difficulty,15,5),puzzle.solutionIndex);
       assert.equal(hasExistingWin(puzzle.board,15,5),false);
