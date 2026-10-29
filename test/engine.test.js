@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {SIZE,CELLS,spot,winLine,candidates,immediateWins,chooseAI,advice,replay} from "../src/engine.js";
+import {isPlausibleAIMove} from "../worker/index.js";
 test("15x15 board and center opening",()=>{
  assert.equal(SIZE,15);assert.equal(CELLS,225);
  assert.deepEqual(candidates(Array(CELLS).fill(0)),[112]);
@@ -103,4 +104,17 @@ test("V2.1: high complexity receives greater weight, length alone does not",()=>
  const s=summarizeQuality([{p:1,seconds:2,quality:q(100,1)},{p:1,seconds:2,quality:q(50,2)}]);
  assert.equal(s.weightedAccuracy,66.7);
  assert.equal(s.score,70);
+});
+
+
+test("cloud settlement accepts the whole local search frontier, not only the old narrow top-K",()=>{
+ const board=Array(CELLS).fill(0);
+ board[spot(7,7)]=1;
+ const frontier=candidates(board,2);
+ assert.ok(frontier.length>7);
+ const edgeCandidate=frontier[frontier.length-1];
+ assert.equal(isPlausibleAIMove(board,edgeCandidate),true);
+ assert.equal(isPlausibleAIMove(board,spot(0,0)),false);
+ board[edgeCandidate]=2;
+ assert.equal(isPlausibleAIMove(board,edgeCandidate),false);
 });
