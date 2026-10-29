@@ -73,3 +73,25 @@ test("variable-connect AI blocks an immediate opponent win", () => {
   assert.equal(modeWinningMoves(board,1,size,connect).length,0);
   assert.equal(move,5*size+6);
 });
+
+test("AI selects an immediate win for every connect target from 3 to 10", () => {
+  for(let connect=3;connect<=10;connect++){
+    const size=Math.max(2*connect+3,connect+6),board=Array(size*size).fill(0);
+    const row=Math.floor(size/2),start=Math.floor(size/2)-Math.floor((connect-1)/2);
+    for(let k=0;k<connect-1;k++)board[row*size+start+k]=2;
+    const move=chooseRandomMove(board,size,connect,2);
+    assert.ok(modeWinningMoves(board,2,size,connect).includes(move));
+  }
+});
+test("AI blocks immediate opponent threats across 3-10 connect", () => {
+  for(let connect=3;connect<=10;connect++){
+    const size=Math.max(2*connect+3,connect+6),board=Array(size*size).fill(0);
+    const row=Math.floor(size/2),start=Math.floor(size/2)-Math.floor((connect-1)/2);
+    for(let k=0;k<connect-1;k++)board[row*size+start+k]=1;
+    const threats=modeWinningMoves(board,1,size,connect);
+    const move=chooseRandomMove(board,size,connect,2);
+    assert.ok(threats.includes(move),"AI must occupy an opponent winning point");
+    board[move]=2;
+    assert.equal(modeWinningMoves(board,1,size,connect).length,0);
+  }
+});
