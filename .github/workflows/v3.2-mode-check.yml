@@ -1,4 +1,4 @@
-name: V3.2/V3.3 AI and special modes checks
+name: V3.2/V3.3/V3.4 AI and special modes checks
 
 on:
   push:
@@ -6,12 +6,14 @@ on:
     paths:
       - "v3.2/**"
       - "v3.3/**"
+      - "v3.4/**"
       - ".github/workflows/v3.2-mode-check.yml"
   pull_request:
     branches: [main]
     paths:
       - "v3.2/**"
       - "v3.3/**"
+      - "v3.4/**"
       - "README.md"
       - ".github/workflows/v3.2-mode-check.yml"
 
@@ -26,27 +28,28 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Check JavaScript syntax for V3.2 and V3.3
+      - name: Check JavaScript syntax for V3.2, V3.3 and V3.4
         run: |
-          for version in v3.2 v3.3; do
+          for version in v3.2 v3.3 v3.4; do
             node --check "$version/src/app.js"
             node --check "$version/src/account.js"
             node --check "$version/src/assessment.js"
             node --check "$version/src/engine.js"
+            if [ -f "$version/src/ai.worker.js" ]; then node --check "$version/src/ai.worker.js"; fi
             node --check "$version/src/special-modes.js"
             node --check "$version/special-modes-ui.js"
             node --check "$version/pvp-ui.js"
           done
       - name: Test AI, puzzle generation and random connect engine
         run: |
-          for version in v3.2 v3.3; do
+          for version in v3.2 v3.3 v3.4; do
             node --experimental-default-type=module --test "$version"/test/*.test.js
           done
-      - name: Verify UI and API wiring for both versions
+      - name: Verify UI and API wiring for all supported versions
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          for version in ("v3.2", "v3.3"):
+          for version in ("v3.2", "v3.3", "v3.4"):
               html = Path(f"{version}/index.html").read_text(encoding="utf-8")
               app = Path(f"{version}/src/app.js").read_text(encoding="utf-8")
               ui = Path(f"{version}/special-modes-ui.js").read_text(encoding="utf-8")
@@ -70,7 +73,15 @@ jobs:
                       raise SystemExit(f"{version}: missing special mode behavior {marker}")
               if "GOMOKU_PVP_API_URL" not in config:
                   raise SystemExit(f"{version}: PVP API URL is missing")
-              if version == "v3.3" and ("王者" not in html or "V3.3" not in html):
-                  raise SystemExit("V3.3 title or King difficulty label is missing")
+              if version in ("v3.3", "v3.4") and ("王者" not in html or version.upper() not in html):
+                  raise SystemExit(f"{version} title or King difficulty label is missing")
+              if version == "v3.4":
+                  if 'const selectedLevel=$("difficulty").value;' not in app or 'game.level=LEVELS[selectedLevel]?selectedLevel:"normal";' not in app:
+                      raise SystemExit("V3.4 must freeze the selected difficulty before starting a game")
+                  if 'new Worker(new URL("./ai.worker.js"' not in app:
+                      raise SystemExit("V3.4 standard AI must run in a Worker")
+                  worker = Path("v3.4/src/ai.worker.js").read_text(encoding="utf-8")
+                  if 'chooseRandomMove' not in worker or 'chooseAI' not in worker:
+                      raise SystemExit("V3.4 AI Worker must support both game modes")
               print(f"{version} UI wiring OK")
           PY
