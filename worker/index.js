@@ -1,5 +1,5 @@
 import {createRemoteJWKSet,jwtVerify} from "jose";
-import {LEVELS,CELLS,winLine,chooseAI,rankedMoves,coord} from "../src/engine.js";
+import {LEVELS,CELLS,winLine,chooseAI,candidates,coord} from "../src/engine.js";
 
 const award={easy:10,normal:30,hard:80};
 const boards={classic:0,jade:60,night:150,cherry:260,catcafe:480,gold:500};
@@ -39,6 +39,9 @@ function validMoves(moves){
  }
  return b;
 }
+export function isPlausibleAIMove(board,index){
+ return Array.isArray(board)&&board.length===CELLS&&Number.isInteger(index)&&index>=0&&index<CELLS&&!board[index]&&candidates(board,2).includes(index);
+}
 export function validateSubmittedTimeline(events,level,reportedResult,reportedUndoCount){
  if(!Array.isArray(events)||events.length<2||events.length>500)throw invalid("终局事件数量不合法");
  const b=Array(CELLS).fill(0),moves=[];
@@ -56,7 +59,7 @@ export function validateSubmittedTimeline(events,level,reportedResult,reportedUn
     else pendingAI=true;
    }else if(event.p===2){
     if(!pendingAI||moves.length%2!==1)throw invalid("AI 落子顺序不合法",409);
-    if(!rankedMoves(b,2,LEVELS[level].width).includes(event.i))throw invalid("AI 落子不在当前难度的候选范围内",409);
+    if(!isPlausibleAIMove(b,event.i))throw invalid("AI 落子不在当前局面的可搜索候选范围内",409);
     moves.push({i:event.i,p:2});b[event.i]=2;pendingAI=false;
     if(winLine(b,event.i,2).length)terminal=2;
     else if(moves.length===CELLS)terminal=3;
