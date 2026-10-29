@@ -57,7 +57,7 @@ jobs:
           for marker in ['"puzzle","random"', "gomoku:tab-change", "gomokuApplyModeProfile", "gomokuAwardLocalModePoints"]:
               if marker not in app:
                   raise SystemExit(f"Missing app integration marker: {marker}")
-          for marker in ["/api/modes/puzzle/new", "/api/modes/puzzle/claim", "chooseRandomMove", "createRandomConfig"]:
+          for marker in ['"/api/modes/puzzle/"+path', 'modeApi("new"', 'modeApi("claim"', "chooseRandomMove", "createRandomConfig"]:
               if marker not in ui:
                   raise SystemExit(f"Missing special mode behavior: {marker}")
           if "GOMOKU_PVP_API_URL" not in config:
