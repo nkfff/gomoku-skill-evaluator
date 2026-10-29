@@ -1,9 +1,9 @@
 // Shared deterministic puzzle generator and variable-connect Gomoku engine.
 // Pure module: safe to import from both the browser and Cloudflare Worker.
 export const PUZZLE_LEVELS = {
-  easy: {label:"初级", reward:10, threats:1, objective:"找到唯一的直接成五点"},
-  normal: {label:"进阶", reward:30, threats:2, objective:"一手制造双路杀"},
-  hard: {label:"大师", reward:80, threats:3, objective:"一手制造三路杀"}
+  easy: {label:"初级", reward:10, threats:2, clutter:6, objective:"找到唯一的起手点，挡住一路后沿另一条线路完成连珠"},
+  normal: {label:"进阶", reward:30, threats:2, clutter:10, objective:"识别双路威胁，完成至少两手的强制组合"},
+  hard: {label:"大师", reward:80, threats:2, clutter:14, objective:"在更多干扰棋子中找到唯一的强制组合"}
 };
 const DIRS = [[0,1],[1,0],[1,1],[1,-1]];
 const inside = (r,c,size) => r >= 0 && r < size && c >= 0 && c < size;
@@ -96,7 +96,7 @@ function puzzleAttempt(difficulty, random, addClutter) {
     board[spot(targetRow+dr*2,targetCol+dc*2,size)]=2;
   }
   if(addClutter) {
-    const fillerCount=difficulty==="easy"?6:difficulty==="normal"?10:14;
+    const fillerCount=level.clutter;
     let placed=0,attempts=0;
     while(placed<fillerCount && attempts<160) {
       attempts++;
@@ -117,8 +117,14 @@ function puzzleAttempt(difficulty, random, addClutter) {
   if(whiteWins.length) return null;
   if(blackWins.length) return null;
   const solution=findPuzzleSolution(board,difficulty,size,connect);
-  if(solution!==target) return null;
-  return {size,connect,board,solutionIndex:target,difficulty,reward:level.reward,objective:level.objective};
+  if(solution!==target || directions.length<2) return null;
+  // The first move creates two independent winning endpoints. The opponent
+  // blocks one, then the solver completes the other. The unique solution is
+  // the opening move; the response/final move make the puzzle genuinely multi-step.
+  const blockIndex=spot(targetRow-directions[0][0]*3,targetCol-directions[0][1]*3,size);
+  const finishIndex=spot(targetRow-directions[1][0]*3,targetCol-directions[1][1]*3,size);
+  if(board[blockIndex] || board[finishIndex] || blockIndex===finishIndex || blockIndex===target || finishIndex===target) return null;
+  return {size,connect,board,solutionIndex:target,solutionSequence:[target,blockIndex,finishIndex],difficulty,reward:level.reward,objective:level.objective};
 }
 export function generatePuzzle(difficulty="easy", seed=Date.now()) {
   if(!PUZZLE_LEVELS[difficulty]) throw new Error("未知残局难度");
@@ -156,45 +162,114 @@ export function randomCandidates(board,size,radius=2) {
   if(out.size) return [...out];
   return [spot(Math.floor(size/2),Math.floor(size/2),size)];
 }
-function windowValue(count,connect) {
-  if(count<=0) return 1;
-  if(count>=connect) return 1e14;
-  return Math.pow(5.5,count) * (count>=connect-2 ? 7 : count>=connect-3 ? 2.5 : 1);
+function runScore(run, openEnds, connect) {
+  if(run>=connect) return 1e12;
+  if(run<=0 || openEnds<=0) return 0;
+  const progress=run/connect;
+  const scale=Math.pow(7,run);
+  const urgency=run>=connect-2?12:run>=connect-3?4:1;
+  return scale*urgency*(openEnds===2?2.2:1);
 }
-function candidateValue(board,index,player,size,connect) {
-  const opponent=3-player,row=Math.floor(index/size),col=index%size;
-  board[index]=player;
-  if(modeWinLine(board,index,player,size,connect).length) {board[index]=0;return 1e15;}
-  let own=0,block=0;
-  for(const [dr,dc] of DIRS) for(let offset=0;offset<connect;offset++) {
-    const sr=row-dr*offset,sc=col-dc*offset,er=sr+dr*(connect-1),ec=sc+dc*(connect-1);
-    if(!inside(sr,sc,size)||!inside(er,ec,size)) continue;
-    let mine=0,theirs=0;
-    for(let k=0;k<connect;k++) {
-      const v=board[spot(sr+dr*k,sc+dc*k,size)];
-      if(v===player)mine++;
-      else if(v===opponent)theirs++;
+function evaluatePlayer(board,player,size,connect) {
+  let total=0;
+  for(const [dr,dc] of DIRS) {
+    for(let r=0;r<size;r++) for(let c=0;c<size;c++) {
+      if(board[spot(r,c,size)]!==player) continue;
+      const pr=r-dr,pc=c-dc;
+      if(inside(pr,pc,size)&&board[spot(pr,pc,size)]===player) continue;
+      let length=0,rr=r,cc=c;
+      while(inside(rr,cc,size)&&board[spot(rr,cc,size)]===player){length++;rr+=dr;cc+=dc;}
+      const beforeR=r-dr,beforeC=c-dc;
+      const openBefore=inside(beforeR,beforeC,size)&&board[spot(beforeR,beforeC,size)]===0;
+      const openAfter=inside(rr,cc,size)&&board[spot(rr,cc,size)]===0;
+      total+=runScore(length,Number(openBefore)+Number(openAfter),connect);
+      // Reward useful broken-three/four patterns with a single gap.
+      const gapR=r+dr*(length+1),gapC=c+dc*(length+1);
+      if(inside(gapR,gapC,size)&&board[spot(gapR,gapC,size)]===player){
+        let tail=0,tr=gapR,tc=gapC;
+        while(inside(tr,tc,size)&&board[spot(tr,tc,size)]===player){tail++;tr+=dr;tc+=dc;}
+        if(length+tail<connect) {
+          const left=inside(r-dr,c-dc,size)&&board[spot(r-dr,c-dc,size)]===0;
+          const right=inside(tr,tc,size)&&board[spot(tr,tc,size)]===0;
+          total+=runScore(length+tail,Number(left)+Number(right),connect)*0.42;
+        }
+      }
     }
-    if(!theirs) own=Math.max(own,windowValue(mine,connect));
-    if(!mine) block=Math.max(block,windowValue(theirs,connect));
   }
+  return total;
+}
+function evaluatePosition(board,player,size,connect) {
+  const own=evaluatePlayer(board,player,size,connect);
+  const opp=evaluatePlayer(board,3-player,size,connect);
+  return own-opp*1.12;
+}
+function staticMoveScore(board,index,player,size,connect) {
+  board[index]=player;
+  if(modeWinLine(board,index,player,size,connect).length){board[index]=0;return 1e15;}
+  const score=evaluatePosition(board,player,size,connect);
   board[index]=0;
-  const center=(size-1)/2;
-  const centrality=Math.max(0,size-Math.abs(row-center)-Math.abs(col-center));
-  return own+block*0.94+centrality*0.25;
+  return score;
+}
+function rankedCandidates(board,size,connect,player,limit=16) {
+  return randomCandidates(board,size,2)
+    .map(index=>({index,score:staticMoveScore(board,index,player,size,connect)}))
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,limit)
+    .map(x=>x.index);
 }
 export function chooseRandomMove(board,size,connect,player=2) {
-  const possible=randomCandidates(board,size);
-  const wins=[];
-  for(const i of possible) {board[i]=player;const won=modeWinLine(board,i,player,size,connect).length>0;board[i]=0;if(won)wins.push(i);}
-  if(wins.length)return wins[0];
-  const blocks=[];
-  for(const i of possible) {board[i]=3-player;const won=modeWinLine(board,i,3-player,size,connect).length>0;board[i]=0;if(won)blocks.push(i);}
-  if(blocks.length)return blocks[0];
-  let best=possible[0],bestScore=-Infinity;
-  for(const i of possible) {
-    const score=candidateValue(board,i,player,size,connect);
-    if(score>bestScore){bestScore=score;best=i;}
+  if(!Array.isArray(board)||board.length!==size*size||connect<3||connect>10||size<connect) return -1;
+  const empty=board.reduce((n,v)=>n+(v===0),0);
+  if(!empty)return -1;
+  // Tactical layer 1: take a win immediately.
+  const ownWins=modeWinningMoves(board,player,size,connect);
+  if(ownWins.length)return ownWins[0];
+  // Tactical layer 2: block an immediate loss, choosing the least damaging
+  // block if the opponent has created multiple simultaneous winning points.
+  const oppWins=modeWinningMoves(board,3-player,size,connect);
+  if(oppWins.length===1)return oppWins[0];
+  if(oppWins.length>1) {
+    const blocks=rankedCandidates(board,size,connect,player,Math.min(24,empty));
+    let best=blocks[0],bestThreats=Infinity,bestScore=-Infinity;
+    for(const i of blocks){
+      board[i]=player;
+      const remaining=modeWinningMoves(board,3-player,size,connect).length;
+      const score=evaluatePosition(board,player,size,connect);
+      board[i]=0;
+      if(remaining<bestThreats||(remaining===bestThreats&&score>bestScore)){best=i;bestThreats=remaining;bestScore=score;}
+    }
+    return best;
+  }
+  // Tactical layer 3: consider both attack and defence at every candidate.
+  // A short minimax look-ahead stops the old "keep extending my own line"
+  // behavior and adapts evaluation to the actual connect length.
+  const candidates=rankedCandidates(board,size,connect,player,14);
+  let best=candidates[0]??Math.floor(size/2)*size+Math.floor(size/2);
+  let bestScore=-Infinity;
+  for(const move of candidates){
+    board[move]=player;
+    if(modeWinLine(board,move,player,size,connect).length){board[move]=0;return move;}
+    const opponentWins=modeWinningMoves(board,3-player,size,connect);
+    if(opponentWins.length){board[move]=0;continue;}
+    const replies=rankedCandidates(board,size,connect,3-player,8);
+    let worst=Infinity;
+    for(const reply of replies){
+      board[reply]=3-player;
+      const replyWins=modeWinLine(board,reply,3-player,size,connect).length>0;
+      const score=replyWins?-1e13:evaluatePosition(board,player,size,connect);
+      board[reply]=0;
+      if(score<worst)worst=score;
+      if(worst<bestScore)break;
+    }
+    board[move]=0;
+    const center=(size-1)/2,row=Math.floor(move/size),col=move%size;
+    const score=(worst===Infinity?evaluatePosition(board,player,size,connect):worst)
+      - (Math.abs(row-center)+Math.abs(col-center))*0.05;
+    if(score>bestScore){bestScore=score;best=move;}
+  }
+  if(bestScore===-Infinity){
+    const fallback=rankedCandidates(board,size,connect,player,1)[0];
+    return fallback??board.findIndex(v=>v===0);
   }
   return best;
 }
