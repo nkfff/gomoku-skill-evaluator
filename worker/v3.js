@@ -251,12 +251,12 @@ async function createPuzzleChallenge(request, env, user, headers) {
   const puzzle = generatePuzzle(difficulty, seed);
   const id = crypto.randomUUID();
   await env.DB.prepare(
-    "INSERT INTO mode_challenges(id,player_id,mode,difficulty,size,connect,board,solution_index,reward,status,created_at,expires_at) VALUES(?,?,'puzzle',?,?,?,?,?,?,'open',datetime('now'),datetime('now','+20 minutes'))"
-  ).bind(id, user.id, difficulty, puzzle.size, puzzle.connect, JSON.stringify(puzzle.board), puzzle.solutionIndex, puzzle.reward).run();
+    "INSERT INTO mode_challenges(id,player_id,mode,difficulty,size,connect,board,solution_index,solution_sequence,reward,status,created_at,expires_at) VALUES(?,?,'puzzle',?,?,?,?,?,?,?,'open',datetime('now'),datetime('now','+20 minutes'))"
+  ).bind(id, user.id, difficulty, puzzle.size, puzzle.connect, JSON.stringify(puzzle.board), puzzle.solutionIndex, JSON.stringify(puzzle.solutionSequence), puzzle.reward).run();
   return reply({
     puzzle: {
       id, difficulty, size: puzzle.size, connect: puzzle.connect,
-      board: puzzle.board, reward: puzzle.reward, objective: puzzle.objective,
+      board: puzzle.board, solutionSequence: puzzle.solutionSequence, reward: puzzle.reward, objective: puzzle.objective,
       expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString()
     }
   }, 200, headers);
@@ -265,13 +265,13 @@ async function createPuzzleChallenge(request, env, user, headers) {
 async function claimPuzzleReward(request, env, user, headers) {
   const body = await parseBody(request);
   const challengeId = String(body.challengeId || "");
-  const moveIndex = Number(body.moveIndex);
-  if (!uuid(challengeId) || !Number.isInteger(moveIndex) || moveIndex < 0 || moveIndex >= 225) {
+  const moveSequence = body.moveSequence;
+  if (!uuid(challengeId) || !Array.isArray(moveSequence) || moveSequence.length !== 3 || moveSequence.some(i => !Number.isInteger(i) || i < 0 || i >= 225)) {
     throw fail("残局提交数据无效");
   }
   await ensurePlayer(env, user);
   const challenge = await env.DB.prepare(
-    "SELECT id,player_id,difficulty,size,connect,board,solution_index,reward,status,expires_at FROM mode_challenges WHERE id=? AND player_id=? AND mode='puzzle'"
+    "SELECT id,player_id,difficulty,size,connect,board,solution_index,solution_sequence,reward,status,expires_at FROM mode_challenges WHERE id=? AND player_id=? AND mode='puzzle'"
   ).bind(challengeId, user.id).first();
   if (!challenge) throw fail("残局不存在或不属于当前账号", 404);
   if (challenge.status !== "open") {
@@ -290,10 +290,15 @@ async function claimPuzzleReward(request, env, user, headers) {
   let board;
   try { board = JSON.parse(challenge.board); } catch { throw fail("残局数据损坏", 500); }
   const verifiedSolution = findPuzzleSolution(board, challenge.difficulty, Number(challenge.size), Number(challenge.connect));
-  if (verifiedSolution === null || verifiedSolution !== Number(challenge.solution_index)) {
+  let storedSequence;
+  try { storedSequence = JSON.parse(challenge.solution_sequence || "[]"); } catch { throw fail("残局解法数据损坏", 500); }
+  if (verifiedSolution === null || verifiedSolution !== Number(challenge.solution_index) ||
+      !Array.isArray(storedSequence) || storedSequence.length !== 3 || storedSequence[0] !== verifiedSolution) {
     throw fail("服务端残局校验失败，请重新生成", 500);
   }
-  if (moveIndex !== verifiedSolution) throw fail("这步还不是制胜点，再观察一下棋形", 400);
+  if (moveSequence.some((move, i) => move !== storedSequence[i])) {
+    throw fail("多步组合尚未完成或走法不正确，不能领取奖励", 400);
+  }
   const result = await env.DB.batch([
     env.DB.prepare(
       "UPDATE mode_challenges SET status='claimed',claimed_at=datetime('now') WHERE id=? AND player_id=? AND status='open' AND expires_at>datetime('now') AND (SELECT COUNT(*) FROM mode_challenges WHERE player_id=? AND status='claimed' AND claimed_at>datetime('now','-1 day'))<10"
