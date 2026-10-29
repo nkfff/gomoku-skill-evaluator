@@ -157,7 +157,7 @@ async function claimPuzzleReward(){
   puzzleBusy=true;$("puzzleRetryClaim").hidden=true;
   try{
     if(puzzleState.server){
-      const result=await modeApi("claim",{challengeId:puzzleState.id,moveIndex:puzzleState.solutionIndex,solutionSequence:puzzleState.solutionSequence});
+      const result=await modeApi("claim",{challengeId:puzzleState.id,moveSequence:puzzleState.solutionSequence});
       if(result.profile&&window.gomokuApplyModeProfile)window.gomokuApplyModeProfile(result.profile);
     }else{
       if(localClaims.has(puzzleState.id)){
