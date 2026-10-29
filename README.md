@@ -2,7 +2,7 @@
 
 **当前稳定版：V2.2** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🎯 V3.2 特殊模式测试版](https://nkfff.github.io/gomoku-skill-evaluator/v3.2/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-> **最近更新：2026-10-28** · V3.1 UI 优化测试版已发布；开始下棋按钮与 AI 棋盘按页面状态显示。
+> **最近更新：2026-10-29** · V3.2 特殊模式已部署；新增自动残局挑战、通关积分和随机 3–10 连珠。
 
 一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V2.3 为已部署的预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 前端 Pages、Cloudflare Worker 与 D1 迁移均已部署，自动化检查通过；完整真实浏览器验收仍待完成。
 
