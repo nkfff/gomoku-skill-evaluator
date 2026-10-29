@@ -1,6 +1,6 @@
 {
   "name": "gomoku-skill-evaluator",
-  "version": "3.0.0-alpha.1",
+  "version": "3.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "dev": "npx wrangler dev",
     "deploy": "npx wrangler deploy",
     "migrate": "npx wrangler d1 migrations apply gomoku-v2 --remote",
-    "check": "node --check src/app.js && node --check src/account.js && node --check src/assessment.js && node --check src/engine.js && node --check src/pvp.js && node --check worker/index.js && node --check worker/v3.js && node --check worker/pvp-room.js && node --check v3.0/pvp-ui.js"
+    "check": "node --check src/app.js && node --check src/account.js && node --check src/assessment.js && node --check src/engine.js && node --check src/special-modes.js && node --check src/pvp.js && node --check worker/index.js && node --check worker/v3.js && node --check worker/pvp-room.js && node --check v3.0/pvp-ui.js"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
