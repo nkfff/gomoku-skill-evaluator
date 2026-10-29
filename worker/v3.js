@@ -274,7 +274,15 @@ async function claimPuzzleReward(request, env, user, headers) {
     "SELECT id,player_id,difficulty,size,connect,board,solution_index,reward,status,expires_at FROM mode_challenges WHERE id=? AND player_id=? AND mode='puzzle'"
   ).bind(challengeId, user.id).first();
   if (!challenge) throw fail("残局不存在或不属于当前账号", 404);
-  if (challenge.status !== "open") throw fail("这道残局已提交或已领取奖励", 409);
+  if (challenge.status !== "open") {
+    if (challenge.status === "claimed") {
+      const ledger = await env.DB.prepare(
+        "SELECT id FROM point_ledger WHERE player_id=? AND reason='puzzle_reward' AND note=? LIMIT 1"
+      ).bind(user.id, "puzzle:" + challengeId).first();
+      if (ledger) return reply({ok:true, alreadyClaimed:true, reward:Number(challenge.reward), profile:await modeProfile(env,user.id)}, 200, headers);
+    }
+    throw fail("这道残局已提交或已领取奖励", 409);
+  }
   const expiry = await env.DB.prepare(
     "SELECT CASE WHEN expires_at>datetime('now') THEN 1 ELSE 0 END AS valid FROM mode_challenges WHERE id=?"
   ).bind(challengeId).first();
@@ -294,7 +302,7 @@ async function claimPuzzleReward(request, env, user, headers) {
       "UPDATE players SET points=points+(SELECT reward FROM mode_challenges WHERE id=? AND status='claimed') WHERE id=? AND changes()=1"
     ).bind(challengeId, user.id),
     env.DB.prepare(
-      "INSERT INTO point_ledger(id,player_id,delta,reason,actor_id,note) SELECT ?,player_id,reward,'puzzle_reward',player_id,'残局挑战:'||difficulty FROM mode_challenges WHERE id=? AND status='claimed' AND changes()=1"
+      "INSERT INTO point_ledger(id,player_id,delta,reason,actor_id,note) SELECT ?,player_id,reward,'puzzle_reward',player_id,'puzzle:'||id FROM mode_challenges WHERE id=? AND status='claimed' AND changes()=1"
     ).bind(crypto.randomUUID(), challengeId)
   ]);
   if (Number(result?.[0]?.meta?.changes || 0) !== 1) {
