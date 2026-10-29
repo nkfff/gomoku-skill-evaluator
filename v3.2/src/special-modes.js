@@ -118,7 +118,7 @@ function puzzleAttempt(difficulty, random, addClutter) {
     }
   }
   if(addClutter) {
-    const fillerCount=8+Math.floor(random()*13);
+    const fillerCount=difficulty==="easy"?6:difficulty==="normal"?10:14;
     let placed=0,attempts=0;
     while(placed<fillerCount && attempts<160) {
       attempts++;
@@ -131,6 +131,7 @@ function puzzleAttempt(difficulty, random, addClutter) {
       if(modeWinLine(board,i,player,size,connect).length) {board[i]=0;continue;}
       placed++;
     }
+    if(placed!==fillerCount) return null;
   }
   if(boardHasWinner(board,size,connect)) return null;
   const blackWins=modeWinningMoves(board,1,size,connect);
