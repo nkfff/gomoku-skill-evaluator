@@ -64,17 +64,20 @@ function forkThreatCount(board, index, player, size, connect) {
 }
 export function findPuzzleSolution(board, difficulty="easy", size=15, connect=5) {
   const level=PUZZLE_LEVELS[difficulty];
-  if (!level || board.length !== size*size) return null;
-  const direct=modeWinningMoves(board,1,size,connect);
-  if (difficulty==="easy") return direct.length===1 ? direct[0] : null;
-  if (direct.length) return null;
-  const wins=[];
+  if (!level || !Array.isArray(board) || board.length !== size*size) return null;
+  const candidates=[];
   for(let i=0;i<board.length;i++) {
     if(board[i]) continue;
-    if(forkThreatCount(board,i,1,size,connect)>=level.threats) wins.push(i);
-    if(wins.length>1) return null;
+    board[i]=1;
+    const direct=modeWinLine(board,i,1,size,connect).length>0;
+    const continuations=direct?[]:modeWinningMoves(board,1,size,connect);
+    board[i]=0;
+    if(!direct && continuations.length>=2) {
+      candidates.push(i);
+      if(candidates.length>1)return null;
+    }
   }
-  return wins.length===1 ? wins[0] : null;
+  return candidates.length===1?candidates[0]:null;
 }
 function boardHasWinner(board,size,connect) {
   for(let i=0;i<board.length;i++) if(board[i] && modeWinLine(board,i,board[i],size,connect).length) return true;
