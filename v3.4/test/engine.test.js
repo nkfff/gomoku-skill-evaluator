@@ -53,11 +53,11 @@ test("difficulty rewards remain exactly 10 / 30 / 80",()=>{
 });
 test("King AI immediately wins and blocks a one-move loss",()=>{
  const win=Array(225).fill(0);
- for(let c=4;c<8;c++)win[spot(7,c)]=2;
+ for(let c=4;c<8;c++)win[at(7,c)]=2;
  const winMove=chooseAI(win,"hard");
  assert.ok(winMove.index===at(7,3)||winMove.index===at(7,8));
  const block=Array(225).fill(0);
- for(let c=4;c<8;c++)block[spot(7,c)]=1;
+ for(let c=4;c<8;c++)block[at(7,c)]=1;
  const blockMove=chooseAI(block,"hard");
  assert.ok(blockMove.index===at(7,3)||blockMove.index===at(7,8));
 });
