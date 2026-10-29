@@ -86,7 +86,7 @@ test("AI takes immediate wins and blocks immediate losses for every connect leng
 
     const blockBoard=Array(size*size).fill(0);
     for(let k=0;k<connect-1;k++)blockBoard[row*size+start+k]=1;
-    blockBoard[(row-2)*size+(start-2)]=2;
+    blockBoard[row*size+start-1]=2; // close one end so a single defensive move is sufficient
     const blockMove=chooseRandomMove(blockBoard,size,connect,2);
     blockBoard[blockMove]=2;
     assert.equal(modeWinningMoves(blockBoard,1,size,connect).length,0,
