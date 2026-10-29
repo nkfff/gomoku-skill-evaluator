@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  PUZZLE_LEVELS, generatePuzzle, findPuzzleSolution, modeWinLine,
+  PUZZLE_LEVELS, generatePuzzle, findPuzzleSolution, findPuzzleLine, modeWinLine,
   modeWinningMoves, createRandomConfig, chooseRandomMove
 } from "../src/special-modes.js";
 
@@ -20,17 +20,18 @@ test("each puzzle difficulty generates varied, validated, uniquely solvable posi
       assert.equal(puzzle.size,15);
       assert.equal(puzzle.connect,5);
       assert.equal(puzzle.board.length,225);
-      const expectedStones=difficulty==="easy"?11:difficulty==="normal"?18:26;
+      const expectedStones=difficulty==="easy"?12:difficulty==="normal"?16:20;
       assert.equal(puzzle.board.filter(Boolean).length,expectedStones,"fixed clue count per difficulty");
       assert.equal(puzzle.board[puzzle.solutionIndex],0);
       assert.equal(findPuzzleSolution(puzzle.board,difficulty,15,5),puzzle.solutionIndex);
       assert.equal(hasExistingWin(puzzle.board,15,5),false);
       assert.equal(modeWinningMoves(puzzle.board,2,15,5).length,0);
-      if(difficulty==="easy") {
-        assert.deepEqual(modeWinningMoves(puzzle.board,1,15,5),[puzzle.solutionIndex]);
-      } else {
-        assert.equal(modeWinningMoves(puzzle.board,1,15,5).length,0);
-      }
+      assert.equal(modeWinningMoves(puzzle.board,1,15,5).length,0,"puzzles must not be one-move wins");
+      const line=findPuzzleLine(puzzle.board,difficulty,15,5);
+      assert.deepEqual(line,puzzle.solutionSequence);
+      assert.equal(line.length,3,"puzzle requires a setup move, forced defense, and finishing move");
+      const solved=puzzle.board.slice();solved[line[0]]=1;solved[line[1]]=2;solved[line[2]]=1;
+      assert.ok(modeWinLine(solved,line[2],1,15,5).length>=5,"last move must win");
       seen.add(puzzle.board.join(""));
     }
     assert.ok(seen.size>=10, difficulty+" puzzles should be varied");
