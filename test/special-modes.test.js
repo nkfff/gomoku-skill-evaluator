@@ -64,9 +64,10 @@ test("variable-connect AI takes a win before making a positional move", () => {
 
 test("variable-connect AI blocks an immediate opponent win", () => {
   const size=11,connect=3,board=Array(size*size).fill(0);
+  board[5*size+3]=2; // block one end so only the right endpoint remains a threat
   board[5*size+4]=1; board[5*size+5]=1;
   const move=chooseRandomMove(board,size,connect,2);
   board[move]=2;
   assert.equal(modeWinningMoves(board,1,size,connect).length,0);
-  assert.ok(move===5*size+3 || move===5*size+6);
+  assert.equal(move,5*size+6);
 });
