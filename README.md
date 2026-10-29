@@ -13,7 +13,8 @@
 | **V2.2 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.2/ | 当前稳定入口；前端与 Worker 部署成功，自动化测试通过（2026-10-28） |
 | **V2.3 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.3/ | 已部署：本地即时对局、猫猫主题棋盘/棋子、落子音效与终局云端结算；仍需真实浏览器验收 |
 | **V3.1 UI 优化版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.1/ | 基于 V3.0；开始下棋按钮仅在对弈页显示，AI 棋盘仅在对弈/复盘页显示 |
-| **V3.0 PVP 测试版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.0/ | 以当前 V2.3 页面、主题系统、账号与本地棋力引擎为基础，新增好友真人 PVP 与独立 Elo；测试版，待真实双账号对局验收 |
+| **V3.2 特殊模式测试版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.2/ | 在 V3.0 基础上新增自动残局挑战与随机 3–10 连珠；残局奖励经服务端验证，等待实战验收 |
+| **V3.0 PVP 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.0/ | 以当前 V2.3 页面、主题系统、账号与本地棋力引擎为基础，新增好友真人 PVP 与独立 Elo；好友 PVP 已通过用户实测 |
 | V2.1 旧版主页 | https://nkfff.github.io/gomoku-skill-evaluator/ | 保留兼容，不作为当前版本入口 |
 | V2.1 预览快照 | https://nkfff.github.io/gomoku-skill-evaluator/v2.1/ | 旧预览备份 |
 | V1 历史版 | https://nkfff.github.io/gomoku-skill-evaluator/v1/ | 保留的旧版页面 |
@@ -167,3 +168,15 @@ V3.1 基于 V3.0 创建独立入口，不覆盖 V3.0、V2.3 或稳定版。
 - **好友 PVP**：真人棋盘独立保留，不受 AI 棋盘显示规则影响；猫猫主题、账号、AI 引擎和棋力评估均继承 V3.0。
 - **在线入口：** https://nkfff.github.io/gomoku-skill-evaluator/v3.1/
 - **验收状态：** 自动化检查覆盖按钮/棋盘显示规则与资源引用；部署完成后仍建议实际切换各个页面验收。
+
+
+## V3.2 特殊模式（测试版）
+
+V3.2 基于 V3.0 创建独立入口，原 V3.0、V2.3 和稳定版入口不覆盖。
+
+- **残局挑战：** 初级/进阶/大师对应唯一直接成五、双路杀、三路杀；每局随机生成棋形并经过程序校验。通关奖励分别为 10/30/80 积分。
+- **积分安全：** 登录用户由 V3 API 生成挑战、校验制胜点并在 D1 记录一次性领取；每日最多生成 30 道、领取 10 次。游客奖励保存在本地浏览器。
+- **随机连珠：** 每局随机 3–10 连珠，棋盘按连珠数适配，尺寸满足 `size >= 2 × connect + 3`，空盘开局以避免随机障碍导致的死局。
+- **主题继承：** 两种新模式沿用 V3.0 棋盘/棋子皮肤，棋盘在窄屏下自适应缩放。
+- **在线入口：** https://nkfff.github.io/gomoku-skill-evaluator/v3.2/
+- **状态：** 测试版；需进行浏览器交互和登录账号奖励实测。
