@@ -118,7 +118,7 @@ function renderPuzzle(){
   $("puzzleLevelLabel").textContent=level.label;
   $("puzzleObjective").textContent=level.objective;
   $("puzzleReward").textContent="+"+p.reward;
-  drawBoard($("puzzleBoard"),p.board,p.size,p.connect,p.solved?p.solutionIndex:-1,p.showSolution?p.solutionIndex:-1);
+  drawBoard($("puzzleBoard"),p.board,p.size,p.connect,p.lastMove??-1,p.showSolution?(p.solutionSequence?.[Math.min(p.step||0,p.solutionSequence.length-1)]??p.solutionIndex):-1);
   $("puzzleHint").disabled=p.solved;
   $("puzzleRetryClaim").hidden=!p.solved||p.claimed||!p.server;
   $("puzzleRewardStatus").textContent=p.claimed
@@ -136,13 +136,13 @@ async function newPuzzle(){
       const result=await modeApi("new",{difficulty});
       const p=result.puzzle;
       const solution=findPuzzleSolution(p.board,difficulty,p.size,p.connect);
-      if(solution===null)throw new Error("服务器返回的残局未通过本地解题校验，请重新生成");
-      puzzleState={...p,solutionIndex:solution,server:true,solved:false,claimed:false,showSolution:false};
+      if(solution===null||!Array.isArray(p.solutionSequence)||p.solutionSequence.length!==3||p.solutionSequence[0]!==solution)throw new Error("服务器返回的多步残局未通过本地校验，请重新生成");
+      puzzleState={...p,solutionIndex:solution,server:true,solved:false,claimed:false,showSolution:false,step:0,lastMove:-1,playedSequence:[]};
     }else{
       const puzzle=generatePuzzle(difficulty,randomSeed());
-      puzzleState={...puzzle,id:"guest-"+difficulty+"-"+puzzle.seed,server:false,solved:false,claimed:false,showSolution:false};
+      puzzleState={...puzzle,id:"guest-"+difficulty+"-"+puzzle.seed,server:false,solved:false,claimed:false,showSolution:false,step:0,lastMove:-1,playedSequence:[]};
     }
-    $("puzzleStatus").textContent="黑棋先手。请点击唯一制胜点；答错不会扣分。"+(puzzleState.server?"本题 20 分钟内有效。":"");
+    $("puzzleStatus").textContent="黑棋先手。请先找到唯一正确的起手点；随后需要应对对手封堵，再完成最后一手。"+(puzzleState.server?"本题 20 分钟内有效。":"");
     renderPuzzle();
   }catch(error){
     $("puzzleStatus").textContent="生成失败："+error.message;
@@ -156,7 +156,7 @@ async function claimPuzzleReward(){
   puzzleBusy=true;$("puzzleRetryClaim").hidden=true;
   try{
     if(puzzleState.server){
-      const result=await modeApi("claim",{challengeId:puzzleState.id,moveIndex:puzzleState.solutionIndex});
+      const result=await modeApi("claim",{challengeId:puzzleState.id,moveSequence:puzzleState.playedSequence});
       if(result.profile&&window.gomokuApplyModeProfile)window.gomokuApplyModeProfile(result.profile);
     }else{
       if(localClaims.has(puzzleState.id)){
@@ -169,7 +169,7 @@ async function claimPuzzleReward(){
       saveClaim(puzzleState.id);
     }
     puzzleState.claimed=true;
-    $("puzzleStatus").textContent="漂亮！制胜点 "+coord(puzzleState.solutionIndex,puzzleState.size)+" 已验证，获得 +"+puzzleState.reward+" 积分。";
+    $("puzzleStatus").textContent="漂亮！你完成了唯一解的多步组合："+puzzleState.playedSequence.map(i=>coord(i,puzzleState.size)).join(" → ")+"，获得 +"+puzzleState.reward+" 积分。";
     renderPuzzle();
   }catch(error){
     $("puzzleStatus").textContent="棋题已解出，但积分同步失败："+error.message+"。可以点击“重试领取积分”。";
@@ -177,21 +177,41 @@ async function claimPuzzleReward(){
   }finally{puzzleBusy=false;}
 }
 function onPuzzleClick(event){
-  if(!puzzleState||puzzleBusy||puzzleState.solved)return;
-  const index=clickedIndex(event,$("puzzleBoard"),puzzleState.size);
-  if(index<0||puzzleState.board[index])return;
-  if(index!==puzzleState.solutionIndex){
-    $("puzzleStatus").textContent="这一步还不是制胜点。观察棋形，找到能直接成五或同时制造多路威胁的位置。";
+  const p=puzzleState;
+  if(!p||puzzleBusy||p.solved||p.step===1)return;
+  const index=clickedIndex(event,$("puzzleBoard"),p.size);
+  if(index<0||p.board[index])return;
+  const expected=p.solutionSequence[p.step===0?0:2];
+  if(index!==expected){
+    $("puzzleStatus").textContent=p.step===0
+      ?"这一步不是正确的起手点。请寻找能够同时制造两处后续制胜点的落子。"
+      :"这一步没有利用对手封堵后的另一条制胜线，请重新观察棋形。";
     return;
   }
-  puzzleState.solved=true;puzzleState.showSolution=true;puzzleState.board[index]=1;
-  $("puzzleStatus").textContent="答对了！正在验证通关奖励…";
+  p.board[index]=1;p.lastMove=index;p.playedSequence.push(index);p.showSolution=false;
+  if(p.step===0){
+    p.step=1;
+    $("puzzleStatus").textContent="正确！你制造了双路威胁。对手正在封堵其中一路…";
+    renderPuzzle();
+    window.setTimeout(()=>{
+      if(puzzleState!==p||p.solved)return;
+      const response=p.solutionSequence[1];
+      if(p.board[response]){ $("puzzleStatus").textContent="棋题状态异常，请重新生成。";return; }
+      p.board[response]=2;p.lastMove=response;p.playedSequence.push(response);p.step=2;
+      $("puzzleStatus").textContent="对手已封堵一路。现在请完成最后一手，利用另一条制胜线。";
+      renderPuzzle();
+    },420);
+    return;
+  }
+  p.step=3;p.solved=true;p.showSolution=true;
+  $("puzzleStatus").textContent="组合完成！正在验证通关奖励…";
   renderPuzzle();claimPuzzleReward();
 }
 function showPuzzleHint(){
   if(!puzzleState||puzzleState.solved)return;
   puzzleState.showSolution=true;
-  $("puzzleStatus").textContent="提示：制胜点是 "+coord(puzzleState.solutionIndex,puzzleState.size)+"。";
+  const next=puzzleState.solutionSequence[puzzleState.step===0?0:2];
+  $("puzzleStatus").textContent="提示：当前这一步可以落在 "+coord(next,puzzleState.size)+"。";
   renderPuzzle();
 }
 function renderRandom(){
