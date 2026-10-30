@@ -250,7 +250,7 @@ async function hintMove(){
    suggestions=result.suggestions.map(x=>x.index);
   }else suggestions=rankedMoves(game.b,game.humanColor,3).slice(0,3);
   // Ignore late API replies after a move, reset, undo or tab switch.
-  if(requestId!==hintRequest||game.id!==gameId||game.moves.length!==moveCount||game.turn!==1||game.result||activeTab!=="game")return;
+  if(requestId!==hintRequest||game.id!==gameId||game.moves.length!==moveCount||game.turn!==game.humanColor||game.result||activeTab!=="game")return;
   hints=suggestions.filter(i=>!game.b[i]);
   hintVisible=hints.length>0;
   $("hintPanel").hidden=!hintVisible;
@@ -342,7 +342,7 @@ function draw(b,last=-1){
    if(i===last){ctx.beginPath();ctx.arc(x,y,4.5,0,7);ctx.fillStyle="#f34c42";ctx.fill();}
   }
  }
- if(activeTab==="game"&&hintVisible&&game.turn===1&&!game.result){
+ if(activeTab==="game"&&hintVisible&&game.turn===game.humanColor&&!game.result){
   hints.forEach((i,j)=>{if(b[i])return;
    const x=offset+i%15*cell,y=offset+Math.floor(i/15)*cell;
    ctx.beginPath();ctx.arc(x,y,15,0,7);ctx.fillStyle=["#3af7ba99","#70b6ffaa","#ffc77199"][j];ctx.fill();
