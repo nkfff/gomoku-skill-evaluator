@@ -16,7 +16,7 @@ function secureDie(){
   do{crypto.getRandomValues(value);}while(value[0]>=limit);
   return value[0]%6+1;
 }
-export export function rollDice(hostPlayerId,guestPlayerId){
+export function rollDice(hostPlayerId,guestPlayerId){
   const rolls=[];
   for(let round=1;round<=64;round++){
     const hostRoll=secureDie(),guestRoll=secureDie();
