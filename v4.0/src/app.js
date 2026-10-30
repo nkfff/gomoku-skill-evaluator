@@ -464,10 +464,10 @@ function renderShop(){
   const key=kind+":"+item.id,owned=profile.owned.includes(key)||(kind==="board"&&profile.owned.includes(item.id));
   const selected=(kind==="board"?profile.boardSkin:profile.pieceSkin)===item.id;
   const affordable=profile.points>=item.cost;
-  return "<article class='skin'><span class='swatch' style='background:"+
+  return "<article class='skin"+(selected?" is-selected":"")+"' data-skin-kind='"+kind+"'><span class='swatch' style='background:"+
    (kind==="board"?item.bg:item.black)+";border-color:"+
-   (kind==="board"?item.grid:item.ring)+"'></span><div><b>"+item.name+
-   "</b><small>"+(item.cost?item.cost+" 积分":"免费")+"</small></div>"+
+   (kind==="board"?item.grid:item.ring)+"'></span><div><b class='skin-name'>"+item.name+
+   "</b><small class='skin-meta'>"+(item.cost?item.cost+" 积分":"免费")+"</small></div>"+
    "<div class='controls'><button data-preview='"+kind+":"+item.id+"'>试穿</button>"+
    "<button data-buy='"+kind+":"+item.id+"' "+(selected||(!owned&&!affordable)?"disabled":"")+">"+
    (selected?"使用中":owned?"装备":affordable?"兑换":"积分不足")+"</button></div></article>";
