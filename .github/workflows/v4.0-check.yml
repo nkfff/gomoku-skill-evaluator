@@ -1,0 +1,32 @@
+name: V4.0 checks
+
+on:
+  push:
+    branches: [feature/v4.0-visual-competitive]
+    paths: ["v4.0/**", ".github/workflows/v4.0-check.yml"]
+  pull_request:
+    paths: ["v4.0/**", ".github/workflows/v4.0-check.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        working-directory: v4.0
+        run: npm install
+      - name: Syntax checks
+        working-directory: v4.0
+        run: npm run check
+      - name: Apply all D1 migrations against local SQLite
+        working-directory: v4.0
+        run: npx wrangler d1 migrations apply gomoku-v2 --local --config wrangler.v2.toml
+      - name: Automated tests
+        working-directory: v4.0
+        run: npm test

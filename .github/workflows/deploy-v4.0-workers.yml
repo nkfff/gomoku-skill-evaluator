@@ -1,0 +1,86 @@
+name: Deploy V4.0 Cloudflare Workers
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "输入 deploy 才会执行线上迁移与部署"
+        required: true
+        default: "no"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ inputs.confirm == 'deploy' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate deployment secrets
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          set -eu
+          test -n "$CF_TOKEN"
+          test -n "$CF_ACCOUNT"
+          test -n "$D1_ID"
+          test -n "$SUPABASE_URL"
+      - name: Install V4.0 dependencies
+        working-directory: v4.0
+        run: npm install
+      - name: Inject D1 database ID
+        working-directory: v4.0
+        env:
+          D1_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          db_id = os.environ["D1_ID"].strip()
+          for name in ("wrangler.v2.toml", "wrangler.v3.toml"):
+              path = Path(name)
+              text = path.read_text()
+              if "REPLACE_WITH_V2_D1_DATABASE_ID" not in text:
+                  raise SystemExit(f"Expected D1 placeholder missing in {name}")
+              path.write_text(text.replace("REPLACE_WITH_V2_D1_DATABASE_ID", db_id))
+          PY
+      - name: Apply D1 migrations
+        working-directory: v4.0
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply gomoku-v2 --remote --config wrangler.v2.toml
+      - name: Deploy V2 API with AI color and draw settlement
+        working-directory: v4.0
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+        run: |
+          printf '%s' "$SUPABASE_URL" | npx wrangler secret put SUPABASE_URL --config wrangler.v2.toml
+          if [ -n "$ADMIN_USER_ID" ]; then
+            printf '%s' "$ADMIN_USER_ID" | npx wrangler secret put ADMIN_USER_ID --config wrangler.v2.toml
+          fi
+          npx wrangler deploy --config wrangler.v2.toml
+      - name: Deploy V3 API with server-authoritative PVP dice
+        working-directory: v4.0
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          printf '%s' "$SUPABASE_URL" | npx wrangler secret put SUPABASE_URL --config wrangler.v3.toml
+          npx wrangler deploy --config wrangler.v3.toml
+      - name: Verify deployed API versions
+        run: |
+          curl -fsS https://gomoku-v2-api.1395598907.workers.dev/api/health | grep -q '"version":"4.0.0"'
+          curl -fsS https://gomoku-v3-api.1395598907.workers.dev/api/health | grep -q '"version":"4.0.0"'
