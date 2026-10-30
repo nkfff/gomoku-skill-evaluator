@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chooseAI, CELLS } from "../src/engine.js";
-import { validateSubmittedTimeline } from "../worker/index.js";
+import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
 import { createMatchState, publicMatchState } from "../src/pvp.js";
 import { rollDice } from "../worker/pvp-room.js";
 
@@ -14,6 +14,14 @@ test("AI can search as either black or white", () => {
   assert.equal(chooseAI(board, "easy", {player: 1}).index, 109);
   assert.equal(chooseAI(board, "easy", {player: 2}).index, 109);
   assert.deepEqual(board, before, "AI search must not mutate the live board");
+});
+
+test("admin identity comparison is stable across UUID casing and whitespace", () => {
+  const id = "a12b34cd-5678-4abc-9def-0123456789ab";
+  assert.equal(isAdminUser({ADMIN_USER_ID:"  "+id.toUpperCase()+"  "},{id}), true);
+  assert.equal(isAdminUser({ADMIN_USER_ID:id},{id:id.toUpperCase()}), true);
+  assert.equal(isAdminUser({ADMIN_USER_ID:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"},{id}), false);
+  assert.equal(isAdminUser({}, {id}), false);
 });
 
 test("server rejects a white-first timeline because black must open", () => {
