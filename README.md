@@ -1,6 +1,6 @@
 # 五子棋棋力评估 · Gomoku Skill Evaluator
 
-**当前稳定版：V2.2 · 最新开发预览：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
+**当前稳定版：V2.2 · 最新预览版：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
 > **最近更新：2026-10-30** · V4.0 预览版已部署；完成残局数据库兼容、管理员面板稳定性、皮肤主题对比度及执白棋力评分修复，自动化检查与 GitHub Pages 部署通过。
 
@@ -189,8 +189,10 @@ V4.0 在 V3.4 基础上独立开发，不覆盖旧版本。主要更新：
 - **AI 先手选择**：玩家可选择执黑先手或执白后手；AI 引擎、提示、悔棋、复盘、棋谱验证与云端结算均按实际颜色处理。
 - **真人摇骰子**：双方准备完成后，Worker 使用加密随机数掷骰；同点自动重掷，胜者执黑先手。骰子点数写入 D1 并同步给双方，前端只负责动画展示。
 - **排行榜荣誉**：AI 积分榜与真人 Elo 榜前三分别展示「棋圣、棋王、棋宗」头衔与领奖台。
-- **后端迁移**：复用现有 V2/V3 Worker、D1 和 Durable Object，新增 player_color、dice_rolls 与 dice_winner_player_id 字段；部署前必须先备份 D1 并执行 V4.0 迁移。
+- **后端与数据库**：复用现有 V2/V3 Worker、D1 和 Durable Object；数据库结构变更需先备份再执行对应迁移。2026-10-30 已部署旧版残局表结构兼容修复，并验证历史记录保留。
 - **2026-10-30 维护修复**：修复旧版 D1 `mode_challenges` 表缺少 `solution_moves` 字段导致的残局生成失败，并增加迁移兼容与历史记录保留验证；统一管理员 UUID 比较并修复 Token 刷新后管理员面板偶发隐藏；皮肤收藏卡片改为跟随当前棋盘主题色，并增强皮肤名称文字对比度。
+- **棋力评分修复**：评分汇总按玩家实际执棋颜色筛选着法；玩家执白时统计白棋，不再错误统计黑棋。实时评分和棋谱 JSON 导出统一传入玩家颜色，原有评分公式不变。
+- **自动化与部署**：V4.0 语法检查、D1 迁移、旧版残局数据兼容及自动化测试全部通过；GitHub Pages 部署成功。真实浏览器、双账号 PVP、云端积分与手机端体验仍建议人工验收。
 
 ## V3.3 王者 AI 与战术模式（2026-10-29）
 
