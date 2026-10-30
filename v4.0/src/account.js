@@ -36,21 +36,33 @@ function setGlobalFeedback(text,bad=false){
  box.classList.toggle("error",bad);
  box.hidden=false;
 }
-function showState(){
- $("authForm").hidden=loggedIn();
- $("loggedPanel").hidden=!loggedIn();
+function showState({resetAdmin=false}={}){
+ const signedIn=loggedIn();
+ $("authForm").hidden=signedIn;
+ $("loggedPanel").hidden=!signedIn;
  $("accountEmail").textContent=session?.user?.email||"";
- $("logout").disabled=!loggedIn();
- $("adminPanel").hidden=true;
+ $("logout").disabled=!signedIn;
+ if(!signedIn||resetAdmin)$("adminPanel").hidden=true;
 }
 async function refresh(){
  showState();
- if(!loggedIn())return;
+ if(!loggedIn()){$("adminPanel").hidden=true;return;}
  try{
   const {profile}=await call("profile");
-  if(profile){const field=$("accountDisplayName");if(field)field.value=profile.name||"匿名棋手";onProfileChange(profile);}
-  if(profile?.isAdmin){$("adminPanel").hidden=false;await searchUsers();}
-  $("identityStatus").textContent=profile?.isAdmin?"管理员 · 已验证":"已登录 · 云端账号";
+  if(profile){
+   const field=$("accountDisplayName");
+   if(field)field.value=profile.name||"匿名棋手";
+   onProfileChange(profile);
+  }
+  const isAdmin=profile?.isAdmin===true;
+  $("adminPanel").hidden=!isAdmin;
+  if(isAdmin)await searchUsers();
+  else{
+   $("adminResults").replaceChildren();
+   $("adminActions").hidden=true;
+   $("auditHistory").textContent="";
+  }
+  $("identityStatus").textContent=isAdmin?"管理员 · 已验证":"已登录 · 云端账号";
  }catch(e){setMessage(e.message,true);}
 }
 function adminRow(user){
@@ -103,11 +115,18 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
   session=result.data?.session||null;
   let lastUserId=session?.user?.id||null;
   client.auth.onAuthStateChange((event,next)=>{
-   session=next;showState();
    const nextUserId=next?.user?.id||null;
-   if(nextUserId===lastUserId)return; // Token refresh should not reset an active game.
+   const identityChanged=nextUserId!==lastUserId;
+   session=next;
+   // Same-user token refreshes must not hide a server-verified admin panel.
+   // Account switches hide it until the new user is checked by the Worker.
+   showState({resetAdmin:identityChanged||!nextUserId});
+   if(!identityChanged)return;
    lastUserId=nextUserId;
-   Promise.resolve().then(()=>onChange(!!nextUserId)).catch(()=>{});
+   Promise.resolve().then(async()=>{
+    if(nextUserId)await refresh();
+    await onChange(!!nextUserId);
+   }).catch(()=>{});
   });
   ready=true;
   setMessage(loggedIn()?"已恢复账号登录":"请选择注册或登录；游客对局不会进入云端排行榜。");
@@ -135,7 +154,7 @@ async function authTask(task){
    const {error}=await client.auth.signInWithPassword({email,password});
    if(error)throw error;
    setMessage("欢迎回来，账号已登录！");
-   await refresh();
+   // SIGNED_IN triggers the auth-state handler, which refreshes the server-verified role.
   }else if(task==="recover"){
    if(!email)throw Error("请输入邮箱");
    const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
