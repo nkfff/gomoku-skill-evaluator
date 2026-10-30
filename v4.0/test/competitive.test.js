@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chooseAI, CELLS } from "../src/engine.js";
-import { validateSubmittedTimeline } from "../worker/index.js";
+import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
 import { createMatchState, publicMatchState } from "../src/pvp.js";
 import { rollDice } from "../worker/pvp-room.js";
 
@@ -14,6 +14,14 @@ test("AI can search as either black or white", () => {
   assert.equal(chooseAI(board, "easy", {player: 1}).index, 109);
   assert.equal(chooseAI(board, "easy", {player: 2}).index, 109);
   assert.deepEqual(board, before, "AI search must not mutate the live board");
+});
+
+test("admin identity comparison is stable across UUID casing and whitespace", () => {
+  const id = "a12b34cd-5678-4abc-9def-0123456789ab";
+  assert.equal(isAdminUser({ADMIN_USER_ID:"  "+id.toUpperCase()+"  "},{id}), true);
+  assert.equal(isAdminUser({ADMIN_USER_ID:id},{id:id.toUpperCase()}), true);
+  assert.equal(isAdminUser({ADMIN_USER_ID:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"},{id}), false);
+  assert.equal(isAdminUser({}, {id}), false);
 });
 
 test("server rejects a white-first timeline because black must open", () => {
@@ -42,6 +50,23 @@ test("both PVP clients receive the same auditable dice result", () => {
   assert.deepEqual(guestView.diceRolls, diceRolls);
   assert.equal(hostView.diceWinnerPlayerId, "host-id");
   assert.equal(guestView.diceWinnerPlayerId, "host-id");
+});
+
+test("same-user token refresh does not unconditionally hide the admin panel", () => {
+  const account = readFileSync(fileURLToPath(new URL("../src/account.js", import.meta.url)), "utf8");
+  assert.match(account, /if\(!signedIn\|\|resetAdmin\)\$\("adminPanel"\)\.hidden=true/);
+  assert.match(account, /showState\(\{resetAdmin:identityChanged\|\|!nextUserId\}\)/);
+  assert.match(account, /if\(!identityChanged\)return/);
+});
+
+test("skin collection cards use board-theme tokens and readable semantic labels", () => {
+  const app = readFileSync(fileURLToPath(new URL("../src/app.js", import.meta.url)), "utf8");
+  const css = readFileSync(fileURLToPath(new URL("../src/style.css", import.meta.url)), "utf8");
+  assert.match(app, /class='skin-name'/);
+  assert.match(app, /class='skin-meta'/);
+  assert.match(app, /is-selected/);
+  assert.match(css, /body\[data-board-theme\] \.skin\{[\s\S]*?var\(--surface-2\)/);
+  assert.match(css, /\.skin \.skin-name\{[\s\S]*?var\(--heading\)/);
 });
 
 test("V4.0 HTML contains the new interaction surfaces exactly once", () => {

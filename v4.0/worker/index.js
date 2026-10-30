@@ -26,9 +26,14 @@ async function authenticate(request,env){
 async function ensure(env,user){
  await env.DB.prepare("INSERT OR IGNORE INTO players(id,name,points,wins,losses,draws,inventory,created_at,email) VALUES(?,'匿名棋手',0,0,0,0,'[\"classic\",\"board:classic\",\"piece:classic\"]',datetime('now'),?)").bind(user.id,user.email).run();
 }
+export function isAdminUser(env,user){
+ const configured=String(env.ADMIN_USER_ID||"").trim().toLowerCase();
+ const id=String(user?.id||"").trim().toLowerCase();
+ return configured.length>0&&id===configured;
+}
 async function profile(env,id){
  const u=await env.DB.prepare("SELECT id,name,points,earned_points,wins,losses,draws,inventory,selected_board,selected_piece,banned FROM players WHERE id=?").bind(id).first();
- return u?{...u,inventory:JSONparse(u.inventory,[]),isAdmin:id===env.ADMIN_USER_ID}:null;
+ return u?{...u,inventory:JSONparse(u.inventory,[]),isAdmin:isAdminUser(env,{id})}:null;
 }
 function validMoves(moves){
  const b=Array(CELLS).fill(0);
@@ -75,7 +80,7 @@ async function audit(env,actor,target,action,detail){
  .bind(crypto.randomUUID(),actor,target,action,JSON.stringify(detail)).run();
 }
 function adminOrThrow(env,user){
- if(!env.ADMIN_USER_ID||user.id!==env.ADMIN_USER_ID)throw invalid("没有管理员权限",403);
+ if(!isAdminUser(env,user))throw invalid("没有管理员权限",403);
 }
 function corsFor(request,env){
  const origin=request.headers.get("Origin")||"";
