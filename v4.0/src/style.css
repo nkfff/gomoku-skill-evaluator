@@ -115,9 +115,35 @@ body[data-board-theme] .skin,body[data-board-theme] .auth-feedback,body[data-boa
 body[data-board-theme] .board{border:1px solid var(--board-frame);box-shadow:0 8px 22px var(--accent-glow)}
 body[data-board-theme] .hint{background:var(--hint-bg);border:1px solid var(--hint-border);color:var(--hint-text)}
 body[data-board-theme] #hintPanel{background:var(--hint-bg);border-color:var(--hint-border);color:var(--hint-text)}
-body[data-board-theme] .skin{border-bottom-color:var(--border);border-radius:10px;padding:12px;margin:5px 0}
-body[data-board-theme] .skin .swatch{box-shadow:0 3px 10px var(--accent-glow)}
-body[data-board-theme] .skin button{min-width:66px}
+body[data-board-theme] .skin{
+ background:linear-gradient(145deg,var(--surface-2),var(--panel));
+ border:1px solid var(--border);border-radius:14px;padding:12px;margin:5px 0;
+}
+body[data-board-theme] .skin.is-selected{
+ border-color:var(--accent);
+ background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 13%,var(--panel)),var(--panel));
+ box-shadow:0 5px 18px var(--accent-glow),inset 0 0 0 1px var(--accent-glow);
+}
+body[data-board-theme] .skin .skin-name{
+ display:block;color:var(--heading);font-size:12px;font-weight:760;letter-spacing:.015em;line-height:1.45;
+}
+body[data-board-theme] .skin .skin-meta{
+ display:block;margin-top:4px;color:var(--muted);font-size:10px;font-weight:620;opacity:.96;
+}
+body[data-board-theme] .skin .swatch{
+ border-color:var(--panel-border);box-shadow:0 3px 10px var(--accent-glow);
+}
+body[data-board-theme] .skin button{
+ min-width:66px;background:var(--surface-2);color:var(--text);border-color:var(--border);
+}
+body[data-board-theme] .skin button[data-buy]:not(:disabled){
+ background:color-mix(in srgb,var(--accent) 11%,var(--surface-2));
+ border-color:color-mix(in srgb,var(--accent) 48%,var(--border));
+ color:var(--heading);
+}
+body[data-board-theme] .skin.is-selected button[data-buy]{
+ background:var(--accent);color:var(--accent-contrast);border-color:var(--accent);opacity:.92;
+}
 body[data-board-theme] .selected{outline:2px solid var(--accent);outline-offset:1px}
 body[data-board-theme] table{color:var(--text);border-color:var(--border)}
 body[data-board-theme] th,body[data-board-theme] td{border-bottom-color:var(--border)}
