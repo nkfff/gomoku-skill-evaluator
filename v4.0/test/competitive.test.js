@@ -52,6 +52,23 @@ test("both PVP clients receive the same auditable dice result", () => {
   assert.equal(guestView.diceWinnerPlayerId, "host-id");
 });
 
+test("same-user token refresh does not unconditionally hide the admin panel", () => {
+  const account = readFileSync(fileURLToPath(new URL("../src/account.js", import.meta.url)), "utf8");
+  assert.match(account, /if\(!signedIn\|\|resetAdmin\)\$\("adminPanel"\)\.hidden=true/);
+  assert.match(account, /showState\(\{resetAdmin:identityChanged\|\|!nextUserId\}\)/);
+  assert.match(account, /if\(!identityChanged\)return/);
+});
+
+test("skin collection cards use board-theme tokens and readable semantic labels", () => {
+  const app = readFileSync(fileURLToPath(new URL("../src/app.js", import.meta.url)), "utf8");
+  const css = readFileSync(fileURLToPath(new URL("../src/style.css", import.meta.url)), "utf8");
+  assert.match(app, /class='skin-name'/);
+  assert.match(app, /class='skin-meta'/);
+  assert.match(app, /is-selected/);
+  assert.match(css, /body\[data-board-theme\] \.skin\{[\s\S]*?var\(--surface-2\)/);
+  assert.match(css, /\.skin \.skin-name\{[\s\S]*?var\(--heading\)/);
+});
+
 test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   const html = readFileSync(fileURLToPath(new URL("../index.html", import.meta.url)), "utf8");
   for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","aiPodium","pvpPodium"]) {
