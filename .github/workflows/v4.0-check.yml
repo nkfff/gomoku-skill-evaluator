@@ -27,6 +27,49 @@ jobs:
       - name: Apply all D1 migrations against local SQLite
         working-directory: v4.0
         run: npx wrangler d1 migrations apply gomoku-v2 --local --config wrangler.v2.toml
+      - name: Verify legacy D1 puzzle schema repair preserves records
+        working-directory: v4.0
+        run: |
+          python - <<'PY'
+          import sqlite3
+          from pathlib import Path
+
+          migrations = Path("migrations")
+          base = (migrations / "0004_modes.sql").read_text()
+          multi = (migrations / "0005_multistep_puzzles.sql").read_text()
+          repair = (migrations / "0007_repair_mode_challenges.sql").read_text()
+
+          for already_upgraded in (False, True):
+              db = sqlite3.connect(":memory:")
+              db.execute("CREATE TABLE players (id TEXT PRIMARY KEY)")
+              db.executemany("INSERT INTO players(id) VALUES(?)", [("player-open",), ("player-claimed",)])
+              db.executescript(base)
+              db.executemany(
+                  """INSERT INTO mode_challenges
+                  (id,player_id,mode,difficulty,size,connect,board,solution_index,reward,status,created_at,expires_at,claimed_at)
+                  VALUES(?,?,'puzzle','easy',15,5,'[]',112,?,?,?,?,?)""",
+                  [
+                      ("open-1","player-open",10,"open","2026-10-30","2026-10-31",None),
+                      ("claimed-1","player-claimed",80,"claimed","2026-10-29","2026-10-29","2026-10-29")
+                  ]
+              )
+              if already_upgraded:
+                  db.executescript(multi)
+              db.executescript(repair)
+              columns = {row[1] for row in db.execute("PRAGMA table_info(mode_challenges)")}
+              assert {"solution_moves","solution_responses","solution_wins","progress"} <= columns
+              rows = {row[0]: row for row in db.execute(
+                  "SELECT id,status,reward,claimed_at,solution_moves,solution_responses,solution_wins,progress FROM mode_challenges"
+              )}
+              assert rows["open-1"][1] == "expired"
+              assert rows["open-1"][2] == 10
+              assert rows["open-1"][4:8] == ("[]","[]","[]",0)
+              assert rows["claimed-1"][1] == "claimed"
+              assert rows["claimed-1"][2] == 80
+              assert rows["claimed-1"][3] == "2026-10-29"
+              db.close()
+          print("Legacy and partially upgraded puzzle schemas repaired without losing challenge records.")
+          PY
       - name: Automated tests
         working-directory: v4.0
         run: npm test
