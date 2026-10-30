@@ -103,6 +103,24 @@ jobs:
           printf '%s' "$SUPABASE_URL" | npx wrangler secret put SUPABASE_URL --config wrangler.v3.toml
           npx wrangler deploy --config wrangler.v3.toml
       - name: Verify deployed API versions
+        shell: bash
         run: |
-          curl -fsS https://gomoku-v2-api.1395598907.workers.dev/api/health | grep -q '"version":"4.0.0"'
-          curl -fsS https://gomoku-v3-api.1395598907.workers.dev/api/health | grep -q '"version":"4.0.0"'
+          set -euo pipefail
+          verify_health() {
+            local name="$1"
+            local url="$2"
+            local body=""
+            for attempt in $(seq 1 12); do
+              body="$(curl -fsS --max-time 10 --retry 2 --retry-delay 2 --retry-all-errors "$url" 2>/dev/null || true)"
+              if printf '%s' "$body" | grep -q '"version":"4.0.0"'; then
+                echo "$name health check passed: $body"
+                return 0
+              fi
+              echo "$name health check attempt $attempt/12 not ready yet: ${body:-<no response>}"
+              sleep 5
+            done
+            echo "$name did not report V4.0 after retries"
+            return 1
+          }
+          verify_health "V2" "https://gomoku-v2-api.1395598907.workers.dev/api/health"
+          verify_health "V3" "https://gomoku-v3-api.1395598907.workers.dev/api/health"
