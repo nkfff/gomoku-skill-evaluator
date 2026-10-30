@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/deploy-v4.0-workers.yml"
+      - "v4.0/worker/index.js"
       - "v4.0/worker/v3.js"
+      - "v4.0/migrations/**"
       - "v4.0/src/special-modes.js"
       - "v4.0/special-modes-ui.js"
   workflow_dispatch:
