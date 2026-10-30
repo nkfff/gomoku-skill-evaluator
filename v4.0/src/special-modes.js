@@ -1,9 +1,9 @@
 // Shared deterministic puzzle generator and variable-connect Gomoku engine.
 // Pure module: safe to import from both the browser and Cloudflare Worker.
 export const PUZZLE_LEVELS = {
-  easy: {label:"初级", reward:10, threats:2, clutter:6, objective:"找到唯一的起手点，挡住一路后沿另一条线路完成连珠"},
-  normal: {label:"进阶", reward:30, threats:2, clutter:10, objective:"识别双路威胁，完成至少两手的强制组合"},
-  hard: {label:"大师", reward:80, threats:2, clutter:14, objective:"在更多干扰棋子中找到唯一的强制组合"}
+  easy: {label:"初级", reward:10, threats:2, clutter:6, steps:2, objective:"找到唯一的起手点，挡住一路后沿另一条线路完成连珠"},
+  normal: {label:"进阶", reward:30, threats:2, clutter:10, steps:2, objective:"识别双路威胁，完成至少两手的强制组合"},
+  hard: {label:"大师", reward:80, threats:2, clutter:14, steps:2, objective:"在更多干扰棋子中找到唯一的强制组合"}
 };
 const DIRS = [[0,1],[1,0],[1,1],[1,-1]];
 const inside = (r,c,size) => r >= 0 && r < size && c >= 0 && c < size;
@@ -150,19 +150,61 @@ export function validatePuzzleSolution(puzzle) {
   return modeWinLine(next,finish,1,size,connect).length>=connect;
 }
 
+function enrichPuzzle(puzzle, seed) {
+  const [first, response, finish] = puzzle.solutionSequence;
+  const afterFirst = puzzle.board.slice();
+  afterFirst[first] = 1;
+  const finalWins = modeWinningMoves(afterFirst, 1, puzzle.size, puzzle.connect);
+  return {
+    ...puzzle,
+    seed,
+    solutionMoves: [first, finish],
+    solutionResponses: [response],
+    finalWins,
+    steps: 2
+  };
+}
+export function verifyPuzzleLine(puzzle) {
+  if (!puzzle || !Array.isArray(puzzle.board)) return false;
+  const moves = puzzle.solutionMoves || puzzle.moves;
+  const responses = puzzle.solutionResponses || puzzle.responses;
+  const finalWins = puzzle.finalWins;
+  const size = Number(puzzle.size), connect = Number(puzzle.connect);
+  if (!Array.isArray(moves) || moves.length !== 2 ||
+      !Array.isArray(responses) || responses.length !== 1 ||
+      !Array.isArray(finalWins) || finalWins.length !== 2 ||
+      !Number.isInteger(size) || !Number.isInteger(connect)) return false;
+  const [first, finish] = moves;
+  const [response] = responses;
+  const sequence = [first, response, finish];
+  if (!validatePuzzleSolution({
+    ...puzzle,
+    size,
+    connect,
+    solutionIndex: first,
+    solutionSequence: sequence
+  })) return false;
+  const afterFirst = puzzle.board.slice();
+  afterFirst[first] = 1;
+  const winningEndpoints = modeWinningMoves(afterFirst, 1, size, connect);
+  return winningEndpoints.length === 2 &&
+    winningEndpoints.every(index => finalWins.includes(index)) &&
+    finalWins.every(index => winningEndpoints.includes(index)) &&
+    finalWins.includes(response) && finalWins.includes(finish);
+}
 export function generatePuzzle(difficulty="easy", seed=Date.now()) {
   if(!PUZZLE_LEVELS[difficulty]) throw new Error("未知残局难度");
   const base=(Number(seed)>>>0)||0x6d2b79f5;
   for(let attempt=0;attempt<180;attempt++) {
     const random=seeded((base + Math.imul(attempt+1,0x9e3779b9))>>>0);
     const puzzle=puzzleAttempt(difficulty,random,true);
-    if(puzzle) return {...puzzle,seed:base};
+    if(puzzle) return enrichPuzzle(puzzle,base);
   }
   // Deterministic no-clutter fallback: the tactical construction itself remains solvable.
   for(let attempt=0;attempt<180;attempt++) {
     const random=seeded((base ^ Math.imul(attempt+17,0x85ebca6b))>>>0);
     const puzzle=puzzleAttempt(difficulty,random,false);
-    if(puzzle) return {...puzzle,seed:base};
+    if(puzzle) return enrichPuzzle(puzzle,base);
   }
   throw new Error("暂时无法生成符合校验条件的残局，请重新生成");
 }
