@@ -24,6 +24,9 @@ jobs:
       - name: Syntax checks
         working-directory: v4.0
         run: npm run check
+      - name: Apply all D1 migrations against local SQLite
+        working-directory: v4.0
+        run: npx wrangler d1 migrations apply gomoku-v2 --local --config wrangler.v2.toml
       - name: Automated tests
         working-directory: v4.0
         run: npm test
