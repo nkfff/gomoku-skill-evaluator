@@ -206,7 +206,7 @@ async function claimPuzzleReward(){
     $("puzzleRetryClaim").hidden=false;
   }finally{puzzleBusy=false;}
 }
-function onPuzzleClick(event){
+async function onPuzzleClick(event){
   const p=puzzleState;
   if(!p||puzzleBusy||p.solved||p.step===1)return;
   const index=clickedIndex(event,$("puzzleBoard"),p.size);
@@ -218,24 +218,44 @@ function onPuzzleClick(event){
       :"这一步没有利用对手封堵后的另一条制胜线，请重新观察棋形。";
     return;
   }
-  p.board[index]=1;p.lastMove=index;p.playedSequence.push(index);p.showSolution=false;
-  if(p.step===0){
-    p.step=1;
-    $("puzzleStatus").textContent="正确！你制造了双路威胁。对手正在封堵其中一路…";
-    renderPuzzle();
-    window.setTimeout(()=>{
-      if(puzzleState!==p||p.solved)return;
-      const response=p.solutionSequence[1];
-      if(p.board[response]){ $("puzzleStatus").textContent="棋题状态异常，请重新生成。";return; }
-      p.board[response]=2;p.lastMove=response;p.playedSequence.push(response);p.step=2;
-      $("puzzleStatus").textContent="对手已封堵一路。现在请完成最后一手，利用另一条制胜线。";
+  puzzleBusy=true;
+  let shouldClaim=false;
+  try{
+    let serverMove=null;
+    if(p.server){
+      serverMove=await modeApi("move",{challengeId:p.id,moveIndex:index});
+      if(!serverMove.correct){
+        $("puzzleStatus").textContent=serverMove.error||"服务器未确认这一步，请重试。";
+        return;
+      }
+    }
+    p.board[index]=1;p.lastMove=index;p.playedSequence.push(index);p.showSolution=false;
+    if(p.step===0){
+      const responseIndex=p.server?serverMove.responseIndex:p.solutionSequence[1];
+      if(!Number.isInteger(responseIndex)||p.board[responseIndex])throw new Error("服务器返回的封堵位置无效，请重新生成残局");
+      p.solutionSequence[1]=responseIndex;
+      p.step=1;
+      $("puzzleStatus").textContent="正确！你制造了双路威胁。对手正在封堵其中一路…";
       renderPuzzle();
-    },420);
-    return;
+      window.setTimeout(()=>{
+        if(puzzleState!==p||p.solved)return;
+        if(p.board[responseIndex]){$("puzzleStatus").textContent="棋题状态异常，请重新生成。";return;}
+        p.board[responseIndex]=2;p.lastMove=responseIndex;p.playedSequence.push(responseIndex);p.step=2;
+        $("puzzleStatus").textContent="对手已封堵一路。现在请完成最后一手，利用另一条制胜线。";
+        renderPuzzle();
+      },420);
+      return;
+    }
+    if(p.server&&!serverMove.solved)throw new Error("服务器尚未确认全部解题步骤，请重试");
+    p.step=3;p.solved=true;p.showSolution=true;
+    $("puzzleStatus").textContent="组合完成！正在验证通关奖励…";
+    renderPuzzle();shouldClaim=true;
+  }catch(error){
+    $("puzzleStatus").textContent="服务器验证失败："+error.message+"。请重试当前步骤。";
+  }finally{
+    puzzleBusy=false;
   }
-  p.step=3;p.solved=true;p.showSolution=true;
-  $("puzzleStatus").textContent="组合完成！正在验证通关奖励…";
-  renderPuzzle();claimPuzzleReward();
+  if(shouldClaim)await claimPuzzleReward();
 }
 function showPuzzleHint(){
   if(!puzzleState||puzzleState.solved)return;

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   PUZZLE_LEVELS, generatePuzzle, findPuzzleSolution, modeWinLine,
-  modeWinningMoves, createRandomConfig, chooseRandomMove, randomAIStrategy, validatePuzzleSolution
+  modeWinningMoves, createRandomConfig, chooseRandomMove, randomAIStrategy, validatePuzzleSolution, verifyPuzzleLine
 } from "../src/special-modes.js";
 
 function hasExistingWin(board,size,connect) {
@@ -35,6 +35,25 @@ test("each puzzle difficulty generates varied, validated, uniquely solvable posi
       seen.add(puzzle.board.join(""));
     }
     assert.ok(seen.size>=10, difficulty+" puzzles should be varied");
+  }
+});
+
+
+test("server-authoritative puzzle payload stores a verifiable two-move line", () => {
+  for (const difficulty of Object.keys(PUZZLE_LEVELS)) {
+    const puzzle = generatePuzzle(difficulty, 987654 + difficulty.length);
+    assert.equal(PUZZLE_LEVELS[difficulty].steps, 2);
+    assert.equal(puzzle.steps, 2);
+    assert.equal(puzzle.solutionMoves.length, 2);
+    assert.equal(puzzle.solutionResponses.length, 1);
+    assert.equal(puzzle.finalWins.length, 2);
+    assert.equal(verifyPuzzleLine(puzzle), true);
+    const stored = {
+      board:puzzle.board, size:puzzle.size, connect:puzzle.connect, difficulty,
+      moves:puzzle.solutionMoves, responses:puzzle.solutionResponses,
+      finalWins:puzzle.finalWins, steps:puzzle.steps
+    };
+    assert.equal(verifyPuzzleLine(stored), true);
   }
 });
 

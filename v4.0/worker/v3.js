@@ -308,10 +308,17 @@ async function submitPuzzleMove(request, env, user, headers) {
   const body = await parseBody(request);
   const challengeId = String(body.challengeId || "");
   const moveIndex = Number(body.moveIndex);
-  if (!Number.isInteger(moveIndex) || moveIndex < 0 || moveIndex >= 441) throw fail("落子坐标无效");
+  if (!Number.isInteger(moveIndex) || moveIndex < 0 || moveIndex >= 841) throw fail("落子坐标无效");
   await ensurePlayer(env, user);
   const {challenge, puzzle} = await readOpenPuzzle(env, user, challengeId);
   const progress = Number(challenge.progress || 0);
+  if (progress > 0 && moveIndex === puzzle.moves[progress - 1]) {
+    const responseIndex = progress - 1 < puzzle.responses.length ? puzzle.responses[progress - 1] : null;
+    return reply({
+      ok:true, correct:true, progress, steps:puzzle.moves.length,
+      responseIndex, solved:progress === puzzle.moves.length, alreadyApplied:true
+    }, 200, headers);
+  }
   if (progress >= puzzle.moves.length) throw fail("这道残局已经完成，请领取奖励", 409);
   if (moveIndex !== puzzle.moves[progress]) {
     return reply({ok:true,correct:false,error:"这一步不是当前唯一标准解法，请重新思考。"}, 200, headers);
@@ -327,7 +334,6 @@ async function submitPuzzleMove(request, env, user, headers) {
     responseIndex, solved:nextProgress === puzzle.moves.length
   }, 200, headers);
 }
-
 async function hintPuzzleMove(request, env, user, headers) {
   const body = await parseBody(request);
   const challengeId = String(body.challengeId || "");
