@@ -2,9 +2,9 @@
 
 **当前稳定版：V2.2 · 最新开发预览：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-> **最近更新：2026-10-29** · V3.4 强化王者与随机连珠 AI，修复开局难度与云端积分结算不一致；前端发布状态以 GitHub Actions 为准。
+> **最近更新：2026-10-30** · V4.0 预览版已部署；完成残局数据库兼容、管理员面板稳定性、皮肤主题对比度及执白棋力评分修复，自动化检查与 GitHub Pages 部署通过。
 
-一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V2.3 为已部署的预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 前端 Pages、Cloudflare Worker 与 D1 迁移均已部署，自动化检查通过；完整真实浏览器验收仍待完成。
+一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V4.0 是最新已部署预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 保留为历史预览入口。V4.0 前端 Pages 已部署，相关 Worker/D1 维护迁移与自动化检查通过；完整真实浏览器验收仍待完成。
 
 ## 在线版本
 
@@ -13,7 +13,7 @@
 | **V2.2 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.2/ | 当前稳定入口；前端与 Worker 部署成功，自动化测试通过（2026-10-28） |
 | **V2.3 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.3/ | 已部署：本地即时对局、猫猫主题棋盘/棋子、落子音效与终局云端结算；仍需真实浏览器验收 |
 | **V3.1 UI 优化版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.1/ | 基于 V3.0；开始下棋按钮仅在对弈页显示，AI 棋盘仅在对弈/复盘页显示 |
-| **V4.0 视觉与竞技系统升级版** | https://nkfff.github.io/gomoku-skill-evaluator/v4.0/ | 开发中：UI 重构、AI 自选先手、平局 5 倍奖励、PVP 服务端摇骰子与排行榜头衔；合并并部署后开放验收 |
+| **V4.0 视觉与竞技系统升级版** | https://nkfff.github.io/gomoku-skill-evaluator/v4.0/ | 已部署预览版（2026-10-30）：UI 重构、AI 自选先手、平局 5 倍奖励、PVP 服务端摇骰子与排行榜头衔；自动化检查及 Pages 部署通过，仍建议进行真实浏览器验收 |
 | **V3.4 深层搜索 AI 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.4/ | 修复难度快照导致的奖励错发；王者迭代加深 Alpha-Beta、Zobrist 置换表与战术延伸；随机连珠 AI 延长思考并移入 Worker。数学意义上的必胜尚未证明，真实浏览器验收仍待完成 |
 | **V3.3 王者 AI 与战术模式版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.3/ | 王者难度深层攻防搜索、随机 3–10 连珠自适应策略、多步唯一解残局与自动化回归测试；真实浏览器验收仍待完成 |
 | V3.2 特殊模式兼容入口 | https://nkfff.github.io/gomoku-skill-evaluator/v3.2/ | 保留原入口；功能以当前兼容代码为准，后续开发与测试以 V3.3 为主 |
@@ -180,7 +180,7 @@ V3.1 基于 V3.0 创建独立入口，不覆盖 V3.0、V2.3 或稳定版。
 - **验收状态：** 自动化检查覆盖按钮/棋盘显示规则与资源引用；部署完成后仍建议实际切换各个页面验收。
 
 
-## V4.0 视觉与竞技系统升级（开发中）
+## V4.0 视觉与竞技系统升级（已部署预览版，2026-10-30）
 
 V4.0 在 V3.4 基础上独立开发，不覆盖旧版本。主要更新：
 
@@ -190,7 +190,7 @@ V4.0 在 V3.4 基础上独立开发，不覆盖旧版本。主要更新：
 - **真人摇骰子**：双方准备完成后，Worker 使用加密随机数掷骰；同点自动重掷，胜者执黑先手。骰子点数写入 D1 并同步给双方，前端只负责动画展示。
 - **排行榜荣誉**：AI 积分榜与真人 Elo 榜前三分别展示「棋圣、棋王、棋宗」头衔与领奖台。
 - **后端迁移**：复用现有 V2/V3 Worker、D1 和 Durable Object，新增 player_color、dice_rolls 与 dice_winner_player_id 字段；部署前必须先备份 D1 并执行 V4.0 迁移。
-- **验收状态**：开发分支与自动化检查通过前不会标记为已部署；真实浏览器、双账号 PVP、云端积分与手机端体验仍需验收。
+- **2026-10-30 维护修复**：修复旧版 D1 `mode_challenges` 表缺少 `solution_moves` 字段导致的残局生成失败，并增加迁移兼容与历史记录保留验证；统一管理员 UUID 比较并修复 Token 刷新后管理员面板偶发隐藏；皮肤收藏卡片改为跟随当前棋盘主题色，并增强皮肤名称文字对比度。
 
 ## V3.3 王者 AI 与战术模式（2026-10-29）
 
