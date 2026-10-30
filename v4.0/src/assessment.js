@@ -95,8 +95,9 @@ export function analyzeMove(board,player,played){
     searchSpread:round(spread,2)
   };
 }
-export function summarizeQuality(moves){
-  const human=moves.filter(m=>m.p===1);
+export function summarizeQuality(moves,humanColor=1){
+  if(![1,2].includes(humanColor))throw Error("Invalid human color");
+  const human=moves.filter(m=>m.p===humanColor);
   const analyzed=human.filter(m=>m.quality?.version===ANALYSIS_VERSION);
   const eligible=analyzed.filter(m=>m.quality.evaluable!==false);
   const total=human.length,ready=analyzed.length,n=eligible.length;

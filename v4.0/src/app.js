@@ -392,7 +392,7 @@ function render(){
   "。推荐："+q.alternatives.map(coord).join("、")+
   "。搜索深度 "+q.depth+" 层；非职业引擎结论。";
  } else $("analysis").textContent=m.analysisError||"正在后台搜索评估这一步……";
- const stats=summarizeQuality(game.moves),completed=stats.ready===stats.total&&stats.total>0;
+ const stats=summarizeQuality(game.moves,game.humanColor),completed=stats.ready===stats.total&&stats.total>0;
  const formatRatio=x=>x===null?"未测得":(x*100).toFixed(1)+"%";
  $("qualityScore").textContent=stats.score===null?"—":stats.score+" / 100"+(game.result&&completed?"":" · 临时");
  $("top1Rate").textContent=stats.scored?formatRatio(stats.top1):"—";
@@ -500,7 +500,7 @@ function renderShop(){
  drawSkinPreview();
 }
 function formatTime(){if(!game)return;if(!game.startedGame){$("totalTime").textContent="00:00";$("thinkTime").textContent="未开始";return;}const now=game.ended||performance.now(),total=Math.max(0,Math.floor((now-game.started)/1000));$("totalTime").textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");$("thinkTime").textContent=game.result?"已停止":game.turn===game.humanColor?((performance.now()-game.turnStart)/1000).toFixed(1)+"s":"AI 行棋";}
-function download(){const payload={version:"4.0",identity:profile.id,level:game.level,playerColor:game.humanColor,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v4.0-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
+function download(){const payload={version:"4.0",identity:profile.id,level:game.level,playerColor:game.humanColor,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves,game.humanColor)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v4.0-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
 async function localRank(){
  const rankPoints=(earned,wins,losses,draws)=>{const games=wins+losses+draws,adjusted=games?100*(wins+2.5)/(games+5):0;return Math.max(0,Math.round(Number(earned||0)+(adjusted-50)*Math.min(games,20)/10));};
  const titles=["棋圣","棋王","棋宗"];
