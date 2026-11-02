@@ -1,5 +1,7 @@
 # 五子棋棋力评估 · Gomoku Skill Evaluator
 
+> 📘 [开发规划与完整版本档案](docs/DEVELOPMENT_ROADMAP.md)：项目定位、V1–V4.0 版本演进、Bug 修复记录、当前验收状态与后续路线。
+
 **当前稳定版：V2.2 · 最新预览版：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
 > **最近更新：2026-10-30** · V4.0 预览版已部署；完成残局数据库兼容、管理员面板稳定性、皮肤主题对比度及执白棋力评分修复，自动化检查与 GitHub Pages 部署通过。
