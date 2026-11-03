@@ -9,16 +9,16 @@ from gomoku.network import build_model
 from gomoku.train import (
     ReplayBuffer,
     generate_bootstrap_data,
+    load_checkpoint,
     pretrain_step,
+    save_checkpoint,
     train_step,
 )
 
 
 def test_bootstrap_data_has_expected_shapes_and_valid_policy():
     samples = generate_bootstrap_data(
-        games=4,
         max_positions=24,
-        max_plies=100,
         seed=17,
     )
 
@@ -113,15 +113,11 @@ def test_selfplay_train_step_updates_all_three_objectives():
 
 def test_bootstrap_generation_is_reproducible():
     first = generate_bootstrap_data(
-        games=3,
         max_positions=12,
-        max_plies=80,
         seed=123,
     )
     second = generate_bootstrap_data(
-        games=3,
         max_positions=12,
-        max_plies=80,
         seed=123,
     )
 
@@ -147,3 +143,72 @@ def test_replay_buffer_enforces_capacity():
 
     assert len(replay) == 2
     assert [float(sample[2]) for sample in replay.samples] == [1.0, -1.0]
+
+
+
+def test_bootstrap_dataset_contains_all_three_rule_verified_classes():
+    samples = generate_bootstrap_data(max_positions=30, seed=7)
+    classes = set()
+
+    for _, _, _, tactical, _ in samples:
+        active = np.flatnonzero(tactical.sum(axis=(1, 2)) > 0)
+        assert len(active) == 1
+        classes.add(int(active[0]))
+
+    assert classes == {0, 1, 2}
+
+
+def test_checkpoint_round_trip_restores_model_optimizer_and_replay(tmp_path):
+    model = build_model()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1)
+    replay = ReplayBuffer(capacity=4)
+
+    sample = _small_batch(batch_size=1)
+    replay.add_many([
+        (
+            sample["states"][0],
+            sample["policies"][0],
+            np.float32(1.0),
+            sample["tactical"][0],
+            sample["legal_masks"][0],
+        )
+    ])
+
+    checkpoint_path = tmp_path / "latest.pt"
+    rng = np.random.default_rng(12)
+    save_checkpoint(
+        checkpoint_path,
+        model,
+        optimizer,
+        scheduler,
+        replay,
+        round_index=2,
+        global_step=37,
+        rng=rng,
+        run_config={"test": True},
+    )
+
+    restored_model = build_model()
+    restored_optimizer = torch.optim.AdamW(restored_model.parameters(), lr=1e-3)
+    restored_scheduler = torch.optim.lr_scheduler.StepLR(
+        restored_optimizer,
+        step_size=1,
+    )
+    restored_replay = ReplayBuffer(capacity=4)
+    restored_rng = np.random.default_rng(999)
+
+    round_index, global_step = load_checkpoint(
+        checkpoint_path,
+        restored_model,
+        restored_optimizer,
+        restored_scheduler,
+        restored_replay,
+        torch.device("cpu"),
+        restored_rng,
+    )
+
+    assert (round_index, global_step) == (2, 37)
+    assert len(restored_replay) == 1
+    for original, restored in zip(model.parameters(), restored_model.parameters()):
+        assert torch.equal(original, restored)
