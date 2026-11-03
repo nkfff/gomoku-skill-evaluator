@@ -15,7 +15,8 @@ V4.1 是独立的 AI 训练与棋力研究分支，不是新的网页游戏发�
 
 - **V4.1.5：** 建立 TEBA-Net-S 与 Self-Play / Champion Sparring 双通道训练框架。
 - **V4.1.6：** 增加完整棋谱、逐步搜索诊断和战术漏步统计；将训练计划扩展为 30 轮、每步 64 次 PUCT 模拟。
-- **V4.1.7：** 新增两个冻结 Checkpoint 的配对直接对战评估，复用相同开局并交换黑白棋，默认 40 局 / 20 组开局。\n- **V4.1.8：** 修复扩展续训时 LambdaLR 调度器可能导致的学习率跳升；新增 M4 长时间训练启动脚本，支持 Round 30 → Round 60 安全续训。
+- **V4.1.7：** 新增两个冻结 Checkpoint 的配对直接对战评估，复用相同开局并交换黑白棋，默认 40 局 / 20 组开局。
+- **V4.1.8：** 修复扩展续训时 LambdaLR 调度器可能导致的学习率跳升；新增 M4 长时间训练启动脚本，支持 Round 30 → Round 60 安全续训。
 - **V4.1.9：** 从 Round 60 启动 30,000 轮长期强化学习；加入历史 TEBA Opponent League、战术专项对手、D4 八重对称增强、40 局筛选 / 100 局确认、自动模型晋级、早停与可恢复阶段训练。训练输出写入独立的 `checkpoints_longrun/`，不覆盖 `checkpoints_dual/`。
 - **代码状态：** V4.1.9 PR [#34](https://github.com/nkfff/gomoku-skill-evaluator/pull/34) 与战术对手验证 PR [#35](https://github.com/nkfff/gomoku-skill-evaluator/pull/35) 已合并至 `feat/4.1-teba-mcts`；尚未合并到默认分支 `main`，也未部署为线上游戏版本。
 - **自动化验证：** 最终组合代码 GitHub Actions 为 **124 passed、4 skipped**；4 项跳过测试依赖 Apple MPS，Ubuntu CI 无法执行。M4 本地训练尚未启动。
