@@ -111,6 +111,12 @@ test("PVP join endpoint lets either existing member resume before active-match r
   assert.ok(pvpApi.includes('url.pathname === "/api/pvp/rooms/current"'));
   assert.ok(pvpApi.includes("invite_code_hash=?"));
   assert.ok(pvpApi.includes("ORDER BY created_at DESC LIMIT 1"));
+  assert.ok(pvpApi.includes("datetime('9999-12-31 23:59:59')"));
+  const joinHandler = pvpApi.slice(pvpApi.indexOf("async function joinRoom"), pvpApi.indexOf("async function createTicket"));
+  assert.doesNotMatch(joinHandler, /expires_at|expiresAt/);
+  const currentRoomHandler = pvpApi.slice(pvpApi.indexOf("async function currentRoom"), pvpApi.indexOf("async function leaderboard"));
+  assert.match(currentRoomHandler, /status IN \('waiting','ready','active','finished'\)/);
+  assert.doesNotMatch(currentRoomHandler, /expires_at/);
 });
 
 test("PVP frontend restores each signed-in player's room and does not replay revealed dice", () => {
@@ -124,6 +130,14 @@ test("PVP frontend restores each signed-in player's room and does not replay rev
   assert.match(pvpUi, /saved\.diceMatchId === room\.match\.matchId/);
   assert.match(pvpUi, /saveRoomSession\(room\.roomId, inviteCode, match\.matchId\)/);
   assert.match(pvpUi, /clearRoomSession\(\)/);
+  assert.match(pvpUi, /await waitForAuthReady\(\)/);
+  assert.match(pvpUi, /gomoku:auth-changed/);
+  assert.match(pvpUi, /activateGomokuTab\("pvp"\)/);
+  assert.match(pvpUi, /inviteCode = code/);
+  const account = readFileSync(fileURLToPath(new URL("../src/account.js", import.meta.url)), "utf8");
+  assert.match(account, /export function waitForAuthReady/);
+  assert.match(account, /resolveAuthReady\(true\)/);
+  assert.match(account, /gomoku:auth-changed/);
 });
 
 test("PVP rematch starts only after both players accept and resets readiness", () => {
@@ -154,6 +168,17 @@ test("PVP rematch rejects non-members and unfinished games", () => {
   assert.throws(() => requestPvpRematch({...room,rematchStarting:true}, "host-id"), /REMATCH_ALREADY_STARTED/);
 });
 
+
+test("PVP rooms persist while members exist and only explicit cancellation closes a waiting room", () => {
+  const api = readFileSync(fileURLToPath(new URL("../worker/v3.js", import.meta.url)), "utf8");
+  const room = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
+  assert.match(api, /datetime\('9999-12-31 23:59:59'\)/);
+  assert.match(room, /PERMANENT_ROOM_EXPIRY_MS/);
+  assert.doesNotMatch(room, /now >= this\.room\.expiresAt/);
+  assert.doesNotMatch(room, /deadlines\.push\(this\.room\.expiresAt\)/);
+  assert.match(room, /只有房主可以取消房间/);
+});
+
 test("same-user token refresh does not unconditionally hide the admin panel", () => {
   const account = readFileSync(fileURLToPath(new URL("../src/account.js", import.meta.url)), "utf8");
   assert.match(account, /if\(!signedIn\|\|resetAdmin\)\$\("adminPanel"\)\.hidden=true/);
@@ -180,6 +205,8 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
     assert.equal((html.match(new RegExp('id="' + id + '"' , "g")) || []).length, 1, id);
   }
   assert.match(html, /class="dice-cube show-5"/);
+  assert.ok(html.indexOf('id="pvpDiceStage"') < html.indexOf('id="pvpBoard"'), "dice stage must appear before the board");
+  assert.match(css, /\.pvp-board\[hidden\]\{display:none!important\}/);
   assert.match(css, /@keyframes diceRoll3d/);
   assert.match(pvpUi, /animateDiceFace/);
   assert.match(pvpUi, /switchToRematchRoom/);
