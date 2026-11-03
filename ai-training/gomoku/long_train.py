@@ -136,7 +136,7 @@ def evaluate_pair_match(
 
 
 def _checkpoint_round(path: Path) -> int:
-    payload = torch.load(path, map_location="cpu", weights_only=False)
+    payload = torch.load(path, map_location="cpu", weights_only=False, mmap=True)
     round_index = int(payload.get("round_index", -1))
     if round_index < 0 or "model_state_dict" not in payload:
         raise ValueError(f"invalid training checkpoint: {path}")
@@ -144,7 +144,7 @@ def _checkpoint_round(path: Path) -> int:
 
 
 def _write_model_checkpoint(source: Path, destination: Path, round_index: int) -> None:
-    payload = torch.load(source, map_location="cpu", weights_only=False)
+    payload = torch.load(source, map_location="cpu", weights_only=False, mmap=True)
     if "model_state_dict" not in payload:
         raise ValueError(f"checkpoint has no model_state_dict: {source}")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -274,8 +274,12 @@ def run_long_training(args: argparse.Namespace) -> Path:
                 f"stage checkpoint mismatch: expected round {expected_round}, got {current_round}"
             )
 
+        candidate_snapshot = output_dir / f"round_{current_round:04d}_model.pt"
+        if not candidate_snapshot.is_file():
+            _write_model_checkpoint(latest, candidate_snapshot, current_round)
+
         quick = evaluate_pair_match(
-            latest, best_path, device, args.eval_games, args.eval_simulations,
+            candidate_snapshot, best_path, device, args.eval_games, args.eval_simulations,
             args.seed + current_round,
         )
         confirmation = None
@@ -286,7 +290,7 @@ def run_long_training(args: argparse.Namespace) -> Path:
             and quick["white_score"] >= 0.50
         ):
             confirmation = evaluate_pair_match(
-                latest, best_path, device, args.confirm_games, args.eval_simulations,
+                candidate_snapshot, best_path, device, args.confirm_games, args.eval_simulations,
                 args.seed + current_round + 100_003,
             )
             promoted = promotion_decision(
@@ -296,7 +300,7 @@ def run_long_training(args: argparse.Namespace) -> Path:
             )
 
         if promoted:
-            _write_model_checkpoint(latest, best_path, current_round)
+            _write_model_checkpoint(candidate_snapshot, best_path, current_round)
             register_snapshot(best_path, league_dir, current_round, args.league_max_opponents)
             best_round = current_round
             plateau_evaluations = 0
@@ -329,7 +333,7 @@ def run_long_training(args: argparse.Namespace) -> Path:
             champion_output = evaluation_dir / f"round_{current_round:05d}_vs_v40.csv"
             champion_command = [
                 sys.executable, "-u", "-m", "gomoku.evaluate",
-                "--checkpoint", str(latest),
+                "--checkpoint", str(candidate_snapshot),
                 "--device", str(device),
                 "--games", str(args.champion_eval_games),
                 "--simulations", str(args.eval_simulations),
