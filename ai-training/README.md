@@ -201,7 +201,7 @@ Run from `ai-training/` after the V4.1.4 pilot has created
 model:
 
 ```bash
-python -m gomoku.evaluate --checkpoint checkpoints/latest.pt --device mps --games 10 --simulations 24 --champion-time-ms 500
+python -m gomoku.evaluate --checkpoint checkpoints/latest.pt --device mps --games 20 --simulations 64 --opening-plies 6 --seed 2028 --champion-time-ms 500 --output evaluation/baseline_v4_1_4_diagnostics.csv
 ```
 
 Then start dual-channel learning:
