@@ -1,4 +1,7 @@
-import {SIZE,CELLS,LEVELS,coord,inside,spot,winLine,chooseAI,advice,replay,rankedMoves} from "./engine.js";
+import {installOfflineCache} from "./offline-cache.js";
+import {requestGunuce,cancelGunuce} from "./gunuce.js";
+const LEVELS={...BASE_LEVELS,gunuce:{label:"Gunuce",reward:0}};
+import {SIZE,CELLS,LEVELS as BASE_LEVELS,coord,inside,spot,winLine,chooseAI,advice,replay,rankedMoves} from "./engine.js";
 import {initAccount,bearer,loggedIn,cloudConfigured} from "./account.js";
 import {summarizeQuality} from "./assessment.js";
 const $=id=>document.getElementById(id);
@@ -55,7 +58,8 @@ if(aiWorker){
   aiRequests.clear();
  };
 }
-function requestAI(board,level,player=2){
+function requestAI(board,level,player=2,last=-1){
+ if(level==="gunuce"){const id=game.id,count=game.moves.length;return requestGunuce(board,player,last,{onProgress:progress=>{if(game?.id===id&&game.moves.length===count&&!game.result){game.aiProgress=progress.message;render();}}});}
  if(!aiWorker)return Promise.resolve().then(()=>chooseAI(board,level,{player}));
  const requestId=++aiRequestId;
  return new Promise((resolve,reject)=>{
@@ -152,7 +156,7 @@ async function submitFinishedGame(g){
  await syncPendingSubmissions();
 }
 async function newGame(){
- clearTimeout(task);task=null;turnToken++;
+ cancelGunuce();clearTimeout(task);task=null;turnToken++;
  const humanColor=Number($("firstMoveChoice")?.value||1)===2?2:1;
  game={id:crypto.randomUUID(),b:Array(CELLS).fill(0),moves:[],events:[],level:$("difficulty").value,turn:1,humanColor,aiColor:3-humanColor,started:0,turnStart:0,ended:0,result:0,undo:0,startedGame:false,cloudSession:false,playerId:null,syncState:"idle",drawReward:0};
  hints=[];hintVisible=false;hintRequest++;$("hintPanel").hidden=true;
@@ -166,9 +170,9 @@ function startGame(){
  if(!game||game.startedGame||game.result)return;
  const selectedLevel=$("difficulty").value;game.level=LEVELS[selectedLevel]?selectedLevel:"normal";
  game.humanColor=Number($("firstMoveChoice").value)===2?2:1;game.aiColor=3-game.humanColor;
- const now=performance.now();game.cloudSession=cloudMode();game.playerId=game.cloudSession?profile.id:null;game.syncState="idle";
- game.started=now;game.turnStart=now;game.startedGame=true;game.turn=1;remoteGame=null;remoteBusy=false;$("firstMoveChoice").disabled=true;
- $("cloudBanner").textContent=game.cloudSession?"本地即时对局 · 云端会话后台准备中":"游客模式 · 对局在本地运行";
+ const now=performance.now();game.cloudSession=game.level!=="gunuce"&&cloudMode();game.playerId=game.cloudSession?profile.id:null;game.syncState="idle";
+ game.aiProgress=null;game.aiError=null;game.started=now;game.turnStart=now;game.startedGame=true;game.turn=1;remoteGame=null;remoteBusy=false;$("firstMoveChoice").disabled=true;
+ $("cloudBanner").textContent=game.level==="gunuce"?"Gunuce":game.cloudSession?"本地即时对局 · 云端会话后台准备中":"游客模式 · 对局在本地运行";
  if(game.cloudSession){const gameId=game.id,level=game.level,playerColor=game.humanColor;api("start",{level,gameId,playerColor}).catch(e=>{if(game&&game.id===gameId){game.startSyncError=e.message;$("cloudBanner").textContent="本地对局不受网络影响；终局同步时将重试云端会话。";}});}
  render();formatTime();if(game.turn===game.aiColor)scheduleAI();
 }
@@ -191,7 +195,9 @@ function finish(result){
  game.result=result;game.turn=0;game.ended=performance.now();endedAt=game.ended;clearTimeout(task);task=null;
  game.drawReward=result===3?LEVELS[game.level].reward*5:0;game.events.push({type:"end",result,at:new Date().toISOString()});
  $("undo").disabled=true;$("review").disabled=false;
- if(!game.cloudSession){
+ if(game.level==="gunuce"){
+  game.drawReward=0;$("cloudBanner").textContent="Gunuce对局已结束，可导出棋谱";
+ }else if(!game.cloudSession){
   if(result===1){profile.wins++;profile.points+=LEVELS[game.level].reward;profile.earnedPoints+=LEVELS[game.level].reward;}
   else if(result===2)profile.losses++;
   else{profile.draws++;profile.points+=game.drawReward;profile.earnedPoints+=game.drawReward;}
@@ -214,12 +220,12 @@ function scheduleAI(){
   if(current!==turnToken||!game||game.id!==aiGameId||game.turn!==aiColor||game.result)return;
   task=null;
   try{
-   const choice=await requestAI(game.b.slice(),game.level,aiColor);
+   const choice=await requestAI(game.b.slice(),game.level,aiColor,game.moves.at(-1)?.i??-1);
    if(current!==turnToken||!game||game.id!==aiGameId||game.turn!==aiColor||game.result)return;
-   if(!choice||!Number.isInteger(choice.index)||choice.index<0||game.b[choice.index]){finish(3);render();return;}
-   const prior=game.b.slice();drop(choice.index,aiColor,(performance.now()-t0)/1000,{...advice(prior,aiColor,choice.index),reason:choice.reason,nodes:choice.nodes,depth:choice.depth});
+   if(!choice||!Number.isInteger(choice.index)||choice.index<0||choice.index>=CELLS||game.b[choice.index])throw Error("AI返回了非法落点");
+   game.aiProgress=null;const prior=game.b.slice();drop(choice.index,aiColor,(performance.now()-t0)/1000,{...advice(prior,aiColor,choice.index),reason:choice.reason,nodes:choice.nodes,depth:choice.depth});
    if(!game.result){game.turn=game.humanColor;game.turnStart=performance.now();}render();
-  }catch(error){if(current===turnToken&&game&&game.id===aiGameId&&!game.result){game.turn=game.humanColor;game.turnStart=performance.now();$("status").textContent="AI 思考失败，请稍后重试："+error.message;render();}}
+  }catch(error){if(current===turnToken&&game&&game.id===aiGameId&&!game.result){if(game.level==="gunuce"){game.aiProgress=null;game.aiError=error.message;render();}else{game.turn=game.humanColor;game.turnStart=performance.now();$("status").textContent="AI 思考失败，请稍后重试："+error.message;render();}}}
  },120);
 }
 async function human(i){
@@ -353,6 +359,7 @@ function draw(b,last=-1){
 }
 function render(){
  if(!game)return;
+ $("aiRuntime").textContent=game.level==="gunuce"?"Gunuce":"本地即时对弈";
  $("identity").textContent=profile.name+" · "+profile.id.slice(0,8);
  $("points").textContent=profile.points;
  $("scoreboard").textContent="胜 "+profile.wins+" / 负 "+profile.losses+" / 平 "+profile.draws;
@@ -363,6 +370,10 @@ function render(){
     ?(game.syncState==="synced"?({1:"胜利！成绩已验证，获得 "+LEVELS[game.level].reward+" 积分",2:"AI 获胜 · 成绩已同步",3:"平局彩蛋 · "+game.drawReward+" 积分已到账"}[game.result]):game.syncState==="failed"?"本局已结束 · 成绩待同步":"本局已结束 · 正在验证成绩")
     :({1:"胜利！获得 "+LEVELS[game.level].reward+" 积分",2:"AI 获胜",3:"平局彩蛋 · 获得 "+game.drawReward+" 积分"}[game.result]))
   :!game.startedGame?"准备就绪 · 你执"+humanStone+"，AI执"+aiStone:game.turn===game.humanColor?"轮到你（"+humanStone+"）":"AI 思考中（"+aiStone+"）";
+ if(game.level==="gunuce"&&game.result)$("status").textContent=({1:"你赢了",2:"Gunuce获胜",3:"棋盘下满，平局"}[game.result])+" · Gunuce";
+ if(game.aiProgress&&!game.result)$("status").textContent=game.aiProgress;
+ if(game.aiError&&!game.result)$("status").textContent="Gunuce暂未落子："+game.aiError;
+ $("retryAI").hidden=!(game.level==="gunuce"&&game.aiError&&!game.result);
  $("startGame").disabled=!!game.result||game.startedGame;
  $("startGame").textContent=game.result?"本局已结束":game.startedGame?"计时已开始":"开始下棋";
  $("firstMoveChoice").disabled=game.startedGame&&!game.result;
@@ -500,7 +511,7 @@ function renderShop(){
  drawSkinPreview();
 }
 function formatTime(){if(!game)return;if(!game.startedGame){$("totalTime").textContent="00:00";$("thinkTime").textContent="未开始";return;}const now=game.ended||performance.now(),total=Math.max(0,Math.floor((now-game.started)/1000));$("totalTime").textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");$("thinkTime").textContent=game.result?"已停止":game.turn===game.humanColor?((performance.now()-game.turnStart)/1000).toFixed(1)+"s":"AI 行棋";}
-function download(){const payload={version:"4.0",identity:profile.id,level:game.level,playerColor:game.humanColor,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves,game.humanColor)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v4.0-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
+function download(){const payload={version:"4.0.1",identity:profile.id,level:game.level,playerColor:game.humanColor,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves,game.humanColor)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v4.0.1-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
 async function localRank(){
  const rankPoints=(earned,wins,losses,draws)=>{const games=wins+losses+draws,adjusted=games?100*(wins+2.5)/(games+5):0;return Math.max(0,Math.round(Number(earned||0)+(adjusted-50)*Math.min(games,20)/10));};
  const titles=["棋圣","棋王","棋宗"];
@@ -545,6 +556,7 @@ $("export").onclick=download;
 $("firstMoveChoice").onchange=()=>{if(game&&!game.startedGame){game.humanColor=Number($("firstMoveChoice").value)===2?2:1;game.aiColor=3-game.humanColor;render();}};
 $("drawEggClose").onclick=()=>{$("drawEasterEgg").hidden=true;};
 $("setName").onclick=setName;
+$("retryAI").onclick=()=>{if(game?.level==="gunuce"&&game.aiError&&!game.result&&game.turn===game.aiColor){game.aiError=null;scheduleAI();render();}};
 $("difficulty").onchange=()=>{if(game.startedGame&&!game.result){$("difficulty").value=game.level;alert("请先结束或新开一局再更改难度。");}};
 $("cloudBanner").textContent=cloudConfigured()?"账号服务可连接，未登录时使用游客模式":"游客模式 · 账号服务尚未配置";
 newGame();updateSoundToggle();
@@ -557,3 +569,5 @@ initAccount(async signedIn=>{
  if(signedIn)await syncPendingSubmissions();
 },remoteProfile=>{applyRemoteProfile(remoteProfile);if(document.activeElement!==$("nickname"))$("nickname").value=remoteProfile.name||"";render();localRank();}).catch(e=>$("cloudBanner").textContent="账号组件错误："+e.message);
 localRank();setInterval(formatTime,150);
+
+installOfflineCache();

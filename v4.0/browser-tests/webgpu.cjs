@@ -1,0 +1,10 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const fs=require('node:fs'),assert=require('node:assert/strict'),path=require('node:path');
+const artifacts=process.env.GUNUCE_TEST_OUTPUT||path.resolve(__dirname,'../.test-artifacts');fs.mkdirSync(artifacts,{recursive:true});
+(async()=>{
+ const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{}),args:['--no-sandbox','--enable-unsafe-webgpu','--use-angle=swiftshader']});const page=await browser.newPage();page.setDefaultTimeout(120000);
+ await page.route('**/*',r=>['127.0.0.1','localhost'].includes(new URL(r.request().url()).hostname)?r.continue():r.abort());await page.goto((process.env.GUNUCE_BASE_URL||'http://127.0.0.1:8043')+'/v4.0/');
+ const vectors=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../test/fixtures/onnx-reference.json'),'utf8')).slice(0,3);
+ const result=await page.evaluate(async vectors=>{const {loadRuntime}=await import('./src/gunuce-runtime.js');const runtime=await loadRuntime({backend:'webgpu'});let policy=0,value=0;for(const vector of vectors){const out=await runtime.infer(Float32Array.from(vector.state));for(let i=0;i<225;i++)policy=Math.max(policy,Math.abs(out.policy[i]-vector.policy[i]));value=Math.max(value,Math.abs(out.value-vector.value))}return {backend:runtime.provider,fallback:runtime.fallback,policyError:policy,valueError:value}},vectors);
+ const move=process.env.GUNUCE_FULL_WEBGPU_SEARCH?await page.evaluate(async()=>{const {requestGunuce}=await import('./src/gunuce.js');return requestGunuce(Array(225).fill(0),1,-1,{backend:'webgpu'})}):{backend:'not-run',elapsedMs:null,simulations:128,local:true};result.moveBackend=move.backend;result.moveMs=move.elapsedMs;result.simulations=move.simulations;assert.equal(move.local,true);assert.equal(move.simulations,128);assert(result.policyError<.002);assert(result.valueError<.0002);fs.writeFileSync(path.join(artifacts,'browser-webgpu-check.json'),JSON.stringify(result,null,2));console.log(result);await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

@@ -1,16 +1,17 @@
 {
   "name": "gomoku-v4",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check src/app.js && node --check src/engine.js && node --check src/ai.worker.js && node --check src/analysis.worker.js && node --check pvp-ui.js && node --check special-modes-ui.js && node --check worker/index.js && node --check worker/v3.js && node --check worker/pvp-room.js",
+    "check": "node --check src/app.js && node --check src/engine.js && node --check src/ai.worker.js && node --check src/analysis.worker.js && node --check pvp-ui.js && node --check special-modes-ui.js && node --check worker/index.js && node --check worker/v3.js && node --check worker/pvp-room.js && node --check src/gunuce.js && node --check src/gunuce-runtime.js && node --check src/gunuce-search.js && node --check src/gunuce.worker.js && node --check src/offline-cache.js && node --check sw.js && node tools/verify_offline_assets.mjs",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "jose": "^6.1.0"
   },
   "devDependencies": {
-    "wrangler": "^4.44.0"
+    "wrangler": "^4.44.0",
+    "onnxruntime-web": "1.31.1"
   }
 }

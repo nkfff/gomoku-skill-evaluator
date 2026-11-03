@@ -1,0 +1,11 @@
+{
+  "name": "gunuce-browser-check",
+  "private": true,
+  "scripts": {
+    "test": "node offline.cjs",
+    "test:webgpu": "node webgpu.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

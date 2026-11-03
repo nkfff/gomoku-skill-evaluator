@@ -1,0 +1,27 @@
+{
+  "version": "4.0.1",
+  "format": "gunuce-fp32-batch1",
+  "file": "gunuce.onnx",
+  "sha256": "9cc91391167c3fc94534208aa0d38fe911d3055da4558b8c6067ec44eeee042e",
+  "bytes": 4494348,
+  "sourceCheckpointSha256": "07ca51f73ca52b54fb1f60d918ab4d3331617d5e542bc069139bab656d3307be",
+  "channels": 64,
+  "blocks": 12,
+  "input": "state",
+  "outputs": [
+    "policy",
+    "value"
+  ],
+  "shape": [
+    1,
+    4,
+    15,
+    15
+  ],
+  "simulations": 128,
+  "verification": {
+    "positions": 12,
+    "maxPolicyAbsError": 2.86102294921875e-05,
+    "maxValueAbsError": 4.172325134277344e-07
+  }
+}
