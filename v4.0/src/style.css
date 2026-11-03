@@ -165,6 +165,7 @@ body[data-board-theme] .miniPreview{border:1px solid var(--border);box-shadow:va
 .layout.pvp-mode>section:first-child{display:none}
 #panel-pvp{min-width:0}
 .pvp-board{display:block;width:min(100%,600px);height:auto;aspect-ratio:1;margin:16px auto;background:#e5c58d;border-radius:10px;touch-action:manipulation;cursor:crosshair}
+.pvp-board[hidden]{display:none!important}
 #panel-pvp .tableWrap{max-width:100%;overflow-x:auto}
 #panel-pvp .controls button{flex:0 1 auto}
 #panel-pvp .hint{overflow-wrap:anywhere}
