@@ -160,6 +160,8 @@ async function connectSocket(id) {
 function handleMessage(message) {
   if (message.room) renderRoom(message.room);
   if (message.type === "error") {
+    $("pvpRematchInviteAccept").disabled = false;
+    $("pvpRematchInviteDecline").disabled = false;
     notice(message.message || "对局操作失败", true);
     if (message.code === "STALE_REVISION") refreshRoomState().catch(() => {});
   } else if (message.type === "match_started") {
@@ -174,9 +176,17 @@ function handleMessage(message) {
     refreshHistory().catch(() => {});
     refreshLeaderboard().catch(() => {});
   } else if (message.type === "rematch_requested") {
+    if (message.playerId === playerId) {
+      notice("已发起再战邀请，等待好友同意。");
+    } else {
+      const room = message.room || roomState;
+      const inviterName = room ? (playerId === room.hostPlayerId ? room.hostName : room.guestName) : "好友";
+      notice((inviterName || "好友") + " 邀请你再来一局，请在弹窗中选择是否接受。");
+    }
+  } else if (message.type === "rematch_declined") {
     notice(message.playerId === playerId
-      ? "已发起再战邀请，等待好友同意。"
-      : "好友邀请你再来一局，点击「接受再来一局」即可继续。");
+      ? "已拒绝好友的再来一局邀请。"
+      : "好友暂时不想再来一局，你可以稍后再次邀请。");
   } else if (message.type === "rematch_starting") {
     notice("双方已同意再战，正在创建新对局…");
   } else if (message.type === "rematch_failed") {
@@ -623,6 +633,12 @@ function renderRoom(room) {
  const myRematchRequested = !!rematchByPlayer[playerId];
  const opponentRematchRequested = !!rematchByPlayer[opponentId];
  const rematchStarting = !!room.rematchStarting;
+ const incomingRematchInvite = finished && opponentRematchRequested && !myRematchRequested && !rematchStarting;
+ $("pvpRematchInviteModal").hidden = !incomingRematchInvite;
+ if (incomingRematchInvite) {
+   const inviterName = playerId === room.hostPlayerId ? room.guestName : room.hostName;
+   $("pvpRematchInviteFrom").textContent = inviterName || "好友";
+ }
  $("pvpRematch").hidden = !finished;
  $("pvpRematch").disabled = myRematchRequested || rematchStarting;
  $("pvpRematch").textContent = rematchStarting
@@ -740,6 +756,7 @@ function sendAction(message) {
     offer_draw: "已向对手发送和棋请求，等待回应。",
     accept_draw: "你已接受和棋请求，正在完成结算…",
     decline_draw: "已拒绝和棋请求，对局继续。",
+    decline_rematch: "已提交拒绝再来一局邀请。",
     resign: "已提交认输，正在确认本局结果…"
   };
   if (feedback[message.type]) notice(feedback[message.type]);
@@ -758,6 +775,22 @@ $("pvpReady").onclick = () => sendAction({type: "ready"});
 $("pvpResultClose").onclick = closePvpResultModal;
 $("pvpResultContinue").onclick = closePvpResultModal;
 $("pvpRematch").onclick = () => sendAction({type: "rematch"});
+$("pvpRematchInviteAccept").onclick = () => {
+  $("pvpRematchInviteAccept").disabled = true;
+  $("pvpRematchInviteDecline").disabled = true;
+  if (!sendAction({type: "rematch"})) {
+    $("pvpRematchInviteAccept").disabled = false;
+    $("pvpRematchInviteDecline").disabled = false;
+  }
+};
+$("pvpRematchInviteDecline").onclick = () => {
+  $("pvpRematchInviteAccept").disabled = true;
+  $("pvpRematchInviteDecline").disabled = true;
+  if (!sendAction({type: "decline_rematch"})) {
+    $("pvpRematchInviteAccept").disabled = false;
+    $("pvpRematchInviteDecline").disabled = false;
+  }
+};
 $("pvpNewMatch").onclick = () => { if (roomState && roomState.status === "finished") returnToPvpLobby(); };
 $("pvpOfferDraw").onclick = () => sendAction({type: "offer_draw"});
 $("pvpAcceptDraw").onclick = () => sendAction({type: "accept_draw"});
