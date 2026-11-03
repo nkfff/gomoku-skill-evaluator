@@ -13,7 +13,7 @@ import torch
 
 from .diagnostics import make_ply_record
 from .evaluate import _replay_opening, generate_opening_moves, load_model
-from .game import BLACK, WHITE, GomokuGame
+from .game import BLACK, WHITE, GomokuGame, validate_player
 from .mcts import PUCTConfig, PUCTSearch, TorchEvaluator
 from .tactical import analyze_tactical_evidence
 
@@ -29,8 +29,10 @@ def play_comparison_game(
     pair_index: int = 1,
 ) -> dict[str, object]:
     """Play one game between two frozen models from a shared legal opening."""
-    if model_a_player not in (BLACK, WHITE):
-        raise ValueError("model_a_player must be BLACK or WHITE")
+    try:
+        model_a_player = validate_player(model_a_player)
+    except (TypeError, ValueError) as error:
+        raise ValueError("model_a_player must be BLACK or WHITE") from error
     if not 1 <= max_plies <= 225:
         raise ValueError("max_plies must be between 1 and 225")
     if len(opening_moves) >= max_plies:
@@ -285,7 +287,7 @@ def run_comparison(args: argparse.Namespace) -> Path:
         smoothed_score / (1.0 - smoothed_score)
     )
 
-    def mean_move_latency(agent: str, field: str) -> float:
+    def mean_move_latency(agent: str) -> float:
         values = [
             float(move["search_ms"])
             for game_result in results
@@ -379,8 +381,8 @@ def run_comparison(args: argparse.Namespace) -> Path:
     )
     print(
         "Mean search latency (A / B): "
-        f"{mean_move_latency('MODEL_A', 'search_ms'):.1f} / "
-        f"{mean_move_latency('MODEL_B', 'search_ms'):.1f} ms/move"
+        f"{mean_move_latency('MODEL_A'):.1f} / "
+        f"{mean_move_latency('MODEL_B'):.1f} ms/move"
     )
     for model_label, prefix in (("MODEL_A", "model_a"), ("MODEL_B", "model_b")):
         print(
