@@ -27,6 +27,21 @@ browser game.
 - Objective: policy cross-entropy + value MSE + 0.2 x balanced tactical BCE.
 - Policy loss supports legal-action masking and MCTS visit-count targets.
 
+### V4.1.3 — Rule-derived tactical evidence
+
+- `gomoku/tactical.py` creates deterministic auxiliary labels from board rules.
+- `WIN_NOW`: all immediate winning moves for the side to move.
+- `MUST_BLOCK`: opponent's immediate winning cells when the side to move has
+  no immediate win of its own.
+- `FORK`: moves that create at least two distinct immediate winning replies.
+- Tactical priority is WIN_NOW, then MUST_BLOCK, then FORK.
+- Multiple opponent winning cells are marked as a forced-loss state because
+  one move cannot occupy all threats.
+- The labeler does not mutate the input board and returns [3, 15, 15] float32
+  targets, plus diagnostic move lists.
+- Fork detection is a one-ply double-threat definition; it is not a general
+  proof of a forced win or a substitute for MCTS.
+
 ## Activate the local environment
 
 From the repository root:
