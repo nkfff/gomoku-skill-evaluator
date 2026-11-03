@@ -572,8 +572,8 @@ V4.1 是独立的本地 AI 研究与训练线，不等同于 V4.0 浏览器游�
 
 ### 9.6 自动化验证与待验收
 
-- PR #29 合并前 GitHub Actions：**99 passed，3 skipped**。
-- 3 个跳过项是 Linux CI 无法执行的 Apple MPS 专项测试；必须在用户的 M4 本机再次运行完整测试。
+- PR #29 合并前 GitHub Actions：**99 passed，4 skipped**。
+- 4 个跳过项是 Linux CI 无法执行的 Apple MPS 专项测试；必须在用户的 M4 本机再次运行完整测试。
 - Node.js 桥接测试在 CI 中实际执行，调用真实 V4.0 JavaScript 引擎。
 - 当前尚未完成 M4 上的双通道训练、训练后对战和棋力提升验收。
 
