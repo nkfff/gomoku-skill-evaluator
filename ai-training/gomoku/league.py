@@ -4,8 +4,11 @@ import json
 import os
 from pathlib import Path
 
+import numpy as np
 import torch
 
+from .game import BLACK, WHITE
+from .tactical import analyze_tactical_evidence
 from .mcts import PUCTConfig, PUCTSearch, TorchEvaluator
 from .network import build_model
 
@@ -49,6 +52,53 @@ class FrozenTEBAOpponent:
             "opponent": self.name,
             "round_index": self.round_index,
         }
+
+
+
+class TacticalRuleOpponent:
+    """
+    A deterministic tactical specialist that prioritizes immediate wins,
+    forced blocks and fork creation before using a local adjacency heuristic.
+    """
+
+    name = "TACTICAL_RULE"
+
+    def choose_game_move(self, game) -> tuple[int, dict[str, object]]:
+        player = game.current_player
+        evidence = analyze_tactical_evidence(game.board, player)
+        candidates = set(int(move) for move in game.get_candidates(radius=2))
+
+        priorities = (
+            ("WIN_NOW", evidence.win_now_moves),
+            ("MUST_BLOCK", () if evidence.forced_loss else evidence.must_block_moves),
+            ("FORK", evidence.fork_moves),
+        )
+        for reason, moves in priorities:
+            available = sorted(candidates.intersection(int(move) for move in moves))
+            if available:
+                return available[0], {"opponent": self.name, "priority": reason}
+
+        if not candidates:
+            raise RuntimeError("tactical opponent received a non-terminal board without legal candidates")
+
+        opponent = WHITE if player == BLACK else BLACK
+        board = game.board.reshape(15, 15)
+        best_move = None
+        best_score = float("-inf")
+        for move in sorted(candidates):
+            row, col = divmod(move, 15)
+            r0, r1 = max(0, row - 2), min(15, row + 3)
+            c0, c1 = max(0, col - 2), min(15, col + 3)
+            neighborhood = board[r0:r1, c0:c1]
+            own_count = int(np.count_nonzero(neighborhood == player))
+            opponent_count = int(np.count_nonzero(neighborhood == opponent))
+            center_penalty = abs(row - 7) + abs(col - 7)
+            score = 2.0 * own_count + 1.5 * opponent_count - 0.05 * center_penalty
+            if score > best_score:
+                best_score = score
+                best_move = move
+
+        return int(best_move), {"opponent": self.name, "priority": "LOCAL_HEURISTIC"}
 
 
 def register_snapshot(
