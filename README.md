@@ -2,21 +2,21 @@
 
 > 📘 [开发规划与完整版本档案](docs/DEVELOPMENT_ROADMAP.md)：项目定位、V1–V4.1.7 版本演进、Bug 修复记录、当前验收状态与后续路线。
 
-**当前稳定版：V2.2 · 最新预览版：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
+**当前稳定版：V2.2 · 最新预览版：V4.0.3** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-> **最近更新：2026-11-03** · V4.1.7 Checkpoint 直接对战评估器已合并至 AI 开发分支，GitHub Actions 112 项通过、4 项 MPS 测试跳过；M4 本地验收及 40 局模型对战待执行。线上游戏最新预览版本为 V4.0.2。
+> **最近更新：2026-11-03** · V4.1.7 Checkpoint 直接对战评估器已合并至 AI 开发分支，GitHub Actions 112 项通过、4 项 MPS 测试跳过；M4 本地验收及 40 局模型对战待执行。线上游戏最新预览版本为 V4.0.3（新增真人对局和棋交互与终局胜负弹窗）。
 
-一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V4.0.2 是最新预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 保留为历史预览入口。V4.1 是独立 AI 研究分支，不改变线上 V4.0。V4.0 前端 Pages 已部署，相关 Worker/D1 维护迁移与自动化检查通过；完整真实浏览器验收仍待完成。
+一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V4.0.3 是最新预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 保留为历史预览入口。V4.1 是独立 AI 研究分支，不改变线上 V4.0。V4.0 前端 Pages 已部署，相关 Worker/D1 维护迁移与自动化检查通过；完整真实浏览器验收仍待完成。
 
-## V4.0.2 Gunuce 与好友 PVP 连续对局
+## V4.0.3 Gunuce 与好友 PVP 对局体验更新
 
-V4.0.2 在 V4.0.1 的 Gunuce 本地推理基础上，加入好友 PVP 连续对局与 3D 六面骰子动画。对局结束后双方可协商再战；双方同意后服务端创建新房间和独立 matchId，每局分别结算 Elo 与历史。刷新页面可通过房间 ID 恢复；「重新匹配」返回邀请码大厅。当前仍是邀请码好友房间，尚未实现随机匹配队列。骰子点数仍由 Worker 安全生成，动画只负责展示结果。Gunuce 首次加载并缓存后可断网刷新继续游客对弈；账号与 PVP 仍需要联网。
+V4.0.3 在 V4.0.2 的基础上，加入好友 PVP 和棋请求实时响应、服务端和棋裁决，以及认输/胜负/超时终局弹窗和胜者庆祝动画；保留双方确认再战、独立 Elo 结算与 3D 六面骰子动画。对局结束后双方可协商再战；双方同意后服务端创建新房间和独立 matchId，每局分别结算 Elo 与历史。刷新页面可通过房间 ID 恢复；「重新匹配」返回邀请码大厅。当前仍是邀请码好友房间，尚未实现随机匹配队列。骰子点数仍由 Worker 安全生成，动画只负责展示结果。Gunuce 首次加载并缓存后可断网刷新继续游客对弈；账号与 PVP 仍需要联网。
 
 Gunuce 的模型来源、资源体积、离线限制及自动化验证见 [Gunuce 4.0.1说明](v4.0/GUNUCE.md)。
 
 ## V4.1 AI 训练研究线（开发中，非线上游戏版本）
 
-V4.1 是独立的 AI 训练与棋力研究分支，不是新的网页游戏发布版本；当前线上最新预览为 V4.0.2。研究代码位于 `feat/4.1-teba-mcts`，不会覆盖 V4.0 的前端、Worker 或数据库。
+V4.1 是独立的 AI 训练与棋力研究分支，不是新的网页游戏发布版本；当前线上最新预览为 V4.0.3。研究代码位于 `feat/4.1-teba-mcts`，不会覆盖 V4.0 的前端、Worker 或数据库。
 
 - **V4.1.5：** 建立 TEBA-Net-S 与 Self-Play / Champion Sparring 双通道训练框架。
 - **V4.1.6：** 增加完整棋谱、逐步搜索诊断和战术漏步统计；将训练计划扩展为 30 轮、每步 64 次 PUCT 模拟。
@@ -36,7 +36,7 @@ V4.1 是独立的 AI 训练与棋力研究分支，不是新的网页游戏发�
 | **V2.2 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.2/ | 当前稳定入口；前端与 Worker 部署成功，自动化测试通过（2026-10-28） |
 | **V2.3 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.3/ | 已部署：本地即时对局、猫猫主题棋盘/棋子、落子音效与终局云端结算；仍需真实浏览器验收 |
 | **V3.1 UI 优化版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.1/ | 基于 V3.0；开始下棋按钮仅在对弈页显示，AI 棋盘仅在对弈/复盘页显示 |
-| **V4.0.2 已部署预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v4.0/ | 2026-11-03 部署成功：好友 PVP 双方确认再战、自动切换新房间、刷新恢复、3D 骰子动画与并发保护；仍需双账号真实对局验收；当前没有随机匹配队列 |
+| **V4.0.3 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v4.0/ | 新增好友 PVP 和棋请求/接受/拒绝的实时交互、认输结果弹窗、胜者庆祝动画；保留双方确认再战与 3D 骰子动画 |
 | **V3.4 深层搜索 AI 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.4/ | 修复难度快照导致的奖励错发；王者迭代加深 Alpha-Beta、Zobrist 置换表与战术延伸；随机连珠 AI 延长思考并移入 Worker。数学意义上的必胜尚未证明，真实浏览器验收仍待完成 |
 | **V3.3 王者 AI 与战术模式版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.3/ | 王者难度深层攻防搜索、随机 3–10 连珠自适应策略、多步唯一解残局与自动化回归测试；真实浏览器验收仍待完成 |
 | V3.2 特殊模式兼容入口 | https://nkfff.github.io/gomoku-skill-evaluator/v3.2/ | 保留原入口；功能以当前兼容代码为准，后续开发与测试以 V3.3 为主 |
@@ -216,6 +216,7 @@ V4.0 在 V3.4 基础上独立开发，不覆盖旧版本。主要更新：
 - **2026-10-30 维护修复**：修复旧版 D1 `mode_challenges` 表缺少 `solution_moves` 字段导致的残局生成失败，并增加迁移兼容与历史记录保留验证；统一管理员 UUID 比较并修复 Token 刷新后管理员面板偶发隐藏；皮肤收藏卡片改为跟随当前棋盘主题色，并增强皮肤名称文字对比度。
 - **2026-11-03 状态栏可读性修复**：棋盘状态栏背景、胜利提示文字和辅助文字改为读取当前棋盘主题的 surface / heading / muted 色值；六种棋盘主题均加入 WCAG AA（至少 4.5:1）对比度回归测试。同步更新 Service Worker 缓存版本与离线资源校验值；本次仅修改前端静态资源，不涉及 Worker、D1、账号数据或积分规则。
 - **2026-11-03 V4.0.2 好友 PVP 更新**：双方确认再战后创建新房间与独立 matchId，逐局结算 Elo；增加 3D 骰子动画、刷新恢复、并发防重复创建和失败重试。重新匹配返回邀请码大厅；当前未实现随机匹配队列。
+- **2026-11-03 V4.0.3 真人对局反馈**：修复和棋请求无法让对手响应的问题，支持接受/拒绝及服务端和棋结算；认输、连珠胜利、超时、断线超时统一广播终局结果，双方显示结果弹窗，胜者获得庆祝动画和 Elo 变化提示。
 - **棋力评分修复**：评分汇总按玩家实际执棋颜色筛选着法；玩家执白时统计白棋，不再错误统计黑棋。实时评分和棋谱 JSON 导出统一传入玩家颜色，原有评分公式不变。
 - **自动化与部署**：V4.0 语法检查、D1 迁移、旧版残局数据兼容、自动化测试及 Chromium 离线运行检查全部通过；GitHub Pages 部署成功，Cloudflare V2/V3 Worker 发布成功，两个 `/api/health` 均返回 V4.0.0，V3 的 `pvpConfigured` 为 true。部署前 D1 备份成功导出，本次无新增 D1 迁移。真实双账号 PVP、云端积分与手机端体验仍建议人工验收。
 
