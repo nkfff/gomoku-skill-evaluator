@@ -41,8 +41,63 @@ async function tokenOrThrow() {
     $("pvpAuthRequired").hidden = false;
     throw new Error("请先在「账号 / 管理」页面登录账号。");
   }
-  playerId = playerFromToken(token);
+  const nextPlayerId = playerFromToken(token);
+  if (playerId && playerId !== nextPlayerId) {
+    intentionalClose = true;
+    closeSocket();
+    roomId = "";
+    inviteCode = "";
+    roomState = null;
+    $("pvpRoom").hidden = true;
+    $("pvpLobby").hidden = false;
+    syncRoomUrl("", "");
+  }
+  playerId = nextPlayerId;
   return token;
+}
+
+function roomSessionKey() {
+  return playerId ? "gomoku-v4-pvp-room:" + playerId : "";
+}
+
+function loadRoomSession() {
+  if (!playerId) return null;
+  try {
+    const value = JSON.parse(localStorage.getItem(roomSessionKey()) || "null");
+    if (!value || typeof value.roomId !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.roomId)) return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function saveRoomSession(id = roomId, code = inviteCode, diceMatchId) {
+  if (!playerId || !id) return;
+  const previous = loadRoomSession();
+  const sameRoom = previous && previous.roomId === id;
+  const session = {
+    roomId: id,
+    inviteCode: code || (sameRoom ? previous.inviteCode || "" : ""),
+    diceMatchId: diceMatchId === undefined
+      ? (sameRoom ? previous.diceMatchId || "" : "")
+      : diceMatchId
+  };
+  try { localStorage.setItem(roomSessionKey(), JSON.stringify(session)); } catch {}
+}
+
+function clearRoomSession() {
+  if (!playerId) return;
+  try { localStorage.removeItem(roomSessionKey()); } catch {}
+}
+
+function syncRoomUrl(id = roomId, code = inviteCode) {
+  const url = new URL(window.location.href);
+  if (id) url.searchParams.set("pvpRoom", id);
+  else url.searchParams.delete("pvpRoom");
+  if (code) url.searchParams.set("invite", code);
+  else url.searchParams.delete("invite");
+  history.replaceState(null, "", url.toString());
 }
 
 async function api(path, method = "GET", body = null, auth = true) {
@@ -55,7 +110,11 @@ async function api(path, method = "GET", body = null, auth = true) {
     ...(method === "POST" ? {body: JSON.stringify(body || {})} : {})
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "PVP 服务请求失败");
+  if (!response.ok) {
+    const error = new Error(data.error || "PVP 服务请求失败");
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
@@ -456,6 +515,35 @@ async function playDiceReveal(match, room) {
   $("pvpDiceStatus").textContent = "骰子结果由服务器生成，双方看到的是同一组结果。";
   stage.classList.add("revealed");
   diceAnimationComplete = true;
+  saveRoomSession(room.roomId, inviteCode, match.matchId);
+  $("pvpBoard").hidden = false;
+  drawBoard();
+}
+
+function revealDiceImmediately(match, room) {
+  if (!match || !Array.isArray(match.diceRolls) || !match.diceRolls.length) return;
+  const last = match.diceRolls[match.diceRolls.length - 1];
+  const stage = $("pvpDiceStage");
+  const left = $("pvpDiceLeft");
+  const right = $("pvpDiceRight");
+  const winnerId = match.diceWinnerPlayerId || match.blackPlayerId;
+  const winnerName = winnerId === room.hostPlayerId ? (room.hostName || "房主") : (room.guestName || "好友");
+  stage.hidden = false;
+  stage.classList.remove("is-rolling");
+  stage.classList.add("revealed");
+  $("pvpDiceLeftLabel").textContent = room.hostName || "房主";
+  $("pvpDiceRightLabel").textContent = room.guestName || "好友";
+  for (const [node, value] of [[left, last.hostRoll], [right, last.guestRoll]]) {
+    node.classList.remove("is-rolling", ...DICE_SHOW_CLASSES);
+    node.style.animationDelay = "";
+    node.classList.add("show-" + value);
+    node.setAttribute("aria-label", value + "点");
+  }
+  $("pvpDiceWinner").textContent = winnerName + " 掷出 " +
+    (winnerId === room.hostPlayerId ? last.hostRoll : last.guestRoll) + " 点，获得黑棋先手权。";
+  $("pvpDiceStatus").textContent = "骰子结果已揭晓；这是恢复的对局，不重复播放动画。";
+  diceAnimationMatchId = match.matchId;
+  diceAnimationComplete = true;
   $("pvpBoard").hidden = false;
   drawBoard();
 }
@@ -471,10 +559,8 @@ async function switchToRematchRoom(nextRoomId) {
   diceAnimationMatchId = "";
   diceAnimationComplete = false;
   $("pvpInviteCode").value = "";
-  const url = new URL(window.location.href);
-  url.searchParams.delete("invite");
-  url.searchParams.set("pvpRoom", nextRoomId);
-  history.replaceState(null, "", url.toString());
+  saveRoomSession(roomId, "", "");
+  syncRoomUrl(roomId, "");
   await connectSocket(roomId);
   await refreshRoomState();
   notice("双方已同意再来一局，新棋局已创建。");
@@ -482,10 +568,17 @@ async function switchToRematchRoom(nextRoomId) {
 
 function renderRoom(room) {
  if(!room)return;
+ if (room.status === "cancelled" || room.status === "expired") {
+   const message = room.status === "cancelled" ? "这个房间已被取消。" : "这个房间已过期。";
+   returnToPvpLobby();
+   notice(message, true);
+   return;
+ }
  if (room.rematchRoomId && roomId && roomId !== room.rematchRoomId) {
    switchToRematchRoom(room.rematchRoomId).catch(error => notice(error.message, true));
    return;
  }
+ saveRoomSession(room.roomId, inviteCode);
  roomState=room;$("pvpLobby").hidden=true;$("pvpRoom").hidden=false;$("pvpAuthRequired").hidden=true;
  const names=(room.hostName||"房主")+"（房主） vs "+(room.guestName||"等待好友加入");
  $("pvpRoomTitle").textContent="房间 "+room.roomId.slice(0,8);
@@ -497,7 +590,14 @@ function renderRoom(room) {
  $("pvpCancelRoom").hidden=!isHost||!["waiting","ready"].includes(room.status);
  $("pvpInvitePanel").hidden=!inviteCode||!isHost;$("pvpInviteCodeDisplay").textContent=inviteCode;
  if(room.match&&Array.isArray(room.match.diceRolls)&&room.match.diceRolls.length){
-  if(diceAnimationMatchId!==room.match.matchId)playDiceReveal(room.match,room);
+  if(diceAnimationMatchId!==room.match.matchId) {
+   const saved = loadRoomSession();
+   if (saved && saved.roomId === room.roomId && saved.diceMatchId === room.match.matchId) {
+    revealDiceImmediately(room.match, room);
+   } else {
+    playDiceReveal(room.match,room);
+   }
+  }
   $("pvpDiceStage").hidden=false;$("pvpBoard").hidden=!diceAnimationComplete;
  }else{
   if(!room.match){diceAnimationMatchId="";diceAnimationComplete=false;diceAnimationRunId++;}
@@ -541,6 +641,8 @@ async function createRoom() {
     const result = await api("/api/pvp/rooms", "POST", {timeControlMs: DEFAULT_CLOCK_MS});
     roomId = result.room.id;
     inviteCode = result.inviteCode;
+    saveRoomSession(roomId, inviteCode, "");
+    syncRoomUrl(roomId, inviteCode);
     renderRoom({
       roomId, status: "waiting", hostPlayerId: playerId, hostName: "你",
       guestPlayerId: null, guestName: null, timeControlMs: DEFAULT_CLOCK_MS,
@@ -560,10 +662,14 @@ async function joinRoom() {
     const code = $("pvpInviteCode").value.trim().toUpperCase();
     const result = await api("/api/pvp/rooms/join", "POST", {inviteCode: code});
     roomId = result.room.id;
-    inviteCode = "";
+    inviteCode = result.room.hostPlayerId === playerId ? code : "";
+    saveRoomSession(roomId, inviteCode, "");
+    syncRoomUrl(roomId, inviteCode);
     await refreshRoomState();
     await connectSocket(roomId);
-    notice("已加入好友房间，等待双方准备。");
+    notice(result.resumed
+      ? "已重新进入此前的好友房间，对局状态已恢复。"
+      : "已加入好友房间，等待双方准备。");
   } catch (error) { notice(error.message, true); }
 }
 
@@ -576,10 +682,8 @@ function returnToPvpLobby() {
   diceAnimationRunId++;
   diceAnimationMatchId = "";
   diceAnimationComplete = false;
-  const url = new URL(window.location.href);
-  url.searchParams.delete("invite");
-  url.searchParams.delete("pvpRoom");
-  history.replaceState(null, "", url.toString());
+  clearRoomSession();
+  syncRoomUrl("", "");
   $("pvpRoom").hidden = true;
   $("pvpLobby").hidden = false;
   $("pvpInviteCode").value = "";
@@ -659,13 +763,7 @@ $("pvpCancelRoom").onclick = async () => {
   if (!roomId || !confirm("确定取消这个等待中的房间吗？")) return;
   try {
     await api("/api/pvp/rooms/" + encodeURIComponent(roomId) + "/cancel", "POST", {});
-    intentionalClose = true;
-    closeSocket();
-    roomId = "";
-    inviteCode = "";
-    roomState = null;
-    $("pvpRoom").hidden = true;
-    $("pvpLobby").hidden = false;
+    returnToPvpLobby();
     notice("房间已取消。");
   } catch (error) { notice(error.message, true); }
 };
@@ -703,13 +801,44 @@ const initialPvpRoom = initialParams.get("pvpRoom");
 if (initialInvite) $("pvpInviteCode").value = initialInvite.toUpperCase();
 if (!API) notice("PVP 后端尚未部署。当前分支先完成前端与服务端开发，部署后即可联调。", true);
 else notice("PVP 服务已配置。登录后创建房间或输入好友邀请码。");
-if (initialPvpRoom && !initialInvite) {
-  roomId = initialPvpRoom;
-  tokenOrThrow()
-    .then(() => connectSocket(roomId))
-    .then(() => refreshRoomState())
-    .catch(error => notice(error.message, true));
+
+async function restorePvpRoomOnLoad() {
+  try {
+    await tokenOrThrow();
+    const saved = loadRoomSession();
+    const resumeFromUrl = Boolean(initialPvpRoom && (!initialInvite || saved?.roomId === initialPvpRoom));
+    let resumeId = resumeFromUrl ? initialPvpRoom : (!initialInvite ? saved?.roomId : "");
+    if (!resumeId) {
+      const currentPath = initialInvite
+        ? "/api/pvp/rooms/current?invite=" + encodeURIComponent(initialInvite)
+        : "/api/pvp/rooms/current";
+      const current = await api(currentPath);
+      if (current.room) resumeId = current.room.id;
+    }
+    if (!resumeId) return;
+    roomId = resumeId;
+    if (saved?.roomId === resumeId) inviteCode = saved.inviteCode || "";
+    await connectSocket(roomId);
+    await refreshRoomState();
+    if (!roomId || !roomState) return;
+    saveRoomSession(roomId, inviteCode);
+    syncRoomUrl(roomId, inviteCode);
+    notice("已恢复你此前的好友房间，棋盘和对局状态已同步。");
+  } catch (error) {
+    if ([403, 404, 410].includes(error.status)) {
+      clearRoomSession();
+      roomId = "";
+      inviteCode = "";
+      roomState = null;
+      syncRoomUrl("", "");
+      $("pvpRoom").hidden = true;
+      $("pvpLobby").hidden = false;
+    }
+    notice("恢复好友房间失败：" + error.message, true);
+  }
 }
+
+if (initialPvpRoom || (!initialInvite && loggedIn())) restorePvpRoomOnLoad();
 refreshLeaderboard();
 setInterval(() => {
   renderClock();

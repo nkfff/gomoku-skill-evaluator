@@ -164,7 +164,6 @@ async function createRoom(request, env, user, headers) {
 
 async function joinRoom(request, env, user, headers) {
   const player = await ensurePlayer(env, user);
-  await assertNoActiveMatch(env, user.id);
   const body = await parseBody(request);
   const code = String(body.inviteCode || "").trim().toUpperCase();
   if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) throw fail("邀请码格式不正确");
@@ -173,7 +172,26 @@ async function joinRoom(request, env, user, headers) {
     "SELECT id,host_player_id,guest_player_id,status,expires_at FROM pvp_rooms WHERE invite_code_hash=?"
   ).bind(inviteHash).first();
   if (!room) throw fail("邀请码不存在", 404);
-  if (room.host_player_id === user.id) throw fail("不能加入自己创建的房间", 409);
+
+  // Existing members can resume their own room. This must happen before
+  // assertNoActiveMatch(), which otherwise rejects the player's own match.
+  if (room.host_player_id === user.id || room.guest_player_id === user.id) {
+    if (!["waiting", "ready", "active", "finished"].includes(room.status)) {
+      throw fail("这个房间已取消或过期，无法重新进入", 410);
+    }
+    if (["waiting", "ready"].includes(room.status)) {
+      const expiresAt = new Date(String(room.expires_at || "").replace(" ", "T") + "Z").getTime();
+      if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) throw fail("房间已过期", 410);
+    }
+    const state = await callRoom(env, room.id, "/internal/state", {playerId: user.id});
+    return reply({
+      room: {id: room.id, ...state},
+      resumed: true,
+      message: "已恢复此前的好友房间。"
+    }, 200, headers);
+  }
+
+  await assertNoActiveMatch(env, user.id);
   if (room.status !== "waiting" || room.guest_player_id) throw fail("房间已满或已开始", 409);
   if (new Date(room.expires_at.replace(" ", "T") + "Z").getTime() <= Date.now()) throw fail("房间已过期", 410);
   const updated = await env.DB.prepare(
@@ -191,6 +209,7 @@ async function joinRoom(request, env, user, headers) {
   }
   return reply({
     room: {id: room.id, status: "ready", hostPlayerId: room.host_player_id, guestPlayerId: user.id},
+    resumed: false,
     message: "已加入房间。双方连接后点击准备即可开始。"
   }, 200, headers);
 }
@@ -203,6 +222,25 @@ async function createTicket(env, roomId, playerId, headers) {
     "INSERT INTO pvp_connection_tickets(token_hash,room_id,player_id,expires_at) VALUES(?,?,?,datetime('now','+45 seconds'))"
   ).bind(tokenHash, roomId, playerId).run();
   return reply({ticket, expiresInSeconds: 45}, 200, headers);
+}
+
+async function currentRoom(env, playerId, headers, inviteCode = "") {
+  const code = String(inviteCode || "").trim().toUpperCase();
+  let room;
+  if (code) {
+    if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) return reply({room: null}, 200, headers);
+    const inviteHash = await sha256(code);
+    room = await env.DB.prepare(
+      "SELECT id FROM pvp_rooms WHERE (host_player_id=? OR guest_player_id=?) AND invite_code_hash=? AND status IN ('waiting','ready','active') AND (status='active' OR expires_at>datetime('now')) LIMIT 1"
+    ).bind(playerId, playerId, inviteHash).first();
+  } else {
+    room = await env.DB.prepare(
+      "SELECT id FROM pvp_rooms WHERE (host_player_id=? OR guest_player_id=?) AND status IN ('waiting','ready','active') AND (status='active' OR expires_at>datetime('now')) ORDER BY created_at DESC LIMIT 1"
+    ).bind(playerId, playerId).first();
+  }
+  if (!room) return reply({room: null}, 200, headers);
+  const state = await callRoom(env, room.id, "/internal/state", {playerId});
+  return reply({room: {id: room.id, ...state}}, 200, headers);
 }
 
 async function leaderboard(env, headers) {
@@ -444,6 +482,10 @@ export default {
       if (url.pathname === "/api/pvp/history" && request.method === "GET") {
         await ensurePlayer(env, user);
         return await history(env, user.id, headers);
+      }
+      if (url.pathname === "/api/pvp/rooms/current" && request.method === "GET") {
+        await ensurePlayer(env, user);
+        return await currentRoom(env, user.id, headers, url.searchParams.get("invite") || "");
       }
 
       const ticketMatch = url.pathname.match(/^\/api\/pvp\/rooms\/([0-9a-f-]+)\/ticket$/i);

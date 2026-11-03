@@ -16,6 +16,14 @@ function secureDie(){
   do{crypto.getRandomValues(value);}while(value[0]>=limit);
   return value[0]%6+1;
 }
+export function hasOpenPlayerConnection(sockets, playerId, excludedSocket = null) {
+  return sockets.some(socket =>
+    socket !== excludedSocket &&
+    socket.readyState === 1 &&
+    (socket.deserializeAttachment() || {}).playerId === playerId
+  );
+}
+
 export function rollDice(hostPlayerId,guestPlayerId){
   const rolls=[];
   for(let round=1;round<=64;round++){
@@ -194,10 +202,20 @@ export class PvpRoom {
     await this.ready;
     const playerId = (socket.deserializeAttachment() || {}).playerId;
     if (!this.room || !playerId || !this.isMember(playerId)) return;
-    this.room.connectedByPlayer[playerId] = false;
-    this.room.disconnectedAt[playerId] = nowMs();
+
+    // A refresh may establish a replacement socket before the old socket's
+    // close event arrives. Keep the player online while another live socket exists.
+    const stillConnected = hasOpenPlayerConnection(this.ctx.getWebSockets(), playerId, socket);
+    this.room.connectedByPlayer[playerId] = stillConnected;
+    if (stillConnected) {
+      delete this.room.disconnectedAt[playerId];
+    } else {
+      this.room.disconnectedAt[playerId] = nowMs();
+    }
     await this.ctx.storage.put("room", this.room);
-    this.broadcast({type: "presence", playerId, connected: false, graceMs: DISCONNECT_GRACE_MS});
+    if (!stillConnected) {
+      this.broadcast({type: "presence", playerId, connected: false, graceMs: DISCONNECT_GRACE_MS});
+    }
     await this.scheduleNextAlarm();
   }
 

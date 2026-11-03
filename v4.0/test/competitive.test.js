@@ -8,7 +8,7 @@ import {
   acceptPvpDraw, createMatchState, declinePvpDraw, finishByResign, offerPvpDraw,
   publicMatchState, requestPvpRematch
 } from "../src/pvp.js";
-import { rollDice } from "../worker/pvp-room.js";
+import { hasOpenPlayerConnection, rollDice } from "../worker/pvp-room.js";
 
 test("AI can search as either black or white", () => {
   const board = Array(CELLS).fill(0);
@@ -92,6 +92,40 @@ test("PVP resignation assigns the win to the opponent", () => {
   assert.equal(state.status, "active", "the previous match snapshot must remain unchanged");
 });
 
+test("PVP room reconnect remains online when an old socket closes after a new socket opens", () => {
+  const closingSocket = {readyState: 3, deserializeAttachment: () => ({playerId:"host-id"})};
+  const replacementSocket = {readyState: 1, deserializeAttachment: () => ({playerId:"host-id"})};
+  const opponentSocket = {readyState: 1, deserializeAttachment: () => ({playerId:"guest-id"})};
+  assert.equal(hasOpenPlayerConnection([closingSocket, replacementSocket, opponentSocket], "host-id", closingSocket), true);
+  assert.equal(hasOpenPlayerConnection([closingSocket, opponentSocket], "host-id", closingSocket), false);
+  assert.equal(hasOpenPlayerConnection([replacementSocket], "guest-id"), false);
+});
+
+test("PVP join endpoint lets either existing member resume before active-match rejection", () => {
+  const pvpApi = readFileSync(fileURLToPath(new URL("../worker/v3.js", import.meta.url)), "utf8");
+  const memberResume = pvpApi.indexOf("if (room.host_player_id === user.id || room.guest_player_id === user.id)");
+  const activeGuard = pvpApi.indexOf("await assertNoActiveMatch(env, user.id)", memberResume);
+  assert.ok(memberResume >= 0 && activeGuard > memberResume);
+  assert.ok(pvpApi.includes('callRoom(env, room.id, "/internal/state", {playerId: user.id})'));
+  assert.ok(pvpApi.includes("resumed: true"));
+  assert.ok(pvpApi.includes('url.pathname === "/api/pvp/rooms/current"'));
+  assert.ok(pvpApi.includes("invite_code_hash=?"));
+  assert.ok(pvpApi.includes("ORDER BY created_at DESC LIMIT 1"));
+});
+
+test("PVP frontend restores each signed-in player's room and does not replay revealed dice", () => {
+  const pvpUi = readFileSync(fileURLToPath(new URL("../pvp-ui.js", import.meta.url)), "utf8");
+  assert.match(pvpUi, /function roomSessionKey\(\)/);
+  assert.match(pvpUi, /gomoku-v4-pvp-room:/);
+  assert.match(pvpUi, /function saveRoomSession/);
+  assert.match(pvpUi, /function restorePvpRoomOnLoad/);
+  assert.match(pvpUi, /\/api\/pvp\/rooms\/current/);
+  assert.match(pvpUi, /function revealDiceImmediately/);
+  assert.match(pvpUi, /saved\.diceMatchId === room\.match\.matchId/);
+  assert.match(pvpUi, /saveRoomSession\(room\.roomId, inviteCode, match\.matchId\)/);
+  assert.match(pvpUi, /clearRoomSession\(\)/);
+});
+
 test("PVP rematch starts only after both players accept and resets readiness", () => {
   const room = {
     roomId:"room-1", status:"finished", hostPlayerId:"host-id", guestPlayerId:"guest-id",
@@ -151,6 +185,8 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   assert.match(pvpUi, /switchToRematchRoom/);
   assert.match(pvpUi, /initialPvpRoom/);
   assert.match(pvpUi, /searchParams\.set\("pvpRoom"/);
+  assert.match(pvpUi, /restorePvpRoomOnLoad/);
+  assert.match(pvpUi, /revealDiceImmediately/);
   assert.match(pvpRoom, /rematchRoomId/);
   assert.match(pvpRoom, /rematchStarting/);
   assert.match(pvpUi, /正在创建新对局/);

@@ -3,7 +3,7 @@
 > 一个集 AI 对弈、棋力评估、残局训练、随机连珠与好友真人 PVP 于一体的浏览器五子棋项目。
 
 **当前稳定入口：** [V2.2](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/)  
-**最新在线预览：** [V4.0.3](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)  
+**最新在线预览：** [V4.0.4](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)  
 **项目档案：** [完整开发规划与历史记录](docs/DEVELOPMENT_ROADMAP.md)
 
 ## 项目功能
@@ -18,6 +18,11 @@
 ## 版本更新记录
 
 按发布日期倒序排列；每个版本仅保留核心变化，完整功能、技术细节和测试记录请查看对应文档。
+
+### 2026-11-04
+
+- **V4.0.4｜好友房间恢复**：房主与好友刷新后均可恢复原房间；修复重连时旧 WebSocket 误报断线，并优化骰子结果恢复展示。
+  [在线体验](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/) · [版本详情](v4.0/README.md)
 
 ### 2026-11-03
 
