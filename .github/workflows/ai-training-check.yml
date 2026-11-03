@@ -1,0 +1,38 @@
+name: AI Training Tests
+
+on:
+  push:
+    branches:
+      - feat/4.1-teba-mcts
+    paths:
+      - "ai-training/**"
+      - ".github/workflows/ai-training-check.yml"
+  pull_request:
+    paths:
+      - "ai-training/**"
+      - ".github/workflows/ai-training-check.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ai-training/requirements.txt
+
+      - name: Install CPU PyTorch and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install numpy pytest
+
+      - name: Run AI training tests
+        working-directory: ai-training
+        run: python -m pytest tests -v
