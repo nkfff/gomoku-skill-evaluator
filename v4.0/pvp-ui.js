@@ -1,4 +1,4 @@
-import {bearer, loggedIn} from "./src/account.js";
+import {bearer, loggedIn, waitForAuthReady} from "./src/account.js";
 
 const $ = id => document.getElementById(id);
 const API = String(window.GOMOKU_PVP_API_URL || "").replace(/\/$/, "");
@@ -36,11 +36,15 @@ function playerFromToken(token) {
 }
 
 async function tokenOrThrow() {
+  // Supabase is loaded asynchronously by the account module. Wait for its
+  // initial getSession() before deciding that this browser is signed out.
+  await waitForAuthReady();
   const token = await bearer();
   if (!token || !loggedIn()) {
     $("pvpAuthRequired").hidden = false;
-    throw new Error("请先在「账号 / 管理」页面登录账号。");
+    throw new Error("当前未检测到有效登录，请先在「账号 / 管理」完成登录；登录后会自动恢复房间。");
   }
+  $("pvpAuthRequired").hidden = true;
   const nextPlayerId = playerFromToken(token);
   if (playerId && playerId !== nextPlayerId) {
     intentionalClose = true;
@@ -662,7 +666,9 @@ async function joinRoom() {
     const code = $("pvpInviteCode").value.trim().toUpperCase();
     const result = await api("/api/pvp/rooms/join", "POST", {inviteCode: code});
     roomId = result.room.id;
-    inviteCode = result.room.hostPlayerId === playerId ? code : "";
+    // Keep the invite code for both members so either can recover the exact
+    // room from another tab/device; the API still checks authenticated membership.
+    inviteCode = code;
     saveRoomSession(roomId, inviteCode, "");
     syncRoomUrl(roomId, inviteCode);
     await refreshRoomState();
@@ -802,27 +808,40 @@ if (initialInvite) $("pvpInviteCode").value = initialInvite.toUpperCase();
 if (!API) notice("PVP 后端尚未部署。当前分支先完成前端与服务端开发，部署后即可联调。", true);
 else notice("PVP 服务已配置。登录后创建房间或输入好友邀请码。");
 
+let roomRestoreInProgress = false;
+let restoredPlayerId = "";
 async function restorePvpRoomOnLoad() {
+  if (roomRestoreInProgress) return;
+  roomRestoreInProgress = true;
   try {
+    await waitForAuthReady();
     await tokenOrThrow();
+    if (restoredPlayerId === playerId && roomId && roomState) return;
+
     const saved = loadRoomSession();
-    const resumeFromUrl = Boolean(initialPvpRoom && (!initialInvite || saved?.roomId === initialPvpRoom));
-    let resumeId = resumeFromUrl ? initialPvpRoom : (!initialInvite ? saved?.roomId : "");
-    if (!resumeId) {
-      const currentPath = initialInvite
-        ? "/api/pvp/rooms/current?invite=" + encodeURIComponent(initialInvite)
-        : "/api/pvp/rooms/current";
-      const current = await api(currentPath);
-      if (current.room) resumeId = current.room.id;
+    let resumeId = "";
+    if (initialInvite) {
+      // An invite URL is the strongest room locator, including for a guest
+      // who joined on another browser and has no localStorage entry.
+      const current = await api("/api/pvp/rooms/current?invite=" + encodeURIComponent(initialInvite));
+      resumeId = current.room ? current.room.id : "";
+    } else {
+      const current = await api("/api/pvp/rooms/current");
+      resumeId = current.room ? current.room.id : (initialPvpRoom || saved?.roomId || "");
     }
-    if (!resumeId) return;
+    if (!resumeId) {
+      restoredPlayerId = playerId;
+      return;
+    }
+
     roomId = resumeId;
-    if (saved?.roomId === resumeId) inviteCode = saved.inviteCode || "";
+    inviteCode = initialInvite || (saved?.roomId === resumeId ? saved.inviteCode || "" : "");
     await connectSocket(roomId);
     await refreshRoomState();
     if (!roomId || !roomState) return;
     saveRoomSession(roomId, inviteCode);
     syncRoomUrl(roomId, inviteCode);
+    restoredPlayerId = playerId;
     notice("已恢复你此前的好友房间，棋盘和对局状态已同步。");
   } catch (error) {
     if ([403, 404, 410].includes(error.status)) {
@@ -835,10 +854,22 @@ async function restorePvpRoomOnLoad() {
       $("pvpLobby").hidden = false;
     }
     notice("恢复好友房间失败：" + error.message, true);
+  } finally {
+    roomRestoreInProgress = false;
   }
 }
 
-if (initialPvpRoom || (!initialInvite && loggedIn())) restorePvpRoomOnLoad();
+window.addEventListener("gomoku:auth-changed", event => {
+  if (event.detail && event.detail.signedIn) restorePvpRoomOnLoad();
+});
+waitForAuthReady().then(() => {
+  if (loggedIn()) {
+    restorePvpRoomOnLoad();
+  } else if (initialPvpRoom || initialInvite) {
+    $("pvpAuthRequired").hidden = false;
+    notice("检测到好友房间链接，请先登录；登录成功后会自动恢复房间。");
+  }
+}).catch(error => notice("账号初始化失败：" + error.message, true));
 refreshLeaderboard();
 setInterval(() => {
   renderClock();
