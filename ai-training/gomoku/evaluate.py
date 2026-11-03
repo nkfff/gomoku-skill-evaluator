@@ -191,9 +191,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--simulations", type=int, default=32)
     parser.add_argument("--c-puct", type=float, default=1.25)
     parser.add_argument("--max-plies", type=int, default=225)
-    parser.add_argument("--champion-width", type=int, default=12)
-    parser.add_argument("--champion-time-ms", type=int, default=180)
-    parser.add_argument("--champion-max-depth", type=int, default=7)
+    parser.add_argument("--champion-width", type=int, default=14)
+    parser.add_argument("--champion-time-ms", type=int, default=500)
+    parser.add_argument("--champion-max-depth", type=int, default=10)
     parser.add_argument("--output", default="evaluation/champion_match.csv")
     return parser
 
