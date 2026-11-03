@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chooseAI, CELLS } from "../src/engine.js";
 import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
-import { createMatchState, publicMatchState } from "../src/pvp.js";
+import { createMatchState, publicMatchState, requestPvpRematch } from "../src/pvp.js";
 import { rollDice } from "../worker/pvp-room.js";
 
 test("AI can search as either black or white", () => {
@@ -52,6 +52,33 @@ test("both PVP clients receive the same auditable dice result", () => {
   assert.equal(guestView.diceWinnerPlayerId, "host-id");
 });
 
+test("PVP rematch starts only after both players accept and resets readiness", () => {
+  const room = {
+    roomId:"room-1", status:"finished", hostPlayerId:"host-id", guestPlayerId:"guest-id",
+    readyByPlayer:{}, rematchByPlayer:{}, match:{status:"finished"}
+  };
+  const first = requestPvpRematch(room, "host-id");
+  assert.equal(first.acceptedByBoth, false);
+  assert.equal(first.room.status, "finished");
+  assert.deepEqual(first.room.rematchByPlayer, {"host-id":true});
+  const second = requestPvpRematch(first.room, "guest-id");
+  assert.equal(second.acceptedByBoth, true);
+  assert.equal(second.room.status, "ready");
+  assert.deepEqual(second.room.readyByPlayer, {"host-id":true,"guest-id":true});
+  assert.deepEqual(second.room.rematchByPlayer, {});
+  assert.equal(room.status, "finished", "the previous room snapshot must remain unchanged");
+});
+
+test("PVP rematch rejects non-members and unfinished games", () => {
+  const room = {
+    status:"finished", hostPlayerId:"host-id", guestPlayerId:"guest-id",
+    match:{status:"finished"}, rematchByPlayer:{}
+  };
+  assert.throws(() => requestPvpRematch(room, "stranger"), /NOT_A_ROOM_MEMBER/);
+  assert.throws(() => requestPvpRematch({...room,status:"active"}, "host-id"), /ROOM_NOT_FINISHED/);
+  assert.throws(() => requestPvpRematch({...room,match:{status:"active"}}, "host-id"), /ROOM_NOT_FINISHED/);
+});
+
 test("same-user token refresh does not unconditionally hide the admin panel", () => {
   const account = readFileSync(fileURLToPath(new URL("../src/account.js", import.meta.url)), "utf8");
   assert.match(account, /if\(!signedIn\|\|resetAdmin\)\$\("adminPanel"\)\.hidden=true/);
@@ -71,7 +98,12 @@ test("skin collection cards use board-theme tokens and readable semantic labels"
 
 test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   const html = readFileSync(fileURLToPath(new URL("../index.html", import.meta.url)), "utf8");
-  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","aiPodium","pvpPodium"]) {
+  const css = readFileSync(fileURLToPath(new URL("../src/style.css", import.meta.url)), "utf8");
+  const pvpUi = readFileSync(fileURLToPath(new URL("../pvp-ui.js", import.meta.url)), "utf8");
+  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","aiPodium","pvpPodium"]) {
     assert.equal((html.match(new RegExp('id="' + id + '"' , "g")) || []).length, 1, id);
   }
+  assert.match(html, /class="dice-cube show-5"/);
+  assert.match(css, /@keyframes diceRoll3d/);
+  assert.match(pvpUi, /animateDiceFace/);
 });
