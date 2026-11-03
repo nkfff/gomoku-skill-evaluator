@@ -187,6 +187,9 @@ test("PVP rooms persist while members exist and only explicit cancellation close
   const api = readFileSync(fileURLToPath(new URL("../worker/v3.js", import.meta.url)), "utf8");
   const room = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
   assert.match(api, /datetime\('9999-12-31 23:59:59'\)/);
+  assert.match(api, /room\.host_player_id === user\.id \|\| room\.guest_player_id === user\.id/);
+  assert.match(api, /resumed: true/);
+  assert.match(api, /invite_code_hash=\? AND status IN \('waiting','ready','active','finished'\)/);
   assert.match(room, /PERMANENT_ROOM_EXPIRY_MS/);
   assert.doesNotMatch(room, /now >= this\.room\.expiresAt/);
   assert.doesNotMatch(room, /deadlines\.push\(this\.room\.expiresAt\)/);
@@ -235,6 +238,8 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   assert.match(pvpUi, /function showPvpResult/);
   assert.match(pvpUi, /等待对手回应/);
   assert.match(pvpUi, /incomingRematchInvite/);
+  assert.match(pvpUi, /wasRematchInviteHidden/);
+  assert.match(pvpUi, /pvpRematchInviteAccept.*focus/);
   assert.match(pvpUi, /decline_rematch/);
   assert.match(pvpRoom, /message.type === "decline_rematch"/);
   assert.match(pvpRoom, /type: "rematch_declined", playerId, room:/);
