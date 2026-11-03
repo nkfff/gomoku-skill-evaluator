@@ -100,10 +100,14 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   const html = readFileSync(fileURLToPath(new URL("../index.html", import.meta.url)), "utf8");
   const css = readFileSync(fileURLToPath(new URL("../src/style.css", import.meta.url)), "utf8");
   const pvpUi = readFileSync(fileURLToPath(new URL("../pvp-ui.js", import.meta.url)), "utf8");
+  const pvpRoom = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
   for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","aiPodium","pvpPodium"]) {
     assert.equal((html.match(new RegExp('id="' + id + '"' , "g")) || []).length, 1, id);
   }
   assert.match(html, /class="dice-cube show-5"/);
   assert.match(css, /@keyframes diceRoll3d/);
   assert.match(pvpUi, /animateDiceFace/);
+  assert.match(pvpUi, /switchToRematchRoom/);
+  assert.match(pvpRoom, /rematchRoomId/);
+  assert.match(pvpRoom, /internal\/init-rematch/);
 });
