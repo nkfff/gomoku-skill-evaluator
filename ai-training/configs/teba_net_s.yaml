@@ -47,16 +47,30 @@ optimizer:
 training:
   device: mps
   precision: float32
-  batch_size: 64
-  warmup_steps: 200
-  scheduler: cosine_annealing
-  minimum_learning_rate: 0.00003
-  optimizer_steps_per_seed: 3200
+  bootstrap:
+    random_games: 8
+    max_positions: 1200
+    optimizer_updates: 100
+    teacher_probability: 0.85
+  self_play:
+    rounds: 3
+    games_per_round: 4
+    max_plies: 225
+    temperature_moves: 12
+    simulations: 16
+    c_puct: 1.25
+  optimizer:
+    name: AdamW
+    learning_rate: 0.0003
+    weight_decay: 0.0001
+    gradient_clip_norm: 1.0
+    warmup_steps: 20
+  batch_size: 32
   replay_buffer_positions: 50000
-  self_play_games_per_round: 64
-  gradient_updates_per_round: 200
-  parallel_games: 4
-  inference_batch_size: 8
+  gradient_updates_per_round: 50
+  tactical_loss_weight: 0.2
+  checkpoint_every_round: true
+  resume_from_latest: true
 
 search:
   algorithm: neural_puct
