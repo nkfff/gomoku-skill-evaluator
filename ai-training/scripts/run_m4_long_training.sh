@@ -31,7 +31,8 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 node --version
 
-if pgrep -f '[p]ython .* -m gomoku.(long_train|dual_train)' >/dev/null 2>&1; then
+if pgrep -f '[p]ython .* -m gomoku.long_train' >/dev/null 2>&1 \
+  || pgrep -f '[p]ython .* -m gomoku.dual_train' >/dev/null 2>&1; then
   echo "A TEBA long-run or dual-training process is already running. Refusing duplicate training." >&2
   exit 1
 fi
