@@ -6,7 +6,7 @@ import { chooseAI, CELLS } from "../src/engine.js";
 import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
 import {
   acceptPvpDraw, createMatchState, declinePvpDraw, finishByResign, offerPvpDraw,
-  publicMatchState, requestPvpRematch
+  declinePvpRematch, publicMatchState, requestPvpRematch
 } from "../src/pvp.js";
 import { hasOpenPlayerConnection, rollDice } from "../worker/pvp-room.js";
 
@@ -157,6 +157,20 @@ test("PVP rematch starts only after both players accept and resets readiness", (
   assert.equal(room.status, "finished", "the previous room snapshot must remain unchanged");
 });
 
+
+test("PVP rematch invitation can be declined and clears the inviter request", () => {
+  const room = {
+    roomId:"room-1", status:"finished", hostPlayerId:"host-id", guestPlayerId:"guest-id",
+    rematchByPlayer:{"host-id":true}, match:{status:"finished"}
+  };
+  const declined = declinePvpRematch(room, "guest-id");
+  assert.deepEqual(declined.rematchByPlayer, {});
+  assert.deepEqual(room.rematchByPlayer, {"host-id":true}, "declining must not mutate the stored room snapshot");
+  assert.throws(() => declinePvpRematch(room, "host-id"), /NO_PENDING_REMATCH_INVITE/);
+  assert.throws(() => declinePvpRematch(room, "stranger"), /NOT_A_ROOM_MEMBER/);
+  assert.throws(() => declinePvpRematch({...room,status:"active"}, "guest-id"), /ROOM_NOT_FINISHED/);
+});
+
 test("PVP rematch rejects non-members and unfinished games", () => {
   const room = {
     status:"finished", hostPlayerId:"host-id", guestPlayerId:"guest-id",
@@ -201,7 +215,7 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   const css = readFileSync(fileURLToPath(new URL("../src/style.css", import.meta.url)), "utf8");
   const pvpUi = readFileSync(fileURLToPath(new URL("../pvp-ui.js", import.meta.url)), "utf8");
   const pvpRoom = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
-  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","pvpResultModal","pvpResultClose","pvpResultTitle","pvpResultMessage","pvpResultRating","pvpResultContinue","aiPodium","pvpPodium"]) {
+  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","pvpResultModal","pvpResultClose","pvpResultTitle","pvpResultMessage","pvpResultRating","pvpResultContinue","pvpRematchInviteModal","pvpRematchInviteTitle","pvpRematchInviteMessage","pvpRematchInviteFrom","pvpRematchInviteAccept","pvpRematchInviteDecline","aiPodium","pvpPodium"]) {
     assert.equal((html.match(new RegExp('id="' + id + '"' , "g")) || []).length, 1, id);
   }
   assert.match(html, /class="dice-cube show-5"/);
@@ -220,6 +234,11 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   assert.match(pvpRoom, /internal\/init-rematch/);
   assert.match(pvpUi, /function showPvpResult/);
   assert.match(pvpUi, /等待对手回应/);
+  assert.match(pvpUi, /incomingRematchInvite/);
+  assert.match(pvpUi, /decline_rematch/);
+  assert.match(pvpRoom, /message.type === "decline_rematch"/);
+  assert.match(pvpRoom, /type: "rematch_declined", playerId, room:/);
+  assert.match(css, /\.pvp-rematch-invite-modal\[hidden\]\{display:none!important\}/);
   assert.match(pvpRoom, /type: "draw_offered", playerId, room:/);
   assert.match(pvpRoom, /type: "draw_declined", playerId, room:/);
   assert.match(pvpRoom, /type: "game_over", room:/);
