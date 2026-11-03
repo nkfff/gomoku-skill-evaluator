@@ -325,6 +325,22 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 @media(max-width:640px){.pvp-rematch-invite-card{padding:27px 20px 21px;border-radius:22px}.pvp-rematch-invite-card h2{font-size:22px}}
 @media(prefers-reduced-motion:reduce){.pvp-rematch-invite-backdrop,.pvp-rematch-invite-card{animation:none!important}}
 
+/* Incoming rematch invitation: explicit accept/decline prompt. */
+.pvp-rematch-invite-modal[hidden]{display:none!important}
+.pvp-rematch-invite-modal{position:fixed;z-index:1300;inset:0;display:grid;place-items:center;padding:20px}
+.pvp-rematch-invite-backdrop{position:absolute;inset:0;background:rgba(43,31,35,.58);backdrop-filter:blur(10px);animation:pvpResultFade .2s ease}
+.pvp-rematch-invite-card{position:relative;width:min(100%,390px);padding:30px 26px 25px;border:1px solid rgba(255,255,255,.82);border-radius:25px;background:linear-gradient(155deg,#fffefa 0%,#fff3f5 100%);box-shadow:0 28px 90px rgba(35,22,25,.3);text-align:center;animation:pvpResultPop .36s cubic-bezier(.18,.78,.2,1)}
+.pvp-rematch-invite-mark{display:grid;place-items:center;width:58px;height:58px;margin:0 auto 13px;border:1px solid #efdae0;border-radius:19px;background:linear-gradient(145deg,#fff9f1,#f8e8ed);color:#986076;font-size:30px;box-shadow:0 9px 22px rgba(166,95,118,.13)}
+.pvp-rematch-invite-card h2{margin:8px 0 10px;color:#684351;font-size:24px;letter-spacing:-.035em}
+.pvp-rematch-invite-card>p{margin:0 auto 22px;color:#89747a;font-size:14px;line-height:1.8}
+.pvp-rematch-invite-card>p strong{color:#76505e}
+.pvp-rematch-invite-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pvp-rematch-invite-actions button{min-height:44px;border-radius:12px;font-weight:750}
+.pvp-rematch-invite-actions button:not(.primary){border:1px solid #e8d8dc;background:#fff;color:#805d68}
+.pvp-rematch-invite-actions button:disabled{opacity:.6;cursor:wait}
+@media(max-width:640px){.pvp-rematch-invite-card{padding:27px 20px 21px;border-radius:22px}.pvp-rematch-invite-card h2{font-size:22px}}
+@media(prefers-reduced-motion:reduce){.pvp-rematch-invite-backdrop,.pvp-rematch-invite-card{animation:none!important}}
+
 .admin-feedback{margin:10px 0;padding:11px 13px;border:1px solid var(--border,var(--v4-line));border-radius:11px;background:var(--surface,#fff);color:var(--heading,var(--v4-ink));font-size:13px;font-weight:750;line-height:1.65;overflow-wrap:anywhere}
 .admin-feedback.error{border-color:#bd786f;background:rgba(189,120,111,.12);color:#ffd5ce}
 .admin-feedback:not(.error){border-color:#668c78;background:rgba(102,140,120,.12);color:var(--heading,var(--v4-ink))}
