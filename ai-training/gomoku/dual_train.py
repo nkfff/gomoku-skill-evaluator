@@ -14,7 +14,7 @@ from .encoding import encode_state
 from .game import BLACK, WHITE, GomokuGame
 from .diagnostics import append_jsonl, make_ply_record
 from .legacy_opponent import LegacyEngineOpponent
-from .league import load_opponent_league
+from .league import TacticalRuleOpponent, load_opponent_league
 from .losses import compute_teba_loss, policy_cross_entropy
 from .mcts import PUCTConfig, PUCTSearch, TorchEvaluator
 from .network import build_model
@@ -717,6 +717,7 @@ def run_training(args: argparse.Namespace) -> Path:
         max_opponents=args.league_max_opponents,
     )
     print(f"Loaded historical TEBA opponents: {len(league_opponents)}")
+    tactical_opponent = TacticalRuleOpponent()
 
     run_rounds = args.run_rounds if args.run_rounds is not None else args.rounds - start_round
     if run_rounds < 1:
@@ -726,6 +727,8 @@ def run_training(args: argparse.Namespace) -> Path:
         raise ValueError("checkpoint interval must be positive and snapshot interval non-negative")
     if not 0.0 <= args.league_fraction <= 1.0:
         raise ValueError("--league-fraction must be in [0, 1]")
+    if not 0.0 <= args.tactical_opponent_fraction <= 1.0:
+        raise ValueError("--tactical-opponent-fraction must be in [0, 1]")
 
     log_path = output_dir / "dual_training.csv"
     training_games_path = output_dir / "training_games.jsonl"
@@ -774,8 +777,11 @@ def run_training(args: argparse.Namespace) -> Path:
                 learner_player = BLACK if global_game_index % 2 == 0 else WHITE
                 game_record = {}
                 opponent = champion
-                if league_opponents and rng.random() < args.league_fraction:
-                    opponent = league_opponents[int(rng.integers(0, len(league_opponents)))]
+                if rng.random() < args.league_fraction:
+                    if rng.random() < args.tactical_opponent_fraction:
+                        opponent = tactical_opponent
+                    elif league_opponents:
+                        opponent = league_opponents[int(rng.integers(0, len(league_opponents)))]
                 learner_samples, teacher_samples, outcome = play_champion_game(
                     model,
                     device,
@@ -975,6 +981,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tactical-weight", type=float, default=0.2)
     parser.add_argument("--league-fraction", type=float, default=0.0)
     parser.add_argument("--league-max-opponents", type=int, default=8)
+    parser.add_argument("--tactical-opponent-fraction", type=float, default=0.2)
     parser.add_argument("--d4-augmentation", action="store_true")
 
     parser.add_argument("--learning-rate", type=float, default=1e-4)
@@ -997,7 +1004,11 @@ def main() -> None:
         raise SystemExit("--run-rounds must be positive")
     if args.checkpoint_interval < 1 or args.snapshot_interval < 0:
         raise SystemExit("checkpoint interval must be positive and snapshot interval non-negative")
-    if args.league_max_opponents < 1 or not 0.0 <= args.league_fraction <= 1.0:
+    if (
+        args.league_max_opponents < 1
+        or not 0.0 <= args.league_fraction <= 1.0
+        or not 0.0 <= args.tactical_opponent_fraction <= 1.0
+    ):
         raise SystemExit("invalid opponent league settings")
     if args.rebase_learning_rate is not None and args.rebase_learning_rate <= 0:
         raise SystemExit("--rebase-learning-rate must be positive")
