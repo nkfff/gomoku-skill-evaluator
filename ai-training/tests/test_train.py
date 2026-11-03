@@ -212,3 +212,24 @@ def test_checkpoint_round_trip_restores_model_optimizer_and_replay(tmp_path):
     assert len(restored_replay) == 1
     for original, restored in zip(model.parameters(), restored_model.parameters()):
         assert torch.equal(original, restored)
+
+
+
+@pytest.mark.skipif(
+    not torch.backends.mps.is_available(),
+    reason="Apple MPS is not available on this machine",
+)
+def test_training_step_runs_on_apple_mps():
+    device = torch.device("mps")
+    model = build_model().to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+
+    metrics = train_step(
+        model,
+        optimizer,
+        _small_batch(batch_size=2),
+        device,
+    )
+    torch.mps.synchronize()
+
+    assert all(np.isfinite(value) for value in metrics.values())
