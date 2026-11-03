@@ -112,6 +112,10 @@ function handleMessage(message) {
     notice(message.playerId === playerId
       ? "已发起再战邀请，等待好友同意。"
       : "好友邀请你再来一局，点击「接受再来一局」即可继续。");
+  } else if (message.type === "rematch_starting") {
+    notice("双方已同意再战，正在创建新对局…");
+  } else if (message.type === "rematch_failed") {
+    notice("新对局创建失败，请再次接受再来一局。", true);
   } else if (message.type === "rematch_started") {
     notice("双方已同意再战，正在切换到新棋局…");
     switchToRematchRoom(message.newRoomId).catch(error => notice(error.message, true));
@@ -455,10 +459,12 @@ function renderRoom(room) {
  const opponentId = playerId === room.hostPlayerId ? room.guestPlayerId : room.hostPlayerId;
  const myRematchRequested = !!rematchByPlayer[playerId];
  const opponentRematchRequested = !!rematchByPlayer[opponentId];
+ const rematchStarting = !!room.rematchStarting;
  $("pvpRematch").hidden = !finished;
- $("pvpRematch").disabled = myRematchRequested;
- $("pvpRematch").textContent = myRematchRequested
-   ? "等待对手同意…"
+ $("pvpRematch").disabled = myRematchRequested || rematchStarting;
+ $("pvpRematch").textContent = rematchStarting
+   ? "正在创建新对局…"
+   : myRematchRequested ? "等待对手同意…"
    : opponentRematchRequested ? "接受再来一局" : "再来一局";
  $("pvpNewMatch").hidden = !finished;
  if(room.match){
