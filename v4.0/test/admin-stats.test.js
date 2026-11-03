@@ -19,6 +19,8 @@ test("零场次不会出现 NaN，空白记录的胜率和综合积分为零", (
   assert.equal(stats.losses,0);
   assert.equal(stats.winRate,0);
   assert.equal(stats.rankPoints,0);
+  const unplayed = calculateCompetitiveStats({gamesPlayed:0,wins:0,draws:0,earnedPoints:500});
+  assert.equal(unplayed.rankPoints,0);
 });
 
 test("拒绝不可能的胜局/平局组合及越界竞技积分", () => {
