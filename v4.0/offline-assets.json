@@ -5,7 +5,7 @@
   "files": {
     "index.html": "de92e888e59bf155313a3c29ecd6f6a21f2602a3f4a5cfb625c9f83f6fafc527",
     "config.js": "a912311267c2dac8e20aa8e21c8617e19964ac21404b9c1c607073f10ed53bda",
-    "pvp-ui.js": "e93b05a3942ed0435d0755a5250a35310b8f14b31628b932454a69410e85ef10",
+    "pvp-ui.js": "743af1f3586d34f7a72ffac13feb5d2d495fa6a5b0c8eaf6be734df04a6a4a2a",
     "special-modes-ui.js": "69e47e04a88705bf707b85c2ab1d0fee93f9a30cb3e30a871f127bef7bdbfcea",
     "models/model.json": "4640cd8a82143d055fe5881178b632b0330573d2ea368863f1a6f0f76562aa60",
     "models/gunuce.onnx": "9cc91391167c3fc94534208aa0d38fe911d3055da4558b8c6067ec44eeee042e",
