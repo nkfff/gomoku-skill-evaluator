@@ -180,7 +180,7 @@ function handleMessage(message) {
       notice("已发起再战邀请，等待好友同意。");
     } else {
       const room = message.room || roomState;
-      const inviterName = room ? (playerId === room.hostPlayerId ? room.hostName : room.guestName) : "好友";
+      const inviterName = room ? (playerId === room.hostPlayerId ? room.guestName : room.hostName) : "好友";
       notice((inviterName || "好友") + " 邀请你再来一局，请在弹窗中选择是否接受。");
     }
   } else if (message.type === "rematch_declined") {
@@ -634,8 +634,15 @@ function renderRoom(room) {
  const opponentRematchRequested = !!rematchByPlayer[opponentId];
  const rematchStarting = !!room.rematchStarting;
  const incomingRematchInvite = finished && opponentRematchRequested && !myRematchRequested && !rematchStarting;
- $("pvpRematchInviteModal").hidden = !incomingRematchInvite;
+ const rematchInviteModal = $("pvpRematchInviteModal");
+ const wasRematchInviteHidden = rematchInviteModal.hidden;
+ rematchInviteModal.hidden = !incomingRematchInvite;
  if (incomingRematchInvite) {
+   if (wasRematchInviteHidden) {
+     $("pvpRematchInviteAccept").disabled = false;
+     $("pvpRematchInviteDecline").disabled = false;
+     $("pvpRematchInviteAccept").focus({preventScroll:true});
+   }
    const inviterName = playerId === room.hostPlayerId ? room.guestName : room.hostName;
    $("pvpRematchInviteFrom").textContent = inviterName || "好友";
  }
