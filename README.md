@@ -18,7 +18,9 @@ V4.1 是独立的 AI 训练与棋力研究分支，不是新的网页游戏发�
 - **V4.1.7：** 新增两个冻结 Checkpoint 的配对直接对战评估，复用相同开局并交换黑白棋，默认 40 局 / 20 组开局。
 - **代码状态：** PR [#31](https://github.com/nkfff/gomoku-skill-evaluator/pull/31) 已合并至开发分支 `feat/4.1-teba-mcts`，尚未合并到默认分支 `main`，也未部署为线上游戏版本。
 - **自动化验证：** 开发分支 GitHub Actions 为 **112 passed、4 skipped**；跳过项为 Linux CI 无法运行的 Apple MPS 专项测试。
-- **下一步：** 在 M4 本机完成测试，并运行 Round 5 对 Round 30 的 40 局配对对战。训练 Checkpoint 保持只读，不以训练 Loss 下降代替棋力验证。
+- **M4 40 局结果（2026-11-03）：** Round 30（MODEL_B）27 胜、Round 5（MODEL_A）13 胜、0 平，Match Score 0.675；20 组黑白交换开局中，Round 30 双胜 8 组、Round 5 双胜 1 组、11 组各胜一局。配对精确符号检验双侧 *p* = 0.0391（仅 9 组非平局，属于初步证据）。
+- **结果边界：** 这证明 Round 30 在本轮设定下优于 Round 5，但两份 Checkpoint 先前对 V4.0 王者的 20 局评估均为 0 胜 / 0 平 / 20 负，因此不能宣称 Round 30 已超过 V4.0 王者。Round 30 的 missed fork 原始计数为 44，Round 5 为 12，需要按实际 fork 机会数进一步诊断。
+- **下一步：** 审查逐步 JSONL 中的 fork 机会与漏选原因，随后使用更多独立开局和多个随机种子复验；训练 Checkpoint 保持只读。
 
 详细训练配置、命令与输出文件见 [V4.1 AI 训练说明](https://github.com/nkfff/gomoku-skill-evaluator/blob/feat/4.1-teba-mcts/ai-training/README.md)。
 
