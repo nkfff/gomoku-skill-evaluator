@@ -1,0 +1,50 @@
+model:
+  name: TEBA-Net-S
+  board_size: 15
+  input_channels: 3
+  residual_channels: 32
+  residual_blocks: 4
+  group_norm_groups: 8
+  activation: relu
+  policy_head:
+    output_channels: 1
+    output_size: 225
+  value_head:
+    pooling: global_average
+    hidden_units: 64
+    output_units: 1
+    activation: tanh
+  tactical_head:
+    output_channels: 3
+    labels:
+      - WIN_NOW
+      - MUST_BLOCK
+      - FORK
+  expected_trainable_parameters: 77477
+
+loss:
+  policy: masked_soft_target_cross_entropy
+  value: mean_squared_error
+  tactical: class_balanced_binary_cross_entropy
+  tactical_weight: 0.2
+  total: "policy + value + 0.2 * tactical"
+
+optimizer:
+  name: AdamW
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  gradient_clip_norm: 1.0
+
+training:
+  device: mps
+  precision: float32
+  batch_size: 64
+  warmup_steps: 200
+  scheduler: cosine_annealing
+  minimum_learning_rate: 0.00003
+  optimizer_steps_per_seed: 3200
+  replay_buffer_positions: 50000
+  self_play_games_per_round: 64
+  gradient_updates_per_round: 200
+  parallel_games: 4
+  inference_batch_size: 8
