@@ -1,15 +1,15 @@
 {
   "version": "4.0.2",
-  "cacheVersion": "0c7da0f59da183dc",
+  "cacheVersion": "c076b46b9c492eb2",
   "onnxruntime": "1.31.1",
   "files": {
-    "index.html": "0c7da0f59da183dc55cd6546ec045b2c34cbfb7ed06e674f3c48f3a69ad16524",
+    "index.html": "c076b46b9c492eb296a4deec912475387cad5d431a3fe7eddb034893177bade4",
     "config.js": "ca3a2f1d467505174e746fd4e5ba2fc37dc1fc04f4b89918186300173662eaba",
     "pvp-ui.js": "6790f7b46ea0c724907c5b1adfe863d814aa4f88ad838036544d9d4490840e90",
     "special-modes-ui.js": "69e47e04a88705bf707b85c2ab1d0fee93f9a30cb3e30a871f127bef7bdbfcea",
     "models/model.json": "4640cd8a82143d055fe5881178b632b0330573d2ea368863f1a6f0f76562aa60",
     "models/gunuce.onnx": "9cc91391167c3fc94534208aa0d38fe911d3055da4558b8c6067ec44eeee042e",
-    "src/account.js": "9acf0c875beef92bf075497347f881b0a0e36e07a731100ed7521cad24c5c8db",
+    "src/account.js": "15cd2476f2dcc7a77c2a3b028c697cfd3c9922f957bbaabbbb584e66b87466e2",
     "src/ai.worker.js": "cc5f5f0caab731399b5c43fefcd61e8287e72d56c0ed34c5aae864f20f5609bb",
     "src/analysis.worker.js": "fd5d918333460addf6c00adbd614cec1a4383131a0a8e8b9623ac4e2b0dbca50",
     "src/app.js": "9b8146d378a7099c8491b2989b7c37547678b829b517f343b49226e027ce635a",
@@ -30,6 +30,6 @@
     "vendor/ort/ort-wasm-simd-threaded.mjs": "30ed0b5cd1182ede931fea448afb567d4dc705ec957af09f108a2be5f770dac3",
     "vendor/ort/ort-wasm-simd-threaded.wasm": "4b884c203b0fa48d057be3332c65513ff85aa3c5bddd6946acc0fab7ecda001d"
   },
-  "totalAssetBytes": 48498012,
+  "totalAssetBytes": 48498230,
   "note": "Runtime/model cached lazily on first Gunuce use. No inference endpoint."
 }
