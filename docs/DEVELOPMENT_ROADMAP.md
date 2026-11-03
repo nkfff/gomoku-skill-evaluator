@@ -641,8 +641,8 @@ V4.1.6 承接 V4.1.5 的双通道训练框架，针对首轮 Pilot 与 V4.0 王�
 
 - **开发/测试分支：** `feat/4.1.6-diagnostics-extended-training`
 - **合并目标分支：** `feat/4.1-teba-mcts`
-- **PR：** 待 CI 完成后创建/更新。
-- **状态：** 分支开发中；CI 与 M4 实测待验收；不代表线上 V4.0 游戏已更新。
+- **PR：** [#30 — V4.1.6: evaluation diagnostics and extended dual learning](https://github.com/nkfff/gomoku-skill-evaluator/pull/30)。
+- **状态：** PR 已创建；首轮 GitHub Actions 为 106 passed、4 skipped；最新提交的 CI 仍在运行；M4 实测待验收；不代表线上 V4.0 游戏已更新。
 
 ### 10.2 评估器升级
 
