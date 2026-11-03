@@ -228,6 +228,40 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 @media(max-width:640px){.app-shell{padding:12px 10px 16px}.topbar{align-items:flex-start;flex-direction:column;padding-bottom:14px}.profile-strip{width:100%;text-align:left}.cloud-status,.profile-summary{justify-content:flex-start}.tabs{margin:12px 0;padding:4px}.tabs button{padding:9px 11px;font-size:11px}.panel{padding:15px;border-radius:19px}.board-panel{padding:14px 11px}.board-heading h2{font-size:19px}.live-pill{font-size:9px;padding:6px 8px}.game-controls{grid-template-columns:1fr 1fr}.start-button{grid-column:1/-1;width:100%}.action-row button{flex:1 1 28%;font-size:10px;padding:8px 6px}.stats{gap:7px}.stat{padding:10px}.stat strong{font-size:15px}.leaderboard-podium{gap:5px}.podium-card{padding:11px 4px}.podium-card strong{font-size:10px}.podium-medal{font-size:19px}.dice-face{width:62px;height:62px;font-size:39px}.dice-pair{gap:12px}.site-footer{flex-wrap:wrap;font-size:9px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition:none!important}}
 
+
+/* V4.0.2 PVP: tactile 3D dice with real cube faces and a smooth tumble. */
+.dice-cube-shell{--dice-size:74px;width:var(--dice-size);height:var(--dice-size);display:grid;place-items:center;perspective:850px;flex:0 0 auto}
+.dice-cube{position:relative;width:var(--dice-size);height:var(--dice-size);transform-style:preserve-3d;transform:rotateX(0deg) rotateY(0deg);transition:transform .68s cubic-bezier(.18,.76,.2,1)}
+.dice-cube-face{position:absolute;inset:0;display:block;border:1px solid #ead3d7;border-radius:14px;background-color:#fffefa;background-repeat:no-repeat;backface-visibility:hidden;box-shadow:inset 0 0 0 1px #ffffffb8,0 5px 13px rgba(122,78,67,.08)}
+.dice-cube-face.face-front{transform:translateZ(calc(var(--dice-size)/2))}
+.dice-cube-face.face-back{transform:rotateY(180deg) translateZ(calc(var(--dice-size)/2))}
+.dice-cube-face.face-right{transform:rotateY(90deg) translateZ(calc(var(--dice-size)/2))}
+.dice-cube-face.face-left{transform:rotateY(-90deg) translateZ(calc(var(--dice-size)/2))}
+.dice-cube-face.face-top{transform:rotateX(90deg) translateZ(calc(var(--dice-size)/2))}
+.dice-cube-face.face-bottom{transform:rotateX(-90deg) translateZ(calc(var(--dice-size)/2))}
+.dice-cube-face[data-value="1"]{background-image:radial-gradient(circle at 50% 50%,#a85f76 0 4px,transparent 4.8px)}
+.dice-cube-face[data-value="2"]{background-image:radial-gradient(circle at 25% 25%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 75% 75%,#a85f76 0 4px,transparent 4.8px)}
+.dice-cube-face[data-value="3"]{background-image:radial-gradient(circle at 25% 25%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 50% 50%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 75% 75%,#a85f76 0 4px,transparent 4.8px)}
+.dice-cube-face[data-value="4"]{background-image:radial-gradient(circle at 25% 25%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 75% 25%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 25% 75%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 75% 75%,#a85f76 0 4px,transparent 4.8px)}
+.dice-cube-face[data-value="5"]{background-image:radial-gradient(circle at 25% 25%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 75% 25%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 50% 50%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 25% 75%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 75% 75%,#a85f76 0 4px,transparent 4.8px)}
+.dice-cube-face[data-value="6"]{background-image:radial-gradient(circle at 25% 25%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 75% 25%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 25% 50%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 75% 50%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 25% 75%,#a85f76 0 4px,transparent 4.8px),radial-gradient(circle at 75% 75%,#a85f76 0 4px,transparent 4.8px)}
+.dice-cube.show-1{transform:rotateX(0deg) rotateY(0deg)}
+.dice-cube.show-2{transform:rotateX(-90deg) rotateY(0deg)}
+.dice-cube.show-3{transform:rotateX(0deg) rotateY(-90deg)}
+.dice-cube.show-4{transform:rotateX(0deg) rotateY(90deg)}
+.dice-cube.show-5{transform:rotateX(90deg) rotateY(0deg)}
+.dice-cube.show-6{transform:rotateX(0deg) rotateY(180deg)}
+.dice-cube.is-rolling{animation:diceRoll3d 1.08s cubic-bezier(.18,.74,.18,1) both}
+@keyframes diceRoll3d{0%{transform:translateY(0) rotateX(0deg) rotateY(0deg) rotateZ(0deg)}22%{transform:translateY(-25px) rotateX(360deg) rotateY(420deg) rotateZ(150deg)}48%{transform:translateY(-8px) rotateX(760deg) rotateY(900deg) rotateZ(330deg)}74%{transform:translateY(-19px) rotateX(1120deg) rotateY(1380deg) rotateZ(520deg)}100%{transform:translateY(0) rotateX(1440deg) rotateY(1800deg) rotateZ(720deg)}}
+.dice-stage.is-rolling .dice-vs{animation:diceVsPulse .55s ease-in-out infinite alternate}
+@keyframes diceVsPulse{from{opacity:.42;transform:scale(.92)}to{opacity:1;transform:scale(1.08)}}
+.dice-stage.revealed .dice-cube-face{border-color:#d9b8c4}
+#pvpRematch:disabled{opacity:.7;cursor:wait}
+@media(max-width:640px){.dice-cube-shell{--dice-size:62px}.dice-cube-face{border-radius:11px}.dice-pair{gap:12px}}
+@media(prefers-reduced-motion:reduce){.dice-cube{transition:none!important}.dice-cube.is-rolling{animation-duration:.01ms!important}}
+
+/* V4.0.2 PVP room handoff: resume links and serialized mutual rematches. */
+
 .admin-stats-editor{margin:14px 0;padding:14px;border:1px solid var(--border,var(--v4-line));border-radius:15px;background:var(--surface,#faf5f1)}
 .admin-stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .admin-stats-grid label{min-width:0;margin:0;color:var(--muted,var(--v4-muted))}
