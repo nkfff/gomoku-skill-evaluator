@@ -1,0 +1,8 @@
+{
+  "repository": "nkfff/gomoku-skill-evaluator",
+  "commit": "d87c34a674e4bf3f8526ff6d67a6a06736e138eb",
+  "source_directory": "v4.0",
+  "retrieved": "2026-11-03",
+  "local_version": "4.0.1",
+  "changes": "Gunuce offline difficulty: local ONNX WebGPU/WASM Worker, PUCT128, same-origin offline cache, safe retry. No inference server. Original accounts/PVP and other difficulties preserved."
+}

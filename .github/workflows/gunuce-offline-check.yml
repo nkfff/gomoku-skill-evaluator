@@ -1,0 +1,38 @@
+name: Gunuce offline checks
+on:
+  pull_request:
+    paths: ['v4.0/**', '.github/workflows/gunuce-offline-check.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check frontend and frozen assets
+        working-directory: v4.0
+        run: |
+          npm ci --omit=dev
+          npm run check
+          npm test
+      - name: Prepare Chromium
+        working-directory: v4.0/browser-tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Verify actual offline play
+        run: |
+          python3 -m http.server 8043 --bind 127.0.0.1 >/tmp/gunuce-static.log 2>&1 &
+          for i in $(seq 1 20); do curl --noproxy '*' -fsS http://127.0.0.1:8043/v4.0/ >/dev/null && break; sleep 1; done
+          cd v4.0/browser-tests
+          GUNUCE_BASE_URL=http://127.0.0.1:8043 npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gunuce-browser-check
+          path: v4.0/.test-artifacts/
