@@ -132,6 +132,7 @@ test("PVP frontend restores each signed-in player's room and does not replay rev
   assert.match(pvpUi, /clearRoomSession\(\)/);
   assert.match(pvpUi, /await waitForAuthReady\(\)/);
   assert.match(pvpUi, /gomoku:auth-changed/);
+  assert.match(pvpUi, /activateGomokuTab\("pvp"\)/);
   assert.match(pvpUi, /inviteCode = code/);
   const account = readFileSync(fileURLToPath(new URL("../src/account.js", import.meta.url)), "utf8");
   assert.match(account, /export function waitForAuthReady/);
