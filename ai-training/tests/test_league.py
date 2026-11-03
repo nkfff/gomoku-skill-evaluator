@@ -4,7 +4,7 @@ import json
 
 import torch
 
-from gomoku.game import BLACK, GomokuGame, spot
+from gomoku.game import BLACK, WHITE, GomokuGame, spot
 from gomoku.league import TacticalRuleOpponent, load_opponent_league, register_snapshot
 from gomoku.tactical import analyze_tactical_evidence
 from gomoku.mcts import PUCTConfig
@@ -69,4 +69,19 @@ def test_tactical_specialist_prioritizes_an_immediate_win():
 
     assert move in evidence.win_now_moves
     assert diagnostics["priority"] == "WIN_NOW"
+    assert move in game.get_candidates(radius=2)
+
+
+
+def test_tactical_specialist_prioritizes_a_forced_block():
+    game = GomokuGame()
+    opponent_stones = [spot(7, col) for col in (0, 1, 2, 3)]
+    game.board[opponent_stones] = WHITE
+    game.current_player = BLACK
+
+    evidence = analyze_tactical_evidence(game.board, game.current_player)
+    move, diagnostics = TacticalRuleOpponent().choose_game_move(game)
+
+    assert move in evidence.must_block_moves
+    assert diagnostics["priority"] == "MUST_BLOCK"
     assert move in game.get_candidates(radius=2)
