@@ -48,10 +48,12 @@ training:
   device: mps
   precision: float32
   bootstrap:
-    random_games: 8
-    max_positions: 1200
+    synthetic_rule_verified_positions: 1200
     optimizer_updates: 100
-    teacher_probability: 0.85
+    supervised_heads:
+      - policy
+      - tactical
+    value_head: self_play_only
   self_play:
     rounds: 3
     games_per_round: 4
