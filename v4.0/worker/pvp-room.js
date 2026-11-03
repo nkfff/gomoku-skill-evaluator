@@ -492,11 +492,11 @@ export class PvpRoom {
       this.room.settlementPending = false;
       await this.ctx.storage.put("room", this.room);
       await this.ctx.storage.deleteAlarm();
-      this.broadcast({type: "game_over", room: this.snapshot(match.blackPlayerId)});
     } catch {
       await this.ctx.storage.setAlarm(nowMs() + 5000);
       throw new Error("SETTLEMENT_PENDING");
     }
+    this.broadcast({type: "game_over", room: this.snapshot(match.blackPlayerId)});
   }
   async scheduleNextAlarm() {
     if (!this.room) return;
