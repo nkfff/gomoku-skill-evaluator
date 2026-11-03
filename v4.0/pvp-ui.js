@@ -1,4 +1,5 @@
 import {bearer, loggedIn, waitForAuthReady} from "./src/account.js";
+import {getIncomingPvpRematchInvite, shouldAnimatePvpDice} from "./src/pvp.js";
 
 const $ = id => document.getElementById(id);
 const API = String(window.GOMOKU_PVP_API_URL || "").replace(/\/$/, "");
@@ -180,7 +181,11 @@ function handleMessage(message) {
       notice("已发起再战邀请，等待好友同意。");
     } else {
       const room = message.room || roomState;
-      const inviterName = room ? (playerId === room.hostPlayerId ? room.guestName : room.hostName) : "好友";
+      syncRematchInviteModal(room, message.playerId);
+      const invite = getIncomingPvpRematchInvite(room, playerId);
+      const inviterName = invite?.inviterName || (room
+        ? (message.playerId === room.hostPlayerId ? room.hostName : room.guestName)
+        : "好友");
       notice((inviterName || "好友") + " 邀请你再来一局，请在弹窗中选择是否接受。");
     }
   } else if (message.type === "rematch_declined") {
@@ -580,6 +585,27 @@ async function switchToRematchRoom(nextRoomId) {
   notice("双方已同意再来一局，新棋局已创建。");
 }
 
+function syncRematchInviteModal(room, expectedInviterPlayerId = "") {
+  const modal = $("pvpRematchInviteModal");
+  if (!modal) return false;
+  const invite = getIncomingPvpRematchInvite(room, playerId);
+  const visible = Boolean(
+    invite && (!expectedInviterPlayerId || invite.inviterPlayerId === expectedInviterPlayerId)
+  );
+  const wasRematchInviteHidden = modal.hidden;
+  modal.hidden = !visible;
+
+  if (visible) {
+    $("pvpRematchInviteFrom").textContent = invite.inviterName;
+    if (wasRematchInviteHidden) {
+      $("pvpRematchInviteAccept").disabled = false;
+      $("pvpRematchInviteDecline").disabled = false;
+      $("pvpRematchInviteAccept").focus({preventScroll:true});
+    }
+  }
+  return visible;
+}
+
 function renderRoom(room) {
  if(!room)return;
  if (room.status === "cancelled" || room.status === "expired") {
@@ -604,15 +630,16 @@ function renderRoom(room) {
  $("pvpCancelRoom").hidden=!isHost||!["waiting","ready"].includes(room.status);
  $("pvpInvitePanel").hidden=!inviteCode||!isHost;$("pvpInviteCodeDisplay").textContent=inviteCode;
  if(room.match&&Array.isArray(room.match.diceRolls)&&room.match.diceRolls.length){
+  $("pvpDiceStage").hidden=false;
   if(diceAnimationMatchId!==room.match.matchId) {
-   const saved = loadRoomSession();
-   if (saved && saved.roomId === room.roomId && saved.diceMatchId === room.match.matchId) {
-    revealDiceImmediately(room.match, room);
+   $("pvpBoard").hidden=true;
+   if (shouldAnimatePvpDice(room.match)) {
+    playDiceReveal(room.match, room);
    } else {
-    playDiceReveal(room.match,room);
+    revealDiceImmediately(room.match, room);
    }
   }
-  $("pvpDiceStage").hidden=false;$("pvpBoard").hidden=!diceAnimationComplete;
+  $("pvpBoard").hidden=!diceAnimationComplete;
  }else{
   if(!room.match){diceAnimationMatchId="";diceAnimationComplete=false;diceAnimationRunId++;}
   $("pvpDiceStage").hidden=true;$("pvpBoard").hidden=!room.match;
@@ -633,19 +660,7 @@ function renderRoom(room) {
  const myRematchRequested = !!rematchByPlayer[playerId];
  const opponentRematchRequested = !!rematchByPlayer[opponentId];
  const rematchStarting = !!room.rematchStarting;
- const incomingRematchInvite = finished && opponentRematchRequested && !myRematchRequested && !rematchStarting;
- const rematchInviteModal = $("pvpRematchInviteModal");
- const wasRematchInviteHidden = rematchInviteModal.hidden;
- rematchInviteModal.hidden = !incomingRematchInvite;
- if (incomingRematchInvite) {
-   if (wasRematchInviteHidden) {
-     $("pvpRematchInviteAccept").disabled = false;
-     $("pvpRematchInviteDecline").disabled = false;
-     $("pvpRematchInviteAccept").focus({preventScroll:true});
-   }
-   const inviterName = playerId === room.hostPlayerId ? room.guestName : room.hostName;
-   $("pvpRematchInviteFrom").textContent = inviterName || "好友";
- }
+ syncRematchInviteModal(room);
  $("pvpRematch").hidden = !finished;
  $("pvpRematch").disabled = myRematchRequested || rematchStarting;
  $("pvpRematch").textContent = rematchStarting
@@ -919,3 +934,21 @@ setInterval(() => {
   renderClock();
   if (roomState && roomState.match && roomState.match.status === "active") drawBoard();
 }, 250);
+
+let finishedRoomSyncInFlight = false;
+setInterval(() => {
+  const needsSync = roomId && roomState &&
+    (roomState.status === "active" || roomState.status === "finished");
+  if (!needsSync || document.visibilityState !== "visible" || finishedRoomSyncInFlight) return;
+  finishedRoomSyncInFlight = true;
+  refreshRoomState().catch(() => {}).finally(() => {
+    finishedRoomSyncInFlight = false;
+  });
+}, 3000);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && roomId && roomState &&
+      (roomState.status === "active" || roomState.status === "finished")) {
+    refreshRoomState().catch(() => {});
+  }
+});

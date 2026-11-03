@@ -220,6 +220,34 @@ export function declinePvpRematch(room, playerId) {
   return {...room, rematchByPlayer};
 }
 
+export function getIncomingPvpRematchInvite(room, viewerPlayerId) {
+  if (!room || room.status !== "finished" || !room.match || room.match.status !== "finished") return null;
+  const isHost = viewerPlayerId === room.hostPlayerId;
+  const isGuest = viewerPlayerId === room.guestPlayerId;
+  if (!isHost && !isGuest) return null;
+  if (room.rematchStarting || room.rematchRoomId) return null;
+
+  const rematchByPlayer = room.rematchByPlayer || {};
+  if (rematchByPlayer[viewerPlayerId]) return null;
+  const inviterPlayerId = isHost ? room.guestPlayerId : room.hostPlayerId;
+  if (!inviterPlayerId || !rematchByPlayer[inviterPlayerId]) return null;
+
+  return {
+    inviterPlayerId,
+    inviterName: (isHost ? room.guestName : room.hostName) || "好友"
+  };
+}
+
+export function shouldAnimatePvpDice(match) {
+  return Boolean(
+    match &&
+    match.status === "active" &&
+    Array.isArray(match.diceRolls) &&
+    match.diceRolls.length > 0 &&
+    (!Array.isArray(match.moves) || match.moves.length === 0)
+  );
+}
+
 export function publicMatchState(state, viewerPlayerId) {
   if (!state) return null;
   const isPlayer = viewerPlayerId === state.blackPlayerId || viewerPlayerId === state.whitePlayerId;
