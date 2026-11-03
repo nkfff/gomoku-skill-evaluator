@@ -77,6 +77,7 @@ test("PVP rematch rejects non-members and unfinished games", () => {
   assert.throws(() => requestPvpRematch(room, "stranger"), /NOT_A_ROOM_MEMBER/);
   assert.throws(() => requestPvpRematch({...room,status:"active"}, "host-id"), /ROOM_NOT_FINISHED/);
   assert.throws(() => requestPvpRematch({...room,match:{status:"active"}}, "host-id"), /ROOM_NOT_FINISHED/);
+  assert.throws(() => requestPvpRematch({...room,rematchStarting:true}, "host-id"), /REMATCH_ALREADY_STARTED/);
 });
 
 test("same-user token refresh does not unconditionally hide the admin panel", () => {
@@ -111,5 +112,7 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   assert.match(pvpUi, /initialPvpRoom/);
   assert.match(pvpUi, /searchParams\.set\("pvpRoom"/);
   assert.match(pvpRoom, /rematchRoomId/);
+  assert.match(pvpRoom, /rematchStarting/);
+  assert.match(pvpUi, /正在创建新对局/);
   assert.match(pvpRoom, /internal\/init-rematch/);
 });
