@@ -64,7 +64,7 @@ test("管理员写入必须校验 D1 战绩和审计结果",()=>{
 });
 test("管理员操作失败或成功都会在后台内显示状态，空原因有默认审计说明",()=>{
   assert.match(html,/id="adminFeedback"/);
-  assert.match(account,/const message="管理操作失败："+e\.message/);
+  assert.match(account,/const message="管理操作失败："\+e\.message/);
   assert.match(account,/管理员后台调整战绩/);
   assert.match(account,/管理员后台清空AI游戏数据/);
   assert.match(account,/window\.confirm\(/);
