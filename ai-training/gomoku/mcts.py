@@ -259,6 +259,7 @@ class PUCTSearch:
         evidence = analyze_tactical_evidence(
             game.board,
             game.current_player,
+            include_forks=False,
         )
         actions = self._candidate_moves(game, evidence)
 
