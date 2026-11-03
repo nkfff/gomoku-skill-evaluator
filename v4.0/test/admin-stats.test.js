@@ -5,6 +5,7 @@ import { calculateCompetitiveStats, validateAdminTargetAction } from "../worker/
 
 const worker = readFileSync(new URL("../worker/index.js", import.meta.url), "utf8");
 const account = readFileSync(new URL("../src/account.js", import.meta.url), "utf8");
+const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 test("管理员战绩调整自动推算输局、胜率和排行榜综合积分", () => {
   const stats = calculateCompetitiveStats({gamesPlayed:20,wins:12,draws:2,earnedPoints:400});
@@ -62,8 +63,8 @@ test("管理员写入必须校验 D1 战绩和审计结果",()=>{
   assert.match(worker,/DELETE FROM games WHERE player_id=\?/);
 });
 test("管理员操作失败或成功都会在后台内显示状态，空原因有默认审计说明",()=>{
-  assert.match(account,/id="adminFeedback"/);
-  assert.match(account,/setAdminMessage\("管理操作失败："/);
+  assert.match(html,/id="adminFeedback"/);
+  assert.match(account,/const message="管理操作失败："+e\.message/);
   assert.match(account,/管理员后台调整战绩/);
   assert.match(account,/管理员后台清空AI游戏数据/);
   assert.match(account,/window\.confirm\(/);
