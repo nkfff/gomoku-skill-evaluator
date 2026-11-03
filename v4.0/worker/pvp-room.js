@@ -1,6 +1,6 @@
 import {
   DEFAULT_TIME_CONTROL_MS, acceptPvpDraw, applyPvpMove, calculateElo, createMatchState,
-  declinePvpDraw, offerPvpDraw, requestPvpRematch, finishByResign, finishByTimeout, publicMatchState
+  declinePvpDraw, declinePvpRematch, offerPvpDraw, requestPvpRematch, finishByResign, finishByTimeout, publicMatchState
 } from "../src/pvp.js";
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), {
@@ -187,6 +187,7 @@ export class PvpRoom {
       }
       if (message.type === "ready") return await this.markReady(playerId);
       if (message.type === "rematch") return await this.requestRematch(playerId);
+      if (message.type === "decline_rematch") return await this.declineRematch(playerId);
       if (message.type === "move") return await this.move(playerId, message);
       if (message.type === "resign") return await this.resign(playerId);
       if (message.type === "offer_draw") return await this.offerDraw(playerId);
@@ -352,6 +353,13 @@ export class PvpRoom {
     await this.ctx.storage.put("room", this.room);
     this.broadcast({type: "rematch_started", newRoomId});
   }
+  async declineRematch(playerId) {
+    if (this.room.settlementPending) throw new Error("SETTLEMENT_PENDING");
+    this.room = declinePvpRematch(this.room, playerId);
+    await this.ctx.storage.put("room", this.room);
+    this.broadcast({type: "rematch_declined", playerId, room: this.snapshot(playerId)});
+  }
+
   async startMatch() {
     const host = this.room.hostPlayerId;
     const guest = this.room.guestPlayerId;
@@ -602,6 +610,7 @@ export class PvpRoom {
       DRAW_ALREADY_OFFERED: "你已经提出和棋，请等待对手回应",
       DRAW_ALREADY_PENDING: "对手已经提出和棋，请选择接受或拒绝",
       NO_OPPONENT_DRAW_OFFER: "当前没有对手提出的和棋请求",
+      NO_PENDING_REMATCH_INVITE: "当前没有待处理的再来一局邀请",
       MOVE_PERSIST_FAILED: "落子保存失败，请重新同步棋盘"
     };
     return messages[code] || "操作失败，请同步棋盘后重试";
