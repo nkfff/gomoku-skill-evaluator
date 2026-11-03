@@ -309,7 +309,7 @@ fixed V4.0 champion.
 
 **Comparison protocol**
 - MODEL_A and MODEL_B are loaded from separate frozen checkpoint files.
-- Both use the same PUCT simulations, (c_{puct}), candidate rules and
+- Both use the same PUCT simulations, `c_puct`, candidate rules and
   deterministic evaluation mode (no root Dirichlet noise).
 - Each opening pair generates one reproducible legal six-ply opening.
 - The exact same opening is replayed twice: MODEL_A plays BLACK in game one
