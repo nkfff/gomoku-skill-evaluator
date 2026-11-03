@@ -1,5 +1,5 @@
 import {
-  DEFAULT_TIME_CONTROL_MS, applyPvpMove, calculateElo, createMatchState,
+  DEFAULT_TIME_CONTROL_MS, applyPvpMove, calculateElo, createMatchState, requestPvpRematch,
   finishByResign, finishByTimeout, publicMatchState
 } from "../src/pvp.js";
 
@@ -71,6 +71,7 @@ export class PvpRoom {
       createdAt: now,
       expiresAt: Number(data.expiresAt) || now + 24 * 60 * 60 * 1000,
       readyByPlayer: {},
+      rematchByPlayer: {},
       connectedByPlayer: {},
       disconnectedAt: {},
       match: null
@@ -147,6 +148,7 @@ export class PvpRoom {
         return;
       }
       if (message.type === "ready") return await this.markReady(playerId);
+      if (message.type === "rematch") return await this.requestRematch(playerId);
       if (message.type === "move") return await this.move(playerId, message);
       if (message.type === "resign") return await this.resign(playerId);
       if (message.type === "offer_draw") return await this.offerDraw(playerId);
@@ -223,6 +225,24 @@ export class PvpRoom {
     this.broadcast({type: "room_state", room: this.snapshot(playerId)});
   }
 
+  async requestRematch(playerId) {
+    if (this.room.settlementPending) throw new Error("SETTLEMENT_PENDING");
+    const request = requestPvpRematch(this.room, playerId);
+    if (!request.acceptedByBoth) {
+      this.room = request.room;
+      await this.ctx.storage.put("room", this.room);
+      this.broadcast({type: "rematch_requested", playerId, room: this.snapshot(playerId)});
+      return;
+    }
+    const updated = await this.env.DB.prepare(
+      "UPDATE pvp_rooms SET status='ready',started_at=NULL,ended_at=NULL WHERE id=? AND status='finished'"
+    ).bind(this.room.roomId).run();
+    if (updated.meta.changes !== 1) throw new Error("ROOM_NOT_FINISHED");
+    this.room = request.room;
+    await this.ctx.storage.put("room", this.room);
+    await this.startMatch();
+  }
+
   async startMatch() {
     const host = this.room.hostPlayerId;
     const guest = this.room.guestPlayerId;
@@ -242,7 +262,15 @@ export class PvpRoom {
         db.prepare("UPDATE pvp_rooms SET status='active', started_at=datetime('now') WHERE id=? AND status='ready' AND guest_player_id IS NOT NULL").bind(this.room.roomId)
       ]);
     } catch {
-      this.broadcast({type: "error", code: "MATCH_START_FAILED", message: "无法开始对局。请确认双方没有其他进行中的真人对局后重试。"});
+      this.room.status = "ready";
+      this.room.readyByPlayer = {};
+      await this.ctx.storage.put("room", this.room);
+      this.broadcast({
+        type: "error",
+        code: "MATCH_START_FAILED",
+        message: "无法开始对局。请确认双方没有其他进行中的真人对局后重试。",
+        room: this.snapshot(this.room.hostPlayerId)
+      });
       return;
     }
     const blackRating = await db.prepare("SELECT rating FROM pvp_ratings WHERE player_id=?").bind(blackPlayerId).first();
@@ -355,6 +383,7 @@ export class PvpRoom {
     match.endReason = reason;
     match.finalRatings = {[black]: elo.blackAfter, [white]: elo.whiteAfter};
     this.room.status = "finished";
+    this.room.rematchByPlayer = {};
     this.room.settlementPending = true;
     await this.ctx.storage.put("room", this.room);
     try {
@@ -427,6 +456,7 @@ export class PvpRoom {
       createdAt: this.room.createdAt,
       expiresAt: this.room.expiresAt,
       readyByPlayer: this.room.readyByPlayer,
+      rematchByPlayer: this.room.rematchByPlayer || {},
       connectedByPlayer: this.room.connectedByPlayer,
       match
     };
@@ -456,6 +486,8 @@ export class PvpRoom {
   errorText(code) {
     const messages = {
       ROOM_NOT_READY: "房间尚未准备好",
+      ROOM_NOT_FINISHED: "本局尚未结束，暂时不能再来一局",
+      SETTLEMENT_PENDING: "本局结算尚未完成，请稍后再试",
       MATCH_NOT_ACTIVE: "当前没有进行中的对局",
       NOT_YOUR_TURN: "还没轮到你落子",
       INVALID_CELL: "落点无效",
