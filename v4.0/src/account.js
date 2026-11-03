@@ -29,6 +29,11 @@ async function call(path,payload=null,method="POST"){
  return value;
 }
 function setMessage(text,bad=false){$("authNotice").textContent=text;$("authNotice").style.color=bad?"#ffc2bb":"#b3e7cc";}
+function setAdminMessage(text,bad=false){
+ const box=$("adminFeedback");if(!box)return;
+ box.textContent=text;box.hidden=false;box.classList.toggle("error",bad);
+ box.setAttribute("aria-live",bad?"assertive":"polite");
+}
 function setGlobalFeedback(text,bad=false){
  const box=$("authFeedback");
  if(!box)return;
@@ -101,7 +106,7 @@ function selectUser(u){
  $("adminEarnedPoints").value=String(u.earned_points||0);
  refreshAdminStatsPreview();
 }
-async function searchUsers(){
+async function searchUsers({throwOnError=false}={}){
  try{
   const q=encodeURIComponent($("adminSearch").value.trim()),res=await call("admin/users?q="+q,null,"GET");
   const users=Array.isArray(res.users)?res.users:[];
@@ -109,21 +114,43 @@ async function searchUsers(){
   for(const u of users)tbody.appendChild(adminRow(u));
   if(selectedUser){const fresh=users.find(user=>user.id===selectedUser.id);if(fresh)selectUser(fresh);}
   return users;
- }catch(e){setMessage("管理员列表："+e.message,true);return [];}
+ }catch(e){
+  if(throwOnError)throw e;
+  setAdminMessage("账号列表加载失败："+e.message,true);
+  setMessage("管理员列表："+e.message,true);
+  return [];
+ }
 }
 async function adminPost(path,data,successMessage,button){
- if(!selectedUser){setMessage("请先查询并选择一个账号",true);return false;}
- const targetId=selectedUser.id,name=selectedUser.name;if(button)button.disabled=true;
+ if(!selectedUser){
+  const message="请先查询并选择一个账号";
+  setAdminMessage(message,true);setMessage(message,true);return false;
+ }
+ const targetId=selectedUser.id,name=selectedUser.name;
+ if(button)button.disabled=true;
+ setAdminMessage("正在提交 "+name+" 的管理操作…");
  try{
   const result=await call(path,{targetId,...data});
-  if(!result?.profile)throw Error("服务器未返回更新后的账号资料");
+  if(result?.ok!==true||!result.profile)throw Error("服务器未确认写入成功或未返回账号资料");
   selectedUser=result.profile;
-  const users=await searchUsers(),fresh=users.find(user=>user.id===targetId);
-  if(fresh)selectUser(fresh);
-  if(typeof window.gomokuRefreshLeaderboard==="function")await window.gomokuRefreshLeaderboard();
-  setMessage(successMessage||("已完成 "+name+" 的管理操作，日志已记录"));return true;
- }catch(e){setMessage("管理操作失败："+e.message,true);return false;}
- finally{if(button)button.disabled=false;}
+  if(targetId===session?.user?.id)await onProfileChange(result.profile);
+  try{
+   const users=await searchUsers({throwOnError:true});
+   const fresh=users.find(user=>user.id===targetId);
+   if(fresh)selectUser(fresh);else selectedUser=result.profile;
+   if(typeof window.gomokuRefreshLeaderboard==="function")await window.gomokuRefreshLeaderboard();
+  }catch(refreshError){
+   const message="数据已写入服务器，但列表或排行榜刷新失败："+refreshError.message+"。请重新查询账号。";
+   setAdminMessage(message,true);setMessage(message,true);return true;
+  }
+  const message=successMessage||("已完成 "+name+" 的管理操作，日志已记录");
+  setAdminMessage(message,false);setMessage(message,false);return true;
+ }catch(e){
+  const message="管理操作失败："+e.message;
+  setAdminMessage(message,true);setMessage(message,true);return false;
+ }finally{
+  if(button)button.disabled=false;
+ }
 }
 export async function initAccount(onAuthChange,onRemoteProfileChange){
  onChange=onAuthChange||(()=>{});
@@ -214,12 +241,11 @@ $("saveDisplayName").onclick=async()=>{
  finally{button.disabled=false;}
 };
 for(const id of ["adminGames","adminWins","adminEarnedPoints"])$(id).addEventListener("input",refreshAdminStatsPreview);
-$("adminFind").onclick=searchUsers;
+$("adminFind").onclick=()=>searchUsers();
 $("adminSaveStats").onclick=async()=>{
  if(!selectedUser){setMessage("请先查询并选择一个账号",true);return;}
  const gamesPlayed=Number($("adminGames").value),wins=Number($("adminWins").value),earnedPoints=Number($("adminEarnedPoints").value);
- const draws=Number(selectedUser.draws||0),reason=$("adminReason").value.trim();
- if(!reason){setMessage("请填写操作原因",true);return;}
+ const draws=Number(selectedUser.draws||0),reason=$("adminReason").value.trim()||"管理员后台调整战绩";
  if(!Number.isSafeInteger(gamesPlayed)||gamesPlayed<0||!Number.isSafeInteger(wins)||wins<0||
     !Number.isSafeInteger(earnedPoints)||earnedPoints<0||earnedPoints>1000000||wins+draws>gamesPlayed){
   refreshAdminStatsPreview();setMessage("战绩数据不合法，请检查总场次、胜局数和竞技积分",true);return;
@@ -230,27 +256,37 @@ $("adminSaveStats").onclick=async()=>{
 };
 $("adminAdjust").onclick=async()=>{
  if(!selectedUser){setMessage("请先选择账号",true);return;}
- const delta=Number($("adminDelta").value),reason=$("adminReason").value.trim();
- if(!Number.isInteger(delta)||delta===0||!reason){setMessage("请输入非零整数账户余额调整值和操作原因",true);return;}
+ const delta=Number($("adminDelta").value),reason=$("adminReason").value.trim()||"管理员后台调整账户余额";
+ if(!Number.isInteger(delta)||delta===0){setAdminMessage("请输入非零整数账户余额调整值",true);setMessage("请输入非零整数账户余额调整值",true);return;}
  if(!confirm("确定对 "+selectedUser.name+" 调整账户余额 "+delta+" 积分吗？此操作不影响排行榜。"))return;
  await adminPost("admin/adjust-points",{delta,reason},"账户余额已调整；该余额不参与排行榜。",$("adminAdjust"));
 };
 $("adminReset").onclick=async()=>{
- const reason=$("adminReason").value.trim();
- if(!reason||!selectedUser){setMessage("请填写清空原因并选择用户",true);return;}
- const confirmation=prompt("将清空 "+selectedUser.name+" 的全部 AI 对局记录、胜负战绩和竞技积分；账户皮肤与真人 PVP/Elo 记录保留。请输入 CLEAR 确认");
- if(confirmation!=="CLEAR"){setMessage("已取消清空操作。");return;}
- await adminPost("admin/reset",{reason},"AI 对局记录、胜负战绩和竞技积分已清空；账户皮肤及真人 PVP/Elo 记录保留。",$("adminReset"));
+ if(!selectedUser){
+  const message="请先查询并选择要清空的账号";
+  setAdminMessage(message,true);setMessage(message,true);return;
+ }
+ const reason=$("adminReason").value.trim()||"管理员后台清空AI游戏数据";
+ const confirmation=window.confirm(
+  "确认清空账号「"+selectedUser.name+"」的 AI 游戏数据？\n\n将删除该账号 AI 对局记录，并清零余额、竞技积分、胜/负/平战绩。\n保留账号、皮肤收藏、真人 PVP/Elo 记录及审计日志。"
+ );
+ if(!confirmation){setAdminMessage("已取消清空操作。");return;}
+ await adminPost("admin/reset",{reason},
+  "清空成功：AI 对局记录、账户余额、竞技积分和胜负战绩已清零；皮肤及真人 PVP/Elo 记录保留。",
+  $("adminReset"));
 };
 $("adminBan").onclick=async()=>{
- if(!selectedUser){setMessage("请先选择账号",true);return;}
+ if(!selectedUser){setAdminMessage("请先选择账号",true);return;}
  const banned=!selectedUser.banned;
- if(!confirm((banned?"封禁":"解除封禁")+"账号 "+selectedUser.name+"？"))return;
+ if(!window.confirm((banned?"封禁":"解除封禁")+"账号 "+selectedUser.name+"？")){setAdminMessage("已取消账号状态操作。");return;}
  await adminPost("admin/ban",{banned},banned?"账号已封禁。":"账号已解除封禁。",$("adminBan"));
 };
 $("adminAudit").onclick=async()=>{
+ const button=$("adminAudit");button.disabled=true;setAdminMessage("正在读取审计日志…");
  try{
   const {events}=await call("admin/audit",null,"GET");
   $("auditHistory").textContent=events.map(e=>e.created_at+" · "+e.action+" · "+e.target_id.slice(0,8)+" · "+e.detail).join("\n")||"暂无记录";
- }catch(e){setMessage(e.message,true);}
+  setAdminMessage("审计日志已更新，共 "+events.length+" 条记录。");
+ }catch(e){setAdminMessage("读取审计日志失败："+e.message,true);setMessage(e.message,true);}
+ finally{button.disabled=false;}
 };
