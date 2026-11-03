@@ -506,9 +506,11 @@ modified: the new run copies its initial checkpoint into
 - **Search:** PUCT / MCTS, 64 simulations per learner move.
 - **RL data:** 8 self-play games and 8 sparring games per round, 100 optimizer
   updates per round, batch size 64, replay capacity 50,000 per channel.
-- **Opponent League:** 25% of sparring games are sampled from up to eight
-  frozen historical TEBA checkpoints; the remaining games use the fixed V4.0
-  hard engine. Promoted snapshots are registered between 500-round stages.
+- **Opponent League:** 25% of sparring games use the league pool. Within that
+  pool, 80% are sampled from up to eight frozen historical TEBA checkpoints
+  and 20% use a tactical specialist that prioritizes immediate wins, forced
+  blocks and fork creation. The remaining 75% use the fixed V4.0 hard engine.
+  Promoted snapshots are registered between 500-round stages.
 - **D4 augmentation:** each training sample receives a random one of the eight
   rotations/reflections. Board planes, policy targets, tactical labels and
   legal masks are transformed together; values remain unchanged.
