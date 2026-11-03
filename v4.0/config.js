@@ -6,4 +6,4 @@ window.GOMOKU_SUPABASE_URL = "https://khnlxucuvagtpdbooexa.supabase.co";
 window.GOMOKU_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_g41tZyis1LySHQyR-dceqw_A84XgPPW";
 window.GOMOKU_PVP_API_URL = "https://gomoku-v3-api.1395598907.workers.dev";
 
-// 4.0.1 Gunuce inference runs locally in a browser Worker.
+// 4.0.2 Gunuce inference runs locally in a browser Worker.

@@ -9,6 +9,7 @@ let playerId = "";
 let roomState = null;
 let diceAnimationMatchId = "";
 let diceAnimationComplete = false;
+let diceAnimationRunId = 0;
 let socket = null;
 let reconnectTimer = null;
 let intentionalClose = false;
@@ -76,7 +77,7 @@ async function connectSocket(id) {
   const wsBase = API.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
   const ws = new WebSocket(wsBase + "/api/pvp/rooms/" + encodeURIComponent(id) + "/ws?ticket=" + encodeURIComponent(ticketResult.ticket));
   socket = ws;
-  ws.onopen = () => notice("已连接房间。双方点击「我准备好了」后开始对局。");
+  ws.onopen = () => notice("已连接好友房间，正在同步对局状态。");
   ws.onmessage = event => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
@@ -107,6 +108,17 @@ function handleMessage(message) {
       "本局结束，别急着走，复盘一下会更强。");
     refreshHistory().catch(() => {});
     refreshLeaderboard().catch(() => {});
+  } else if (message.type === "rematch_requested") {
+    notice(message.playerId === playerId
+      ? "已发起再战邀请，等待好友同意。"
+      : "好友邀请你再来一局，点击「接受再来一局」即可继续。");
+  } else if (message.type === "rematch_starting") {
+    notice("双方已同意再战，正在创建新对局…");
+  } else if (message.type === "rematch_failed") {
+    notice("新对局创建失败，请再次接受再来一局。", true);
+  } else if (message.type === "rematch_started") {
+    notice("双方已同意再战，正在切换到新棋局…");
+    switchToRematchRoom(message.newRoomId).catch(error => notice(error.message, true));
   } else if (message.type === "draw_offered") {
     if (message.playerId !== playerId) notice("对手提出和棋，你可以接受或拒绝。");
   } else if (message.type === "draw_declined") {
@@ -330,35 +342,96 @@ function drawBoard() {
   }
 }
 
-function diceFace(value) { return ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"][Number(value)] || "⚄"; }
-async function playDiceReveal(match, room) {
- if(!match||!Array.isArray(match.diceRolls)||!match.diceRolls.length)return;
- if(diceAnimationMatchId===match.matchId)return;
- diceAnimationMatchId=match.matchId;diceAnimationComplete=false;
- const stage=$("pvpDiceStage");stage.hidden=false;stage.classList.remove("revealed");
- $("pvpDiceLeftLabel").textContent=room.hostName||"房主";$("pvpDiceRightLabel").textContent=room.guestName||"好友";$("pvpDiceWinner").textContent="";
- const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
- for(const roll of match.diceRolls){
-  if(!roomState||!roomState.match||roomState.match.matchId!==match.matchId)return;
-  stage.classList.add("is-rolling");
-  $("pvpDiceStatus").textContent=roll.round>1?"点数相同，重新掷骰 · 第 "+roll.round+" 轮":"骰子滚动中…";
-  $("pvpDiceLeft").textContent="⚄";$("pvpDiceRight").textContent="⚂";
-  await pause(760);
-  $("pvpDiceLeft").textContent=diceFace(roll.hostRoll);$("pvpDiceRight").textContent=diceFace(roll.guestRoll);
-  stage.classList.remove("is-rolling");
-  if(roll.hostRoll===roll.guestRoll){$("pvpDiceStatus").textContent="双方都是 "+roll.hostRoll+" 点，再来一次！";await pause(520);}
-  else $("pvpDiceStatus").textContent="第 "+roll.round+" 轮结果揭晓";
- }
- if(!roomState||!roomState.match||roomState.match.matchId!==match.matchId)return;
- const winnerId=match.diceWinnerPlayerId||match.blackPlayerId;
- const winnerName=winnerId===room.hostPlayerId?(room.hostName||"房主"):(room.guestName||"好友");
- const last=match.diceRolls[match.diceRolls.length-1];
- $("pvpDiceWinner").textContent=winnerName+" 掷出 "+(winnerId===room.hostPlayerId?last.hostRoll:last.guestRoll)+" 点，获得黑棋先手权。";
- $("pvpDiceStatus").textContent="骰子结果由服务器生成，双方看到的是同一组结果。";
- stage.classList.add("revealed");diceAnimationComplete=true;$("pvpBoard").hidden=false;drawBoard();
+const DICE_SHOW_CLASSES = ["show-1", "show-2", "show-3", "show-4", "show-5", "show-6"];
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function animateDiceFace(node, value, matchId, delay = 0) {
+  node.classList.remove("is-rolling", ...DICE_SHOW_CLASSES);
+  node.style.animationDelay = delay ? delay + "ms" : "";
+  node.setAttribute("aria-label", "骰子滚动中");
+  void node.offsetWidth;
+  node.classList.add("is-rolling");
+  const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  await pause((reducedMotion ? 30 : 1140) + delay);
+  if (diceAnimationMatchId !== matchId) return;
+  node.classList.remove("is-rolling");
+  node.style.animationDelay = "";
+  node.classList.add("show-" + value);
+  node.setAttribute("aria-label", value + "点");
 }
+
+async function playDiceReveal(match, room) {
+  if (!match || !Array.isArray(match.diceRolls) || !match.diceRolls.length) return;
+  if (diceAnimationMatchId === match.matchId) return;
+  const runId = ++diceAnimationRunId;
+  diceAnimationMatchId = match.matchId;
+  diceAnimationComplete = false;
+  const stage = $("pvpDiceStage");
+  stage.hidden = false;
+  stage.classList.remove("revealed");
+  $("pvpDiceLeftLabel").textContent = room.hostName || "房主";
+  $("pvpDiceRightLabel").textContent = room.guestName || "好友";
+  $("pvpDiceWinner").textContent = "";
+
+  for (const roll of match.diceRolls) {
+    if (runId !== diceAnimationRunId || !roomState || !roomState.match || roomState.match.matchId !== match.matchId) return;
+    stage.classList.add("is-rolling");
+    $("pvpDiceStatus").textContent = roll.round > 1
+      ? "点数相同，重新掷骰 · 第 " + roll.round + " 轮"
+      : "骰子滚动中…";
+    await Promise.all([
+      animateDiceFace($("pvpDiceLeft"), roll.hostRoll, match.matchId, 0),
+      animateDiceFace($("pvpDiceRight"), roll.guestRoll, match.matchId, 80)
+    ]);
+    if (runId !== diceAnimationRunId || !roomState || !roomState.match || roomState.match.matchId !== match.matchId) return;
+    stage.classList.remove("is-rolling");
+    if (roll.hostRoll === roll.guestRoll) {
+      $("pvpDiceStatus").textContent = "双方都是 " + roll.hostRoll + " 点，再来一次！";
+      await pause(480);
+    } else {
+      $("pvpDiceStatus").textContent = "第 " + roll.round + " 轮结果揭晓";
+      await pause(220);
+    }
+  }
+
+  if (runId !== diceAnimationRunId || !roomState || !roomState.match || roomState.match.matchId !== match.matchId) return;
+  const winnerId = match.diceWinnerPlayerId || match.blackPlayerId;
+  const winnerName = winnerId === room.hostPlayerId ? (room.hostName || "房主") : (room.guestName || "好友");
+  const last = match.diceRolls[match.diceRolls.length - 1];
+  $("pvpDiceWinner").textContent = winnerName + " 掷出 " +
+    (winnerId === room.hostPlayerId ? last.hostRoll : last.guestRoll) + " 点，获得黑棋先手权。";
+  $("pvpDiceStatus").textContent = "骰子结果由服务器生成，双方看到的是同一组结果。";
+  stage.classList.add("revealed");
+  diceAnimationComplete = true;
+  $("pvpBoard").hidden = false;
+  drawBoard();
+}
+async function switchToRematchRoom(nextRoomId) {
+  if (!nextRoomId || roomId === nextRoomId) return;
+  intentionalClose = true;
+  closeSocket();
+  roomId = nextRoomId;
+  inviteCode = "";
+  roomState = null;
+  diceAnimationRunId++;
+  diceAnimationMatchId = "";
+  diceAnimationComplete = false;
+  $("pvpInviteCode").value = "";
+  const url = new URL(window.location.href);
+  url.searchParams.delete("invite");
+  url.searchParams.set("pvpRoom", nextRoomId);
+  history.replaceState(null, "", url.toString());
+  await connectSocket(roomId);
+  await refreshRoomState();
+  notice("双方已同意再来一局，新棋局已创建。");
+}
+
 function renderRoom(room) {
  if(!room)return;
+ if (room.rematchRoomId && roomId && roomId !== room.rematchRoomId) {
+   switchToRematchRoom(room.rematchRoomId).catch(error => notice(error.message, true));
+   return;
+ }
  roomState=room;$("pvpLobby").hidden=true;$("pvpRoom").hidden=false;$("pvpAuthRequired").hidden=true;
  const names=(room.hostName||"房主")+"（房主） vs "+(room.guestName||"等待好友加入");
  $("pvpRoomTitle").textContent="房间 "+room.roomId.slice(0,8);
@@ -373,7 +446,7 @@ function renderRoom(room) {
   if(diceAnimationMatchId!==room.match.matchId)playDiceReveal(room.match,room);
   $("pvpDiceStage").hidden=false;$("pvpBoard").hidden=!diceAnimationComplete;
  }else{
-  if(!room.match){diceAnimationMatchId="";diceAnimationComplete=false;}
+  if(!room.match){diceAnimationMatchId="";diceAnimationComplete=false;diceAnimationRunId++;}
   $("pvpDiceStage").hidden=true;$("pvpBoard").hidden=!room.match;
   if(room.match&&!room.match.diceRolls)notice("当前真人对战服务尚未升级摇骰子协议，请先部署 V4.0 服务端。",true);
  }
@@ -381,6 +454,19 @@ function renderRoom(room) {
  const drawBy=room.match&&room.match.pendingDrawBy;
  $("pvpAcceptDraw").hidden=room.status!=="active"||!drawBy||drawBy===playerId;
  $("pvpDeclineDraw").hidden=room.status!=="active"||!drawBy||drawBy===playerId;
+ const finished = room.status === "finished" && room.match && room.match.status === "finished";
+ const rematchByPlayer = room.rematchByPlayer || {};
+ const opponentId = playerId === room.hostPlayerId ? room.guestPlayerId : room.hostPlayerId;
+ const myRematchRequested = !!rematchByPlayer[playerId];
+ const opponentRematchRequested = !!rematchByPlayer[opponentId];
+ const rematchStarting = !!room.rematchStarting;
+ $("pvpRematch").hidden = !finished;
+ $("pvpRematch").disabled = myRematchRequested || rematchStarting;
+ $("pvpRematch").textContent = rematchStarting
+   ? "正在创建新对局…"
+   : myRematchRequested ? "等待对手同意…"
+   : opponentRematchRequested ? "接受再来一局" : "再来一局";
+ $("pvpNewMatch").hidden = !finished;
  if(room.match){
   const match=room.match,myRating=match.finalRatings&&match.finalRatings[playerId]!==undefined?match.finalRatings[playerId]:match.initialRatings[playerId];
   const delta=match.finalRatings&&match.initialRatings[playerId]!==undefined?match.finalRatings[playerId]-match.initialRatings[playerId]:0;
@@ -419,6 +505,27 @@ async function joinRoom() {
     await connectSocket(roomId);
     notice("已加入好友房间，等待双方准备。");
   } catch (error) { notice(error.message, true); }
+}
+
+function returnToPvpLobby() {
+  intentionalClose = true;
+  closeSocket();
+  roomId = "";
+  inviteCode = "";
+  roomState = null;
+  diceAnimationRunId++;
+  diceAnimationMatchId = "";
+  diceAnimationComplete = false;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("invite");
+  url.searchParams.delete("pvpRoom");
+  history.replaceState(null, "", url.toString());
+  $("pvpRoom").hidden = true;
+  $("pvpLobby").hidden = false;
+  $("pvpInviteCode").value = "";
+  $("pvpDiceStage").hidden = true;
+  $("pvpBoard").hidden = true;
+  notice("已返回好友对战大厅。可以创建新房间或输入其他好友的邀请码。");
 }
 
 async function refreshLeaderboard() {
@@ -465,6 +572,8 @@ $("pvpLoginLink").onclick = () => {
 $("pvpCreateRoom").onclick = async () => { await tokenOrThrow().catch(error => notice(error.message, true)); if (playerId) await createRoom(); };
 $("pvpJoinRoom").onclick = async () => { await tokenOrThrow().catch(error => notice(error.message, true)); if (playerId) await joinRoom(); };
 $("pvpReady").onclick = () => sendAction({type: "ready"});
+$("pvpRematch").onclick = () => sendAction({type: "rematch"});
+$("pvpNewMatch").onclick = () => { if (roomState && roomState.status === "finished") returnToPvpLobby(); };
 $("pvpOfferDraw").onclick = () => sendAction({type: "offer_draw"});
 $("pvpAcceptDraw").onclick = () => sendAction({type: "accept_draw"});
 $("pvpDeclineDraw").onclick = () => sendAction({type: "decline_draw"});
@@ -513,10 +622,19 @@ $("pvpBoard").addEventListener("click", event => {
   sendAction({type: "move", cellIndex, revision: match.revision, actionId: crypto.randomUUID()});
 });
 
-const initialInvite = new URLSearchParams(window.location.search).get("invite");
+const initialParams = new URLSearchParams(window.location.search);
+const initialInvite = initialParams.get("invite");
+const initialPvpRoom = initialParams.get("pvpRoom");
 if (initialInvite) $("pvpInviteCode").value = initialInvite.toUpperCase();
 if (!API) notice("PVP 后端尚未部署。当前分支先完成前端与服务端开发，部署后即可联调。", true);
 else notice("PVP 服务已配置。登录后创建房间或输入好友邀请码。");
+if (initialPvpRoom && !initialInvite) {
+  roomId = initialPvpRoom;
+  tokenOrThrow()
+    .then(() => connectSocket(roomId))
+    .then(() => refreshRoomState())
+    .catch(error => notice(error.message, true));
+}
 refreshLeaderboard();
 setInterval(() => {
   renderClock();
