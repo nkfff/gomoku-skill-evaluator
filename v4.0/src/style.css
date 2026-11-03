@@ -260,4 +260,4 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 @media(max-width:640px){.dice-cube-shell{--dice-size:62px}.dice-cube-face{border-radius:11px}.dice-pair{gap:12px}}
 @media(prefers-reduced-motion:reduce){.dice-cube{transition:none!important}.dice-cube.is-rolling{animation-duration:.01ms!important}}
 
-/* V4.0.2 PVP room handoff: clients move to a fresh room after mutual rematch. */
+/* V4.0.2 PVP room handoff: resume links restore the fresh room after mutual rematch. */
