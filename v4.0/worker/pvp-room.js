@@ -257,7 +257,7 @@ export class PvpRoom {
 
   async requestRematch(playerId) {
     if (this.room.settlementPending) throw new Error("SETTLEMENT_PENDING");
-    if (this.room.rematchRoomId) throw new Error("REMATCH_ALREADY_STARTED");
+    if (this.room.rematchRoomId || this.room.rematchStarting) throw new Error("REMATCH_ALREADY_STARTED");
     const request = requestPvpRematch(this.room, playerId);
     if (!request.acceptedByBoth) {
       this.room = request.room;
@@ -268,63 +268,79 @@ export class PvpRoom {
       return;
     }
 
-    // pvp_matches.room_id is UNIQUE, so every rematch gets a fresh room row.
-    const newRoomId = crypto.randomUUID();
-    const randomBytes = crypto.getRandomValues(new Uint8Array(32));
-    const inviteCodeHash = [...randomBytes].map(byte => byte.toString(16).padStart(2, "0")).join("");
-    const expiresAt = nowMs() + 24 * 60 * 60 * 1000;
-    await this.env.DB.prepare(
-      "INSERT INTO pvp_rooms(id,host_player_id,guest_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,?,'ready',?,1,datetime('now','+24 hours'))"
-    ).bind(
-      newRoomId, this.room.hostPlayerId, this.room.guestPlayerId,
-      inviteCodeHash, this.room.timeControlMs
-    ).run();
+    const otherPlayerId = playerId === this.room.hostPlayerId ? this.room.guestPlayerId : this.room.hostPlayerId;
+    this.room.rematchByPlayer = {...(this.room.rematchByPlayer || {}), [playerId]: true};
+    this.room.rematchStarting = true;
+    this.room.rematchStartingAt = nowMs();
+    await this.ctx.storage.put("room", this.room);
+    this.broadcast({type: "rematch_starting", playerId, room: this.snapshot(playerId)});
 
-    const stub = this.env.PVP_ROOMS.get(this.env.PVP_ROOMS.idFromName(newRoomId));
-    let newRoomActive = false;
+    const newRoomId = crypto.randomUUID();
     try {
-      const response = await stub.fetch(new Request("https://pvp-room/internal/init-rematch", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          roomId: newRoomId,
-          hostPlayerId: this.room.hostPlayerId,
-          hostName: this.room.hostName,
-          guestPlayerId: this.room.guestPlayerId,
-          guestName: this.room.guestName,
-          timeControlMs: this.room.timeControlMs,
-          expiresAt
-        })
-      }));
-      const data = await response.json().catch(() => ({}));
-      newRoomActive = response.ok && data.status === "active";
-    } catch {
-      newRoomActive = false;
-    }
-    if (!newRoomActive) {
+      const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+      const inviteCodeHash = [...randomBytes].map(byte => byte.toString(16).padStart(2, "0")).join("");
+      const expiresAt = nowMs() + 24 * 60 * 60 * 1000;
+      await this.env.DB.prepare(
+        "INSERT INTO pvp_rooms(id,host_player_id,guest_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,?,'ready',?,1,datetime('now','+24 hours'))"
+      ).bind(
+        newRoomId, this.room.hostPlayerId, this.room.guestPlayerId,
+        inviteCodeHash, this.room.timeControlMs
+      ).run();
+
+      const stub = this.env.PVP_ROOMS.get(this.env.PVP_ROOMS.idFromName(newRoomId));
+      let newRoomActive = false;
       try {
-        const stateResponse = await stub.fetch(new Request("https://pvp-room/internal/state", {
-          headers: {"x-player-id": this.room.hostPlayerId}
+        const response = await stub.fetch(new Request("https://pvp-room/internal/init-rematch", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            roomId: newRoomId,
+            hostPlayerId: this.room.hostPlayerId,
+            hostName: this.room.hostName,
+            guestPlayerId: this.room.guestPlayerId,
+            guestName: this.room.guestName,
+            timeControlMs: this.room.timeControlMs,
+            expiresAt
+          })
         }));
-        const state = await stateResponse.json().catch(() => ({}));
-        newRoomActive = stateResponse.ok && state.status === "active" && state.match?.status === "active";
+        const data = await response.json().catch(() => ({}));
+        newRoomActive = response.ok && data.status === "active";
       } catch {
         newRoomActive = false;
       }
-    }
-    if (!newRoomActive) {
-      await this.env.DB.prepare(
-        "UPDATE pvp_rooms SET status='cancelled',ended_at=datetime('now') WHERE id=? AND status IN ('ready','active')"
-      ).bind(newRoomId).run();
+      if (!newRoomActive) {
+        try {
+          const stateResponse = await stub.fetch(new Request("https://pvp-room/internal/state", {
+            headers: {"x-player-id": this.room.hostPlayerId}
+          }));
+          const state = await stateResponse.json().catch(() => ({}));
+          newRoomActive = stateResponse.ok && state.status === "active" && state.match?.status === "active";
+        } catch {
+          newRoomActive = false;
+        }
+      }
+      if (!newRoomActive) throw new Error("REMATCH_START_FAILED");
+    } catch {
+      this.room.rematchStarting = false;
+      this.room.rematchStartingAt = null;
+      this.room.rematchByPlayer = {[otherPlayerId]: true};
+      await this.ctx.storage.put("room", this.room);
+      try {
+        await this.env.DB.prepare(
+          "UPDATE pvp_rooms SET status='cancelled',ended_at=datetime('now') WHERE id=? AND status IN ('ready','active')"
+        ).bind(newRoomId).run();
+      } catch {}
+      this.broadcast({type: "rematch_failed", playerId, room: this.snapshot(playerId)});
       throw new Error("REMATCH_START_FAILED");
     }
 
     this.room.rematchByPlayer = {};
+    this.room.rematchStarting = false;
+    this.room.rematchStartingAt = null;
     this.room.rematchRoomId = newRoomId;
     await this.ctx.storage.put("room", this.room);
     this.broadcast({type: "rematch_started", newRoomId});
   }
-
   async startMatch() {
     const host = this.room.hostPlayerId;
     const guest = this.room.guestPlayerId;
@@ -540,6 +556,7 @@ export class PvpRoom {
       readyByPlayer: this.room.readyByPlayer,
       rematchByPlayer: this.room.rematchByPlayer || {},
       rematchRoomId: this.room.rematchRoomId || null,
+      rematchStarting: Boolean(this.room.rematchStarting),
       connectedByPlayer: this.room.connectedByPlayer,
       match
     };
