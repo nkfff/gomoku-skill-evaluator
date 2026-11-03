@@ -20,6 +20,15 @@ model:
       - WIN_NOW
       - MUST_BLOCK
       - FORK
+    label_priority:
+      - WIN_NOW
+      - MUST_BLOCK
+      - FORK
+    definitions:
+      WIN_NOW: "All legal moves that win immediately for the side to move."
+      MUST_BLOCK: "Opponent immediate-winning cells, only when the side to move has no immediate win."
+      FORK: "Moves that create at least two distinct immediate winning replies."
+    forced_loss_rule: "Two or more opponent immediate-winning cells cannot all be blocked by one move."
   expected_trainable_parameters: 77477
 
 loss:
