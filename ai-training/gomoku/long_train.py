@@ -14,6 +14,7 @@ import torch
 
 from .compare_checkpoints import attach_pair_outcomes, play_comparison_game
 from .evaluate import generate_opening_moves, load_model
+from .game import BLACK, WHITE
 from .league import register_snapshot
 from .mcts import PUCTConfig, PUCTSearch, TorchEvaluator
 from .train import resolve_device
@@ -77,7 +78,7 @@ def evaluate_pair_match(
     compact_results: list[dict[str, object]] = []
     for pair_index in range(games // 2):
         opening = generate_opening_moves(opening_plies, rng)
-        for color_index, model_a_player in enumerate((1, -1)):
+        for color_index, model_a_player in enumerate((BLACK, WHITE)):
             result = play_comparison_game(
                 search_a,
                 search_b,
