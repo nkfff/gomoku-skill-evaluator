@@ -33,7 +33,7 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 node --version
 
-if pgrep -f '[p]ython -m gomoku.dual_train' >/dev/null 2>&1; then
+if pgrep -f '[p]ython .* -m gomoku.dual_train' >/dev/null 2>&1; then
   echo "A gomoku.dual_train process already appears to be running. Refusing to start a duplicate run." >&2
   exit 1
 fi
