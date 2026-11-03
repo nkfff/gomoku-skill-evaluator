@@ -297,6 +297,12 @@ def test_resuming_an_extended_phase_restores_its_scheduler_position(tmp_path):
         optimizer,
         args,
         start_round=3,
+        checkpoint_run_config={
+            "rounds": 3,
+            "learning_rate": 1e-4,
+            "warmup_steps": 2,
+        },
+        checkpoint_scheduler_state=None,
     )
 
     for _ in range(4):
