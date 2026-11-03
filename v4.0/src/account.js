@@ -69,7 +69,7 @@ function adminRow(user){
  const tr=document.createElement("tr");
  const games=Number(user.games_played??(Number(user.wins||0)+Number(user.losses||0)+Number(user.draws||0)));
  const rank=user.leaderboard_rank?("第"+user.leaderboard_rank+"名"):"未上榜";
- const values=[user.name+" / "+user.id.slice(0,8),String(user.points),String(user.earned_points),String(games),
+ const values=[user.name+" / "+user.id.slice(0,8),String(user.points),String(user.earned_points),String(user.rank_points||0),String(games),
   String(user.wins||0),Number(user.win_rate||0).toFixed(1)+"%",rank,user.banned?"封禁":"正常"];
  for(const value of values){const td=document.createElement("td");td.textContent=value;tr.appendChild(td);}
  const td=document.createElement("td"),button=document.createElement("button");
@@ -94,7 +94,7 @@ function refreshAdminStatsPreview(){
 function selectUser(u){
  selectedUser=u;
  const rank=u.leaderboard_rank?("第"+u.leaderboard_rank+"名"):"未上榜";
- $("selectedUser").textContent=u.name+" ("+u.id+") · 账户余额 "+u.points+" · 当前排行榜 "+rank;
+ $("selectedUser").textContent=u.name+" ("+u.id+") · 账户余额 "+u.points+" · 综合积分 "+Number(u.rank_points||0)+" · 当前排行榜 "+rank;
  $("adminActions").hidden=false;
  $("adminGames").value=String(u.games_played??(Number(u.wins||0)+Number(u.losses||0)+Number(u.draws||0)));
  $("adminWins").value=String(u.wins||0);
