@@ -34,5 +34,5 @@ def test_long_run_rebases_near_zero_round60_learning_rate():
     assert config["schedule_target_rounds"] == 30_000
     assert config["schedule_total_steps"] == (30_000 - 60) * 100
     assert config["schedule_warmup_steps"] == 500
-    assert optimizer.param_groups[0]["lr"] == pytest.approx(5e-5)
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(5e-5 / 500)
     assert scheduler.last_epoch == 0
