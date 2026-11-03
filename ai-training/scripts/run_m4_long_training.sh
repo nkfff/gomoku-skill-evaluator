@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Run from any directory; all paths are resolved relative to ai-training/.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+AI_TRAINING_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$AI_TRAINING_DIR"
 
 TARGET_ROUNDS="${TARGET_ROUNDS:-60}"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-checkpoints_dual}"
