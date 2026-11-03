@@ -5,12 +5,21 @@ import { readFileSync } from "node:fs";
 const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
 const themes = ["classic", "jade", "night", "cherry", "catcafe", "gold"];
 
+function ruleBody(selector) {
+  const marker = selector + "{";
+  const start = css.indexOf(marker);
+  if (start < 0) return "";
+  const bodyStart = start + marker.length;
+  const end = css.indexOf("}", bodyStart);
+  return end < 0 ? "" : css.slice(bodyStart, end);
+}
+
 function themeRule(theme) {
-  return css.match(new RegExp(`body\\[data-board-theme="${theme}"\\]\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+  return ruleBody(`body[data-board-theme="${theme}"]`);
 }
 
 function token(rule, name) {
-  return rule.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, "i"))?.[1] ?? null;
+  return rule.match(new RegExp("--" + name + ":(#[0-9a-f]{6})", "i"))?.[1] ?? null;
 }
 
 function luminance(hex) {
@@ -25,15 +34,15 @@ function contrastRatio(a, b) {
 }
 
 test("棋盘状态栏的背景、胜利文字和辅助文字跟随当前主题", () => {
-  const caption = css.match(/\.board-caption\\s*\\{([^}]*)\\}/)?.[1] ?? "";
-  const status = css.match(/\.board-caption\\s+#status\\s*\\{([^}]*)\\}/)?.[1] ?? "";
-  const note = css.match(/\.caption-note\\s*\\{([^}]*)\\}/)?.[1] ?? "";
+  const caption = ruleBody(".board-caption");
+  const status = ruleBody(".board-caption #status");
+  const note = ruleBody(".caption-note");
 
-  assert.match(caption, /background:var\\(--surface,#faf5f1\\)/);
-  assert.match(caption, /color:var\\(--text,var\\(--v4-ink\\)\\)/);
-  assert.match(caption, /border:1px solid var\\(--border,var\\(--v4-line\\)\\)/);
-  assert.match(status, /color:var\\(--heading,var\\(--text,var\\(--v4-ink\\)\\)\\)/);
-  assert.match(note, /color:var\\(--muted,var\\(--v4-muted\\)\\)/);
+  assert.ok(caption.includes("background:var(--surface,#faf5f1)"));
+  assert.ok(caption.includes("color:var(--text,var(--v4-ink))"));
+  assert.ok(caption.includes("border:1px solid var(--border,var(--v4-line))"));
+  assert.ok(status.includes("color:var(--heading,var(--text,var(--v4-ink)))"));
+  assert.ok(note.includes("color:var(--muted,var(--v4-muted))"));
 });
 
 test("六种棋盘主题的状态文字与状态栏背景达到 WCAG AA 对比度", () => {
