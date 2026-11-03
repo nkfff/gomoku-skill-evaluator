@@ -5,9 +5,22 @@
 
 **当前稳定版：V2.2 · 最新预览版：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-> **最近更新：2026-10-30** · V4.0 预览版已部署；完成残局数据库兼容、管理员面板稳定性、皮肤主题对比度及执白棋力评分修复，自动化检查与 GitHub Pages 部署通过。
+> **最近更新：2026-11-03** · V4.1.7 Checkpoint 直接对战评估器已合并至 AI 开发分支，GitHub Actions 112 项通过、4 项 MPS 测试跳过；M4 本地验收及 40 局模型对战待执行。线上游戏最新预览仍为 V4.0。
 
-一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V4.0 是最新已部署预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 保留为历史预览入口。V4.0 前端 Pages 已部署，相关 Worker/D1 维护迁移与自动化检查通过；完整真实浏览器验收仍待完成。
+一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V4.0 是最新已部署预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 保留为历史预览入口。V4.1 是独立 AI 研究分支，不改变线上 V4.0。V4.0 前端 Pages 已部署，相关 Worker/D1 维护迁移与自动化检查通过；完整真实浏览器验收仍待完成。
+
+## V4.1 AI 训练研究线（开发中，非线上游戏版本）
+
+V4.1 是独立的 AI 训练与棋力研究分支，不是新的网页游戏发布版本；当前线上最新预览仍为 V4.0。研究代码位于 `feat/4.1-teba-mcts`，不会覆盖 V4.0 的前端、Worker 或数据库。
+
+- **V4.1.5：** 建立 TEBA-Net-S 与 Self-Play / Champion Sparring 双通道训练框架。
+- **V4.1.6：** 增加完整棋谱、逐步搜索诊断和战术漏步统计；将训练计划扩展为 30 轮、每步 64 次 PUCT 模拟。
+- **V4.1.7：** 新增两个冻结 Checkpoint 的配对直接对战评估，复用相同开局并交换黑白棋，默认 40 局 / 20 组开局。
+- **代码状态：** PR [#31](https://github.com/nkfff/gomoku-skill-evaluator/pull/31) 已合并至开发分支 `feat/4.1-teba-mcts`，尚未合并到默认分支 `main`，也未部署为线上游戏版本。
+- **自动化验证：** 开发分支 GitHub Actions 为 **112 passed、4 skipped**；跳过项为 Linux CI 无法运行的 Apple MPS 专项测试。
+- **下一步：** 在 M4 本机完成测试，并运行 Round 5 对 Round 30 的 40 局配对对战。训练 Checkpoint 保持只读，不以训练 Loss 下降代替棋力验证。
+
+详细训练配置、命令与输出文件见 [V4.1 AI 训练说明](https://github.com/nkfff/gomoku-skill-evaluator/blob/feat/4.1-teba-mcts/ai-training/README.md)。
 
 ## 在线版本
 
