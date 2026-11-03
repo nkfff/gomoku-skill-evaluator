@@ -131,16 +131,18 @@ python -m gomoku.train --device mps
 ```
 
 The default pilot uses:
-- 8 random bootstrap games, capped at 1,200 tactical positions.
+- 1,200 randomized, rule-verified tactical templates spanning WIN_NOW,
+  MUST_BLOCK and FORK.
 - 100 policy/tactical pretraining updates. The value head is intentionally not
   trained from synthetic bootstrap labels.
 - 3 self-play rounds, 4 games per round, 16 PUCT simulations per move.
 - 50 multi-task optimizer updates per self-play round, batch size 32.
 - AdamW, float32, gradient clipping, warmup and cosine learning-rate decay.
 
-The bootstrap teacher is generated from exact one-ply rule evidence
-(WIN_NOW, MUST_BLOCK and the defined two-threat FORK). It is a tactical
-initialization dataset, not expert play and not a claim of optimal strategy.
+The bootstrap set uses randomized synthetic board patterns for exact one-ply
+rule evidence (WIN_NOW, MUST_BLOCK and the defined two-threat FORK). Every
+target is re-derived by the rule analyzer. It is a tactical initialization
+dataset, not expert play and not a claim of optimal strategy.
 The value head begins learning from final self-play outcomes only.
 
 Training outputs are local and ignored by Git:
