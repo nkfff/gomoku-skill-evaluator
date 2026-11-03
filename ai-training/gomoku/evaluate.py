@@ -237,8 +237,8 @@ def run_evaluation(args: argparse.Namespace) -> Path:
         raise ValueError("--games must be even so both colors are tested equally")
     if not 0 <= args.opening_plies <= 20:
         raise ValueError("--opening-plies must be between 0 and 20")
-    if args.max_plies < args.opening_plies or args.max_plies > 225:
-        raise ValueError("--max-plies must be >= opening-plies and <= 225")
+    if args.max_plies <= args.opening_plies or args.max_plies > 225:
+        raise ValueError("--max-plies must exceed opening-plies and be <= 225")
 
     device = torch.device(args.device)
     if device.type == "mps" and not torch.backends.mps.is_available():
