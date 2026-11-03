@@ -465,9 +465,17 @@ def _build_dual_scheduler(
                 checkpoint_run_config.get("warmup_steps", args.warmup_steps),
             )
         )
+        previous_updates_per_round = int(
+            checkpoint_run_config.get(
+                "schedule_updates_per_round",
+                checkpoint_run_config.get("updates_per_round", args.updates_per_round),
+            )
+        )
+        previous_total_steps = checkpoint_run_config.get("schedule_total_steps")
 
         can_resume_same_schedule = (
             previous_target_rounds == int(args.rounds)
+            and previous_updates_per_round == int(args.updates_per_round)
             and previous_base_lr is not None
             and previous_start_round <= int(start_round)
             and checkpoint_scheduler_state is not None
@@ -477,7 +485,7 @@ def _build_dual_scheduler(
             schedule_start_round = previous_start_round
             schedule_base_lr = float(previous_base_lr)
             schedule_warmup_steps = previous_warmup_steps
-            total_steps = max(
+            total_steps = int(previous_total_steps) if previous_total_steps is not None else max(
                 1,
                 (int(args.rounds) - schedule_start_round)
                 * int(args.updates_per_round),
@@ -526,6 +534,7 @@ def _build_dual_scheduler(
         "schedule_start_round": int(schedule_start_round),
         "schedule_base_lr": float(schedule_base_lr),
         "schedule_warmup_steps": int(schedule_warmup_steps),
+        "schedule_updates_per_round": int(args.updates_per_round),
         "schedule_total_steps": int(total_steps),
     }
     return scheduler, schedule_config
