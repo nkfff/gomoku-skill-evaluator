@@ -5,7 +5,7 @@
   "files": {
     "index.html": "cb89014b174eaa6dfccbdff864eb380e0af15b65dd1e2ade401be494b5cf8d37",
     "config.js": "a912311267c2dac8e20aa8e21c8617e19964ac21404b9c1c607073f10ed53bda",
-    "pvp-ui.js": "5c4b158e5b961a9fae1af245f8e5d4061be975bbde3ee15d69627820838b572e",
+    "pvp-ui.js": "301c6a25352859d1d820663d46dc86b69543d05f509d8d960b49eaf13461eb62",
     "special-modes-ui.js": "69e47e04a88705bf707b85c2ab1d0fee93f9a30cb3e30a871f127bef7bdbfcea",
     "models/model.json": "4640cd8a82143d055fe5881178b632b0330573d2ea368863f1a6f0f76562aa60",
     "models/gunuce.onnx": "9cc91391167c3fc94534208aa0d38fe911d3055da4558b8c6067ec44eeee042e",
@@ -20,7 +20,7 @@
     "src/gunuce.js": "a60d919506d6df2034efd8f0f11d0b3a5f0254f7027f16d0ec374e036c5a69c3",
     "src/gunuce.worker.js": "d0e09b03bde24b43b9a44105e0cb55bea368922418e1291fa9876b9fe5524887",
     "src/offline-cache.js": "7b6966314b365da2ae4b32091d14e04f7a0e897c7ed02fef1eacf6b42a63d409",
-    "src/pvp.js": "3b7455ae84a7c5bf01ff9b851c8c9fbc55fe34c022f9f5f02213bf49b474ebb2",
+    "src/pvp.js": "a09cef247fdd1f18955a94fcefe9c98cd63ff47a949147d2e78a0a9a9c6d06ef",
     "src/special-modes.js": "c7f1c0d7c25f620186bbf64c7bcb06bc357e62eeba38fb40ea5948ef15c0ed40",
     "src/style.css": "6d3f657bce8e3353102e5c35c986fb00a2dd2536f2f6577ecce0ac9cfcbe65b9",
     "vendor/ort/ort.webgpu.min.mjs": "329cd956772397a1aedd668e911195d39afefb182f6fc14aafa4f08ac8d8f379",
@@ -30,6 +30,6 @@
     "vendor/ort/ort-wasm-simd-threaded.mjs": "30ed0b5cd1182ede931fea448afb567d4dc705ec957af09f108a2be5f770dac3",
     "vendor/ort/ort-wasm-simd-threaded.wasm": "4b884c203b0fa48d057be3332c65513ff85aa3c5bddd6946acc0fab7ecda001d"
   },
-  "totalAssetBytes": 48502615,
+  "totalAssetBytes": 48502777,
   "note": "Runtime/model cached lazily on first Gunuce use. No inference endpoint."
 }
