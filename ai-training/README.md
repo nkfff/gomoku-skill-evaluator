@@ -229,10 +229,10 @@ Evaluate the resulting model against the V4.0 hard champion with equal black
 and white assignments:
 
 ```bash
-python -m gomoku.evaluate \\
-  --checkpoint checkpoints_dual/latest.pt \\
-  --device mps \\
-  --games 10 \\
+python -m gomoku.evaluate \
+  --checkpoint checkpoints_dual/latest.pt \
+  --device mps \
+  --games 10 \
   --simulations 32
 ```
 
