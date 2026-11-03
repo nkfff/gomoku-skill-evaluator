@@ -4,7 +4,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chooseAI, CELLS } from "../src/engine.js";
 import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
-import { createMatchState, publicMatchState, requestPvpRematch } from "../src/pvp.js";
+import {
+  acceptPvpDraw, createMatchState, declinePvpDraw, finishByResign, offerPvpDraw,
+  publicMatchState, requestPvpRematch
+} from "../src/pvp.js";
 import { rollDice } from "../worker/pvp-room.js";
 
 test("AI can search as either black or white", () => {
@@ -50,6 +53,43 @@ test("both PVP clients receive the same auditable dice result", () => {
   assert.deepEqual(guestView.diceRolls, diceRolls);
   assert.equal(hostView.diceWinnerPlayerId, "host-id");
   assert.equal(guestView.diceWinnerPlayerId, "host-id");
+});
+
+test("PVP draw offer is visible to the opponent and requires explicit acceptance", () => {
+  const state = createMatchState({
+    roomId:"room-draw", matchId:"match-draw", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:1000
+  });
+  const offered = offerPvpDraw(state, "host-id");
+  assert.equal(offered.pendingDrawBy, "host-id");
+  assert.equal(publicMatchState(offered, "guest-id").pendingDrawBy, "host-id");
+  assert.throws(() => offerPvpDraw(offered, "host-id"), /DRAW_ALREADY_OFFERED/);
+  assert.throws(() => offerPvpDraw(offered, "guest-id"), /DRAW_ALREADY_PENDING/);
+  assert.throws(() => acceptPvpDraw(offered, "host-id", 2000), /NO_OPPONENT_DRAW_OFFER/);
+  const declined = declinePvpDraw(offered, "guest-id");
+  assert.equal(declined.pendingDrawBy, null);
+  const offeredAgain = offerPvpDraw(declined, "host-id");
+  const accepted = acceptPvpDraw(offeredAgain, "guest-id", 3000);
+  assert.equal(accepted.status, "finished");
+  assert.equal(accepted.result, "draw");
+  assert.equal(accepted.endReason, "draw_agreement");
+  assert.equal(accepted.endedAt, 3000);
+  assert.equal(accepted.pendingDrawBy, null);
+  assert.throws(() => declinePvpDraw(offered, "stranger"), /NOT_A_MATCH_PLAYER/);
+});
+
+test("PVP resignation assigns the win to the opponent", () => {
+  const state = createMatchState({
+    roomId:"room-resign", matchId:"match-resign", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:1000
+  });
+  const result = finishByResign(state, "host-id", 4000);
+  assert.equal(result.status, "finished");
+  assert.equal(result.result, "white_win");
+  assert.equal(result.winnerPlayerId, "guest-id");
+  assert.equal(result.endReason, "resign");
+  assert.equal(result.endedAt, 4000);
+  assert.equal(state.status, "active", "the previous match snapshot must remain unchanged");
 });
 
 test("PVP rematch starts only after both players accept and resets readiness", () => {
@@ -102,7 +142,7 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   const css = readFileSync(fileURLToPath(new URL("../src/style.css", import.meta.url)), "utf8");
   const pvpUi = readFileSync(fileURLToPath(new URL("../pvp-ui.js", import.meta.url)), "utf8");
   const pvpRoom = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
-  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","aiPodium","pvpPodium"]) {
+  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","pvpResultModal","pvpResultClose","pvpResultTitle","pvpResultMessage","pvpResultRating","pvpResultContinue","aiPodium","pvpPodium"]) {
     assert.equal((html.match(new RegExp('id="' + id + '"' , "g")) || []).length, 1, id);
   }
   assert.match(html, /class="dice-cube show-5"/);
@@ -115,4 +155,11 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   assert.match(pvpRoom, /rematchStarting/);
   assert.match(pvpUi, /正在创建新对局/);
   assert.match(pvpRoom, /internal\/init-rematch/);
+  assert.match(pvpUi, /function showPvpResult/);
+  assert.match(pvpUi, /等待对手回应/);
+  assert.match(pvpRoom, /type: "draw_offered", playerId, room:/);
+  assert.match(pvpRoom, /type: "draw_declined", playerId, room:/);
+  assert.match(pvpRoom, /type: "game_over", room:/);
+  assert.match(css, /@keyframes pvpResultPop/);
+  assert.match(css, /@keyframes pvpConfettiFall/);
 });

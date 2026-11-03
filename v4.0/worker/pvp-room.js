@@ -1,6 +1,6 @@
 import {
-  DEFAULT_TIME_CONTROL_MS, applyPvpMove, calculateElo, createMatchState, requestPvpRematch,
-  finishByResign, finishByTimeout, publicMatchState
+  DEFAULT_TIME_CONTROL_MS, acceptPvpDraw, applyPvpMove, calculateElo, createMatchState,
+  declinePvpDraw, offerPvpDraw, requestPvpRematch, finishByResign, finishByTimeout, publicMatchState
 } from "../src/pvp.js";
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), {
@@ -435,37 +435,26 @@ export class PvpRoom {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
     this.room.match = finishByResign(this.room.match, playerId, nowMs());
     await this.finishMatch("resign");
-    this.broadcast({type: "game_over", room: this.snapshot(playerId)});
   }
 
   async offerDraw(playerId) {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
-    if (this.room.match.pendingDrawBy === playerId) throw new Error("DRAW_ALREADY_OFFERED");
-    this.room.match.pendingDrawBy = playerId;
+    this.room.match = offerPvpDraw(this.room.match, playerId);
     await this.ctx.storage.put("room", this.room);
-    this.broadcast({type: "draw_offered", playerId});
+    this.broadcast({type: "draw_offered", playerId, room: this.snapshot(playerId)});
   }
 
   async acceptDraw(playerId) {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
-    if (!this.room.match.pendingDrawBy || this.room.match.pendingDrawBy === playerId) throw new Error("NO_OPPONENT_DRAW_OFFER");
-    this.room.match.status = "finished";
-    this.room.match.result = "draw";
-    this.room.match.winnerPlayerId = null;
-    this.room.match.endReason = "draw_agreement";
-    this.room.match.endedAt = nowMs();
-    this.room.match.turnPlayerId = null;
-    this.room.match.turnColor = null;
+    this.room.match = acceptPvpDraw(this.room.match, playerId, nowMs());
     await this.finishMatch("draw_agreement");
-    this.broadcast({type: "game_over", room: this.snapshot(playerId)});
   }
 
   async declineDraw(playerId) {
-    if (!this.room.match || this.room.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
-    if (!this.room.match.pendingDrawBy || this.room.match.pendingDrawBy === playerId) throw new Error("NO_OPPONENT_DRAW_OFFER");
-    this.room.match.pendingDrawBy = null;
+    if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
+    this.room.match = declinePvpDraw(this.room.match, playerId);
     await this.ctx.storage.put("room", this.room);
-    this.broadcast({type: "draw_declined", playerId});
+    this.broadcast({type: "draw_declined", playerId, room: this.snapshot(playerId)});
   }
 
   async finishMatch(reason) {
@@ -507,6 +496,7 @@ export class PvpRoom {
       await this.ctx.storage.setAlarm(nowMs() + 5000);
       throw new Error("SETTLEMENT_PENDING");
     }
+    this.broadcast({type: "game_over", room: this.snapshot(match.blackPlayerId)});
   }
   async scheduleNextAlarm() {
     if (!this.room) return;
@@ -599,7 +589,8 @@ export class PvpRoom {
       INVALID_ACTION_ID: "操作编号无效",
       STALE_REVISION: "棋盘已更新，请同步后重试",
       NOT_A_ROOM_MEMBER: "你不属于这个房间",
-      DRAW_ALREADY_OFFERED: "你已经提出和棋",
+      DRAW_ALREADY_OFFERED: "你已经提出和棋，请等待对手回应",
+      DRAW_ALREADY_PENDING: "对手已经提出和棋，请选择接受或拒绝",
       NO_OPPONENT_DRAW_OFFER: "当前没有对手提出的和棋请求",
       MOVE_PERSIST_FAILED: "落子保存失败，请重新同步棋盘"
     };
