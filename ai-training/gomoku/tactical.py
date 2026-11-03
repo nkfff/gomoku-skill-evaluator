@@ -74,13 +74,16 @@ def _mark_positions(
 def analyze_tactical_evidence(
     board,
     current_player: int,
+    include_forks: bool = True,
 ) -> TacticalEvidence:
     """
     Generate deterministic tactical labels from a 15x15 Gomoku position.
 
     This is a one-ply, rule-derived labeler, not a heuristic score and not an
     MCTS policy. It provides exact immediate-win / immediate-block evidence
-    and a defined two-threat fork target.
+    and, optionally, a defined two-threat fork target. Set include_forks=False
+    in latency-sensitive search expansion when only exact immediate wins and
+    blocks are needed; the neural tactical head can still guide fork priors.
 
     Candidate radius 2 is sufficient for these labels: an immediate winning
     point must be adjacent to an existing stone in its four-stone run, and a
@@ -128,6 +131,19 @@ def analyze_tactical_evidence(
             fork_moves=(),
             opponent_winning_moves=opponent_wins,
             forced_loss=len(opponent_wins) > 1,
+        )
+
+    # The search engine only needs exact immediate wins/blocks. Fork
+    # enumeration is substantially more expensive and is reserved for
+    # supervised target generation and explicit tactical analysis.
+    if not include_forks:
+        return TacticalEvidence(
+            targets=targets,
+            win_now_moves=(),
+            must_block_moves=(),
+            fork_moves=(),
+            opponent_winning_moves=(),
+            forced_loss=False,
         )
 
     # Priority 3: find moves that create at least two distinct immediate
