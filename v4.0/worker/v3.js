@@ -10,6 +10,7 @@ const reply = (value, status = 200, headers = {}) => new Response(JSON.stringify
 });
 const fail = (message, status = 400) => Object.assign(new Error(message), {status});
 const uuid = value => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+const PERMANENT_ROOM_EXPIRY_MS = Date.parse("9999-12-31T23:59:59.000Z");
 const parseBody = async request => {
   try { return await request.json(); } catch { throw fail("请求内容不是有效 JSON"); }
 };
@@ -140,14 +141,14 @@ async function createRoom(request, env, user, headers) {
   const inviteCode = randomCode();
   const inviteHash = await sha256(inviteCode);
   await env.DB.prepare(
-    "INSERT INTO pvp_rooms(id,host_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,'waiting',?,1,datetime('now','+24 hours'))"
+    "INSERT INTO pvp_rooms(id,host_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,'waiting',?,1,datetime('9999-12-31 23:59:59'))"
   ).bind(roomId, user.id, inviteHash, DEFAULT_TIME_CONTROL_MS).run();
   try {
     await callRoom(env, roomId, "/internal/init", {
       method: "POST",
       body: {
         roomId, hostPlayerId: user.id, hostName: player.name || "棋手",
-        timeControlMs: DEFAULT_TIME_CONTROL_MS, expiresAt: Date.now() + 24 * 60 * 60 * 1000
+        timeControlMs: DEFAULT_TIME_CONTROL_MS, expiresAt: PERMANENT_ROOM_EXPIRY_MS
       }
     });
   } catch (error) {
@@ -157,8 +158,7 @@ async function createRoom(request, env, user, headers) {
   return reply({
     room: {id: roomId, status: "waiting", hostPlayerId: user.id, hostName: player.name, timeControlMs: DEFAULT_TIME_CONTROL_MS},
     inviteCode,
-    expiresInHours: 24,
-    message: "邀请码只在创建时显示，请复制并分享给好友。"
+    message: "房间不会因刷新或暂时离线自动关闭；只有房主主动取消才会关闭。邀请码请妥善保存并分享给好友。"
   }, 201, headers);
 }
 
@@ -169,7 +169,7 @@ async function joinRoom(request, env, user, headers) {
   if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) throw fail("邀请码格式不正确");
   const inviteHash = await sha256(code);
   const room = await env.DB.prepare(
-    "SELECT id,host_player_id,guest_player_id,status,expires_at FROM pvp_rooms WHERE invite_code_hash=?"
+    "SELECT id,host_player_id,guest_player_id,status FROM pvp_rooms WHERE invite_code_hash=?"
   ).bind(inviteHash).first();
   if (!room) throw fail("邀请码不存在", 404);
 
@@ -178,10 +178,6 @@ async function joinRoom(request, env, user, headers) {
   if (room.host_player_id === user.id || room.guest_player_id === user.id) {
     if (!["waiting", "ready", "active", "finished"].includes(room.status)) {
       throw fail("这个房间已取消或过期，无法重新进入", 410);
-    }
-    if (["waiting", "ready"].includes(room.status)) {
-      const expiresAt = new Date(String(room.expires_at || "").replace(" ", "T") + "Z").getTime();
-      if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) throw fail("房间已过期", 410);
     }
     const state = await callRoom(env, room.id, "/internal/state", {playerId: user.id});
     return reply({
@@ -193,9 +189,8 @@ async function joinRoom(request, env, user, headers) {
 
   await assertNoActiveMatch(env, user.id);
   if (room.status !== "waiting" || room.guest_player_id) throw fail("房间已满或已开始", 409);
-  if (new Date(room.expires_at.replace(" ", "T") + "Z").getTime() <= Date.now()) throw fail("房间已过期", 410);
   const updated = await env.DB.prepare(
-    "UPDATE pvp_rooms SET guest_player_id=?,status='ready' WHERE id=? AND status='waiting' AND guest_player_id IS NULL AND expires_at>datetime('now')"
+    "UPDATE pvp_rooms SET guest_player_id=?,status='ready' WHERE id=? AND status='waiting' AND guest_player_id IS NULL"
   ).bind(user.id, room.id).run();
   if (updated.meta.changes !== 1) throw fail("房间刚刚被其他玩家加入，请重新尝试", 409);
   try {
@@ -231,11 +226,11 @@ async function currentRoom(env, playerId, headers, inviteCode = "") {
     if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) return reply({room: null}, 200, headers);
     const inviteHash = await sha256(code);
     room = await env.DB.prepare(
-      "SELECT id FROM pvp_rooms WHERE (host_player_id=? OR guest_player_id=?) AND invite_code_hash=? AND status IN ('waiting','ready','active') AND (status='active' OR expires_at>datetime('now')) LIMIT 1"
+      "SELECT id FROM pvp_rooms WHERE (host_player_id=? OR guest_player_id=?) AND invite_code_hash=? AND status IN ('waiting','ready','active','finished') LIMIT 1"
     ).bind(playerId, playerId, inviteHash).first();
   } else {
     room = await env.DB.prepare(
-      "SELECT id FROM pvp_rooms WHERE (host_player_id=? OR guest_player_id=?) AND status IN ('waiting','ready','active') AND (status='active' OR expires_at>datetime('now')) ORDER BY created_at DESC LIMIT 1"
+      "SELECT id FROM pvp_rooms WHERE (host_player_id=? OR guest_player_id=?) AND status IN ('waiting','ready','active') ORDER BY created_at DESC LIMIT 1"
     ).bind(playerId, playerId).first();
   }
   if (!room) return reply({room: null}, 200, headers);

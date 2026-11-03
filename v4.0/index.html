@@ -75,7 +75,7 @@
 <div class="controls"><button id="pvpCreateRoom" class="primary">创建好友房间</button><button id="pvpRefreshLeaderboard">刷新真人排行榜</button></div>
 <label>好友邀请码 <input id="pvpInviteCode" maxlength="8" placeholder="输入 8 位邀请码" autocomplete="off"></label>
 <div class="controls"><button id="pvpJoinRoom">加入房间</button></div>
-<p class="note">每方 10 分钟；等待中的房间 24 小时后过期。双方准备后随机分配黑白棋，黑棋先手。</p>
+<p class="note">每方 10 分钟；房间不会因刷新、关闭网页或暂时离线自动销毁。房主可主动取消等待中的房间；双方准备后随机分配黑白棋，黑棋先手。</p>
 </div>
 <div id="pvpRoom" hidden>
 <h3 id="pvpRoomTitle">房间</h3>
@@ -89,6 +89,7 @@
 <button id="pvpReady" class="primary">我准备好了</button>
 <button id="pvpCancelRoom">取消房间</button>
 </div>
+<div id="pvpDiceStage" class="dice-stage" hidden aria-live="polite"><div class="dice-stage-head"><span>先手争夺</span><strong>3D 幸运骰子</strong></div><div class="dice-pair"><div class="dice-player"><small id="pvpDiceLeftLabel">房主</small><div class="dice-cube-shell"><div id="pvpDiceLeft" class="dice-cube show-5" role="img" aria-label="5点"><span class="dice-cube-face face-front" data-value="1"></span><span class="dice-cube-face face-back" data-value="6"></span><span class="dice-cube-face face-right" data-value="3"></span><span class="dice-cube-face face-left" data-value="4"></span><span class="dice-cube-face face-top" data-value="2"></span><span class="dice-cube-face face-bottom" data-value="5"></span></div></div></div><div class="dice-vs">VS</div><div class="dice-player"><small id="pvpDiceRightLabel">好友</small><div class="dice-cube-shell"><div id="pvpDiceRight" class="dice-cube show-2" role="img" aria-label="2点"><span class="dice-cube-face face-front" data-value="1"></span><span class="dice-cube-face face-back" data-value="6"></span><span class="dice-cube-face face-right" data-value="3"></span><span class="dice-cube-face face-left" data-value="4"></span><span class="dice-cube-face face-top" data-value="2"></span><span class="dice-cube-face face-bottom" data-value="5"></span></div></div></div></div><p id="pvpDiceStatus">双方掷骰中…</p><strong id="pvpDiceWinner" class="dice-winner"></strong></div>
 <canvas id="pvpBoard" class="pvp-board" width="600" height="600" aria-label="真人五子棋棋盘"></canvas>
 <div class="stats">
 <div class="stat"><small>我的剩余时间</small><strong id="pvpMyClock">10:00</strong></div>
@@ -120,7 +121,21 @@
   <button id="pvpResultContinue" class="primary pvp-result-continue">返回对局</button>
  </div>
 </div>
-<div id="pvpDiceStage" class="dice-stage" hidden aria-live="polite"><div class="dice-stage-head"><span>先手争夺</span><strong>3D 幸运骰子</strong></div><div class="dice-pair"><div class="dice-player"><small id="pvpDiceLeftLabel">房主</small><div class="dice-cube-shell"><div id="pvpDiceLeft" class="dice-cube show-5" role="img" aria-label="5点"><span class="dice-cube-face face-front" data-value="1"></span><span class="dice-cube-face face-back" data-value="6"></span><span class="dice-cube-face face-right" data-value="3"></span><span class="dice-cube-face face-left" data-value="4"></span><span class="dice-cube-face face-top" data-value="2"></span><span class="dice-cube-face face-bottom" data-value="5"></span></div></div></div><div class="dice-vs">VS</div><div class="dice-player"><small id="pvpDiceRightLabel">好友</small><div class="dice-cube-shell"><div id="pvpDiceRight" class="dice-cube show-2" role="img" aria-label="2点"><span class="dice-cube-face face-front" data-value="1"></span><span class="dice-cube-face face-back" data-value="6"></span><span class="dice-cube-face face-right" data-value="3"></span><span class="dice-cube-face face-left" data-value="4"></span><span class="dice-cube-face face-top" data-value="2"></span><span class="dice-cube-face face-bottom" data-value="5"></span></div></div></div></div><p id="pvpDiceStatus">双方掷骰中…</p><strong id="pvpDiceWinner" class="dice-winner"></strong></div><h3>真人排行榜</h3><div id="pvpPodium" class="leaderboard-podium pvp-podium" aria-label="真人排行榜前三名"></div>
+
+<div id="pvpRematchInviteModal" class="pvp-rematch-invite-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pvpRematchInviteTitle" aria-describedby="pvpRematchInviteMessage">
+ <div class="pvp-rematch-invite-backdrop"></div>
+ <div class="pvp-rematch-invite-card">
+  <div class="pvp-rematch-invite-mark" aria-hidden="true">♟</div>
+  <span class="eyebrow">FRIEND INVITATION</span>
+  <h2 id="pvpRematchInviteTitle">再来一局邀请</h2>
+  <p id="pvpRematchInviteMessage"><strong id="pvpRematchInviteFrom">好友</strong> 邀请你继续对弈，是否接受？</p>
+  <div class="pvp-rematch-invite-actions">
+   <button id="pvpRematchInviteDecline" type="button">暂不继续</button>
+   <button id="pvpRematchInviteAccept" class="primary" type="button">接受邀请</button>
+  </div>
+ </div>
+</div>
+<h3>真人排行榜</h3><div id="pvpPodium" class="leaderboard-podium pvp-podium" aria-label="真人排行榜前三名"></div>
 <div class="tableWrap"><table><thead><tr><th>排名</th><th>玩家</th><th>段位</th><th>Elo</th><th>对局</th><th>胜/负/平</th></tr></thead><tbody id="pvpRankRows"><tr><td colspan="6">尚无数据</td></tr></tbody></table></div>
 <h3>我的最近战绩</h3>
 <div class="tableWrap"><table><thead><tr><th>时间</th><th>对手</th><th>结果</th><th>原因</th><th>段位变化</th></tr></thead><tbody id="pvpHistoryRows"><tr><td colspan="5">登录后查看战绩</td></tr></tbody></table></div>
@@ -131,7 +146,7 @@
   <section id="panel-account" hidden><h2>账户中心</h2><p id="authNotice" class="note">正在检查账号服务…</p><fieldset id="authInputs"><div id="authForm"><label>邮箱 <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label>密码 <input id="authPassword" type="password" autocomplete="current-password" placeholder="至少 10 位"></label><div class="controls"><button id="register">注册账号</button><button id="login">登录</button><button id="recover">邮件找回密码</button></div></div><div id="loggedPanel" hidden><p>当前登录：<strong id="accountEmail"></strong></p><p id="identityStatus" class="note"></p><div class="nameEditor"><label>显示名称（2–24 个字符） <input id="accountDisplayName" maxlength="24" autocomplete="nickname" placeholder="输入你想显示的名称"></label><button id="saveDisplayName" type="button">保存显示名称</button><p class="note">名称会显示在棋盘顶部和排行榜中，不会公开你的邮箱。</p></div><label>设置新密码 <input id="newPassword" type="password" autocomplete="new-password" placeholder="新密码至少 10 位"></label><div class="controls"><button id="changePassword">修改密码</button><button id="logout">退出登录</button></div></div></fieldset><div id="adminPanel" hidden><h2>管理员后台</h2><div class="controls"><input id="adminSearch" placeholder="昵称 / 邮箱 / 用户 ID"><button id="adminFind" type="button">查询账号</button><button id="adminAudit" type="button">审计日志</button></div><div class="tableWrap"><table><thead><tr><th>账号</th><th>余额</th><th>竞技积分基数</th><th>综合积分</th><th>场次</th><th>胜局</th><th>胜率</th><th>排名</th><th>状态</th><th></th></tr></thead><tbody id="adminResults"></tbody></table></div><div id="adminActions" hidden><p id="selectedUser"></p><p id="adminFeedback" class="admin-feedback" hidden role="status" aria-live="polite"></p><section class="admin-stats-editor"><h3>战绩与排行榜管理</h3><div class="admin-stats-grid"><label>总对局场次 <input id="adminGames" type="number" min="0" step="1" value="0"></label><label>胜局数 <input id="adminWins" type="number" min="0" step="1" value="0"></label><label>竞技积分基数（影响排行榜） <input id="adminEarnedPoints" type="number" min="0" max="1000000" step="1" value="0"></label></div><p id="adminStatsPreview" class="admin-stats-preview" aria-live="polite">选择账号后自动预览胜率和排行榜综合积分。</p><p class="note">平局数保留当前记录；输局数自动按「总场次 − 胜局 − 平局」计算。原始胜率=胜局/场次；修正胜率=100×(胜局+2.5)/(场次+5)；综合积分=max(0,round(竞技积分基数+(修正胜率−50)×min(场次,20)/10))。保存后自动刷新名次。</p><div class="controls"><button id="adminSaveStats" type="button">保存战绩与竞技积分</button></div></section><label>账户余额增减（仅商店消费，不影响排行榜） <input id="adminDelta" type="number" value="10"></label><label>操作原因 <input id="adminReason" placeholder="可填写审计备注；不填则自动记录操作类型"></label><div class="controls"><button id="adminAdjust" type="button">确认余额调整</button><button id="adminBan" type="button">封禁 / 解封</button><button id="adminReset" type="button">清空 AI 游戏数据</button></div><p class="note">清空仅作用于 AI 对局：删除 AI 对局记录、清零 AI 胜负战绩、竞技积分和账户消费余额；账户皮肤与真人 PVP/Elo 记录保留。积分流水和管理员审计记录保留。</p></div><pre id="auditHistory" class="audit"></pre></div><p class="note">管理员身份在 Cloudflare Worker 端校验，不因页面显示管理员按钮而获得权限。</p></section>
  </aside>
 </div>
-<footer class="site-footer"><span>GOMOKU CLUB · V4.0.2</span><span>把每一手棋，下得漂亮。</span><a href="https://github.com/nkfff/gomoku-skill-evaluator">GitHub</a></footer>
+<footer class="site-footer"><span>GOMOKU CLUB · V4.0.5</span><span>把每一手棋，下得漂亮。</span><a href="https://github.com/nkfff/gomoku-skill-evaluator">GitHub</a></footer>
 </main>
 <div id="drawEasterEgg" class="draw-easter-egg" hidden role="dialog" aria-modal="true" aria-labelledby="drawEggTitle">
  <div class="draw-egg-backdrop"></div><div class="draw-egg-card"><button id="drawEggClose" class="draw-egg-close" aria-label="关闭">×</button>

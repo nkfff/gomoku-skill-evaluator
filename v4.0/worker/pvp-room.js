@@ -1,6 +1,6 @@
 import {
   DEFAULT_TIME_CONTROL_MS, acceptPvpDraw, applyPvpMove, calculateElo, createMatchState,
-  declinePvpDraw, offerPvpDraw, requestPvpRematch, finishByResign, finishByTimeout, publicMatchState
+  declinePvpDraw, declinePvpRematch, offerPvpDraw, requestPvpRematch, finishByResign, finishByTimeout, publicMatchState
 } from "../src/pvp.js";
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), {
@@ -10,6 +10,7 @@ const json = (value, status = 200) => new Response(JSON.stringify(value), {
 const parse = value => { try { return JSON.parse(value); } catch { return null; } };
 const nowMs = () => Date.now();
 const DISCONNECT_GRACE_MS = 60_000;
+const PERMANENT_ROOM_EXPIRY_MS = Date.parse("9999-12-31T23:59:59.000Z");
 
 function secureDie(){
   const limit=Math.floor(0x100000000/6)*6,value=new Uint32Array(1);
@@ -78,7 +79,7 @@ export class PvpRoom {
       timeControlMs: Number.isInteger(data.timeControlMs) && data.timeControlMs > 0 ? data.timeControlMs : DEFAULT_TIME_CONTROL_MS,
       rated: true,
       createdAt: now,
-      expiresAt: Number(data.expiresAt) || now + 24 * 60 * 60 * 1000,
+      expiresAt: Number(data.expiresAt) || PERMANENT_ROOM_EXPIRY_MS,
       readyByPlayer: {},
       rematchByPlayer: {},
       connectedByPlayer: {},
@@ -107,7 +108,7 @@ export class PvpRoom {
       timeControlMs: Number.isInteger(data.timeControlMs) && data.timeControlMs > 0 ? data.timeControlMs : DEFAULT_TIME_CONTROL_MS,
       rated: true,
       createdAt: now,
-      expiresAt: Number(data.expiresAt) || now + 24 * 60 * 60 * 1000,
+      expiresAt: Number(data.expiresAt) || PERMANENT_ROOM_EXPIRY_MS,
       readyByPlayer: {[data.hostPlayerId]: true, [data.guestPlayerId]: true},
       rematchByPlayer: {},
       connectedByPlayer: {},
@@ -123,7 +124,6 @@ export class PvpRoom {
     const data = await request.json();
     if (!this.room) return json({error: "Room not found"}, 404);
     if (this.room.status !== "waiting" || this.room.guestPlayerId) return json({error: "房间已满或不再接受加入"}, 409);
-    if (Number(this.room.expiresAt) <= nowMs()) return json({error: "房间已过期"}, 410);
     if (!data.playerId || data.playerId === this.room.hostPlayerId) return json({error: "不能以房主身份重复加入"}, 400);
     this.room.guestPlayerId = data.playerId;
     this.room.guestName = data.playerName || "棋手";
@@ -187,6 +187,7 @@ export class PvpRoom {
       }
       if (message.type === "ready") return await this.markReady(playerId);
       if (message.type === "rematch") return await this.requestRematch(playerId);
+      if (message.type === "decline_rematch") return await this.declineRematch(playerId);
       if (message.type === "move") return await this.move(playerId, message);
       if (message.type === "resign") return await this.resign(playerId);
       if (message.type === "offer_draw") return await this.offerDraw(playerId);
@@ -229,13 +230,6 @@ export class PvpRoom {
     const now = nowMs();
     if (this.room.status === "finished" && this.room.settlementPending && this.room.match) {
       await this.finishMatch(this.room.match.endReason || "five_in_row");
-      return;
-    }
-    if (["waiting", "ready"].includes(this.room.status) && now >= this.room.expiresAt) {
-      this.room.status = "expired";
-      await this.ctx.storage.put("room", this.room);
-      await this.env.DB.prepare("UPDATE pvp_rooms SET status='expired' WHERE id=? AND status IN ('waiting','ready')").bind(this.room.roomId).run();
-      this.broadcast({type: "room_state", room: this.snapshot(this.room.hostPlayerId)});
       return;
     }
     if (this.room.status === "active" && this.room.match) {
@@ -297,9 +291,9 @@ export class PvpRoom {
     try {
       const randomBytes = crypto.getRandomValues(new Uint8Array(32));
       const inviteCodeHash = [...randomBytes].map(byte => byte.toString(16).padStart(2, "0")).join("");
-      const expiresAt = nowMs() + 24 * 60 * 60 * 1000;
+      const expiresAt = PERMANENT_ROOM_EXPIRY_MS;
       await this.env.DB.prepare(
-        "INSERT INTO pvp_rooms(id,host_player_id,guest_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,?,'ready',?,1,datetime('now','+24 hours'))"
+        "INSERT INTO pvp_rooms(id,host_player_id,guest_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,?,'ready',?,1,datetime('9999-12-31 23:59:59'))"
       ).bind(
         newRoomId, this.room.hostPlayerId, this.room.guestPlayerId,
         inviteCodeHash, this.room.timeControlMs
@@ -359,6 +353,13 @@ export class PvpRoom {
     await this.ctx.storage.put("room", this.room);
     this.broadcast({type: "rematch_started", newRoomId});
   }
+  async declineRematch(playerId) {
+    if (this.room.settlementPending) throw new Error("SETTLEMENT_PENDING");
+    this.room = declinePvpRematch(this.room, playerId);
+    await this.ctx.storage.put("room", this.room);
+    this.broadcast({type: "rematch_declined", playerId, room: this.snapshot(playerId)});
+  }
+
   async startMatch() {
     const host = this.room.hostPlayerId;
     const guest = this.room.guestPlayerId;
@@ -520,7 +521,6 @@ export class PvpRoom {
     if (!this.room) return;
     const deadlines = [];
     if (this.room.settlementPending) deadlines.push(nowMs() + 5000);
-    if (["waiting", "ready"].includes(this.room.status)) deadlines.push(this.room.expiresAt);
     if (this.room.status === "active" && this.room.match) {
       const match = this.room.match;
       const key = match.turnColor === 1 ? "black" : "white";
@@ -610,6 +610,7 @@ export class PvpRoom {
       DRAW_ALREADY_OFFERED: "你已经提出和棋，请等待对手回应",
       DRAW_ALREADY_PENDING: "对手已经提出和棋，请选择接受或拒绝",
       NO_OPPONENT_DRAW_OFFER: "当前没有对手提出的和棋请求",
+      NO_PENDING_REMATCH_INVITE: "当前没有待处理的再来一局邀请",
       MOVE_PERSIST_FAILED: "落子保存失败，请重新同步棋盘"
     };
     return messages[code] || "操作失败，请同步棋盘后重试";
