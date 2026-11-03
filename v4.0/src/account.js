@@ -9,6 +9,9 @@ const hasAuthCallback=!!(callbackHash.get("access_token")||callbackQuery.get("co
 const SUPABASE_URL=String(window.GOMOKU_SUPABASE_URL||"").replace(/\/$/,"");
 const PUBLISHABLE_KEY=String(window.GOMOKU_SUPABASE_PUBLISHABLE_KEY||"");
 let client=null,session=null,ready=false,onChange=()=>{},onProfileChange=()=>{};
+let resolveAuthReady;
+const authReadyPromise = new Promise(resolve => { resolveAuthReady = resolve; });
+export function waitForAuthReady() { return authReadyPromise; }
 export const cloudConfigured=()=>!!(SUPABASE_URL&&PUBLISHABLE_KEY&&apiBase());
 export const loggedIn=()=>!!session?.access_token;
 export async function bearer(){
@@ -158,7 +161,7 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
  $("authForm").hidden=false;$("loggedPanel").hidden=true;
  if(!cloudConfigured()){
   setMessage("账号系统尚未连接 Supabase / Cloudflare；可继续游客对弈。需要部署后才能注册和管理。");
-  $("authInputs").disabled=true;return;
+  $("authInputs").disabled=true;resolveAuthReady(true);return;
  }
  try{
   // Dynamic load: the offline game continues even if the auth provider is unavailable.
@@ -166,6 +169,9 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
   client=createClient(SUPABASE_URL,PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   const result=await client.auth.getSession();
   session=result.data?.session||null;
+  window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
+   detail:{signedIn:loggedIn(),userId:session?.user?.id||null}
+  }));
   let lastUserId=session?.user?.id||null;
   client.auth.onAuthStateChange((event,next)=>{
    const nextUserId=next?.user?.id||null;
@@ -177,6 +183,9 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
    if(!identityChanged)return;
    lastUserId=nextUserId;
    Promise.resolve().then(async()=>{
+    window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
+     detail:{signedIn:!!nextUserId,userId:nextUserId}
+    }));
     if(nextUserId)await refresh();
     await onChange(!!nextUserId);
    }).catch(()=>{});
@@ -193,6 +202,7 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
    setMessage(message,!loggedIn());setGlobalFeedback(message,!loggedIn());
   }
  }catch(e){setMessage("登录模块加载失败："+e.message,true);}
+ finally{resolveAuthReady(true);}
 }
 async function authTask(task){
  if(!client){setMessage("请先配置认证服务",true);return;}
