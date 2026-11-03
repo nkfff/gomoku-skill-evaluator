@@ -642,9 +642,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dirichlet-alpha", type=float, default=0.3)
     parser.add_argument("--root-noise-fraction", type=float, default=0.25)
 
-    parser.add_argument("--champion-width", type=int, default=12)
-    parser.add_argument("--champion-time-ms", type=int, default=180)
-    parser.add_argument("--champion-max-depth", type=int, default=7)
+    parser.add_argument("--champion-width", type=int, default=14)
+    parser.add_argument("--champion-time-ms", type=int, default=500)
+    parser.add_argument("--champion-max-depth", type=int, default=10)
 
     parser.add_argument("--self-play-weight", type=float, default=0.6)
     parser.add_argument("--sparring-weight", type=float, default=0.4)
