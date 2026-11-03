@@ -3,7 +3,7 @@
   "cacheVersion": "pvp-invite-dice-sync-20261104-1",
   "onnxruntime": "1.31.1",
   "files": {
-    "index.html": "cfef34f4430622b0a6941ad1ecf93ddd3493eef75595e07733f059015f8848df",
+    "index.html": "a5934399c13544db1ce75f2f6477710c650eaadd4e5affb1684a493eee0a262a",
     "config.js": "a912311267c2dac8e20aa8e21c8617e19964ac21404b9c1c607073f10ed53bda",
     "pvp-ui.js": "2cebad969389663cca2df344f551b50237f05a3605171d952001ed92e962ef1e",
     "special-modes-ui.js": "69e47e04a88705bf707b85c2ab1d0fee93f9a30cb3e30a871f127bef7bdbfcea",
