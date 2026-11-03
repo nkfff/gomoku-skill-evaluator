@@ -108,6 +108,8 @@ test("PVP join endpoint lets either existing member resume before active-match r
   assert.ok(memberResume >= 0 && activeGuard > memberResume);
   assert.ok(pvpApi.includes('callRoom(env, room.id, "/internal/state", {playerId: user.id})'));
   assert.ok(pvpApi.includes("resumed: true"));
+  assert.ok(pvpApi.includes('url.pathname === "/api/pvp/rooms/current"'));
+  assert.ok(pvpApi.includes("ORDER BY created_at DESC LIMIT 1"));
 });
 
 test("PVP frontend restores each signed-in player's room and does not replay revealed dice", () => {
@@ -116,6 +118,7 @@ test("PVP frontend restores each signed-in player's room and does not replay rev
   assert.match(pvpUi, /gomoku-v4-pvp-room:/);
   assert.match(pvpUi, /function saveRoomSession/);
   assert.match(pvpUi, /function restorePvpRoomOnLoad/);
+  assert.match(pvpUi, /\/api\/pvp\/rooms\/current/);
   assert.match(pvpUi, /function revealDiceImmediately/);
   assert.match(pvpUi, /saved\.diceMatchId === room\.match\.matchId/);
   assert.match(pvpUi, /saveRoomSession\(room\.roomId, inviteCode, match\.matchId\)/);
