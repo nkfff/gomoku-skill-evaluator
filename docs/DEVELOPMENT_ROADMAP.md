@@ -497,7 +497,7 @@ V4.1 是独立的本地 AI 研究与训练线，不等同于 V4.0 浏览器游�
 - **合并目标分支：** `feat/4.1-teba-mcts`
 - **PR：** [#29 — TEBA Dual-Learning with V4.0 Champion Sparring](https://github.com/nkfff/gomoku-skill-evaluator/pull/29)
 - **合并 Commit：** `bce6c47027893f13a2f3b38555071ff35079b228`
-- **状态：** 代码已合并；M4 本地双通道训练尚待执行；不代表已部署到线上游戏。
+- **状态：** 代码已合并至 AI 开发分支；用户已完成 M4 30 轮双通道训练并保留 Round 5 / Round 30 Checkpoint；V4.1.7 的 M4 回归测试与两模型 40 局直接对战仍待执行；不代表已部署到线上游戏。
 
 ### 9.2 V4.1.4 Pilot 基线
 
@@ -578,12 +578,14 @@ V4.1 是独立的本地 AI 研究与训练线，不等同于 V4.0 浏览器游�
 
 ### 9.6 自动化验证与待验收
 
-- PR #29 合并前 GitHub Actions：**99 passed，4 skipped**。
-- 4 个跳过项是 Linux CI 无法执行的 Apple MPS 专项测试；必须在用户的 M4 本机再次运行完整测试。
+- PR #29 合并时 GitHub Actions：**99 passed，4 skipped**；后续 V4.1.7 开发分支最新 CI 已达到 **112 passed，4 skipped**。
+- 跳过项为 Linux CI 无法执行的 Apple MPS 专项测试；因此仍需在 M4 本机针对最新代码执行完整测试。
 - Node.js 桥接测试在 CI 中实际执行，调用真实 V4.0 JavaScript 引擎。
-- 用户已完成 M4 上的 30 轮双通道训练；训练后模型与 V4.0 王者的 20 局评估均为 0 / 0 / 20。模型之间的直接对战仍待完成，不能据此认定 Round 30 相比 Round 5 没有提升。
+- 用户已完成 M4 上的 30 轮双通道训练；Round 5 与 Round 30 对 V4.0 王者的既有 20 局评估均为 0 / 0 / 20。模型之间的直接对战仍待完成，不能据此认定 Round 30 相比 Round 5 没有提升。
 
 ### 9.7 M4 执行顺序
+
+以下为首次训练的完整流程记录。30 轮训练已经完成；本轮不要重复启动训练，当前只需更新代码、运行测试并执行 V4.1.7 Checkpoint 直接对战。
 
 从仓库根目录更新：
 
@@ -647,8 +649,9 @@ V4.1.6 承接 V4.1.5 的双通道训练框架，针对首轮 Pilot 与 V4.0 王�
 
 - **开发/测试分支：** `feat/4.1.6-diagnostics-extended-training`
 - **合并目标分支：** `feat/4.1-teba-mcts`
-- **PR：** [#30 — V4.1.6: evaluation diagnostics and extended dual learning](https://github.com/nkfff/gomoku-skill-evaluator/pull/30)，已合并。\n- **合并 Commit：** `fa5a02f829384bc99fcca6bae0eaed957036b8e1`。
-- **状态：** PR 已合并；最新 GitHub Actions 为 **106 passed、4 skipped**（4 项为 Linux 环境无法执行的 MPS 测试）；M4 本地完整测试与长周期训练待验收；不代表线上 V4.0 游戏已更新。
+- **PR：** [#30 — V4.1.6: evaluation diagnostics and extended dual learning](https://github.com/nkfff/gomoku-skill-evaluator/pull/30)，已合并。
+- **合并 Commit：** `fa5a02f829384bc99fcca6bae0eaed957036b8e1`。
+- **状态：** PR 已合并；V4.1.6 合并时 GitHub Actions 为 **106 passed、4 skipped**；V4.1.7 开发分支最新 CI 为 **112 passed、4 skipped**。用户已完成 M4 30 轮长周期训练；V4.1.7 新增代码的 M4 回归测试与 Checkpoint 直接对战仍待验收；不代表线上 V4.0 游戏已更新。
 
 ### 10.2 评估器升级
 
