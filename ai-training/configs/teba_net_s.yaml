@@ -129,19 +129,24 @@ dual_learning:
       value_loss: disabled
       tactical_loss: disabled
   schedule:
-    rounds: 5
-    self_play_games_per_round: 4
-    champion_games_per_round: 4
-    simulations: 24
-    gradient_updates_per_round: 50
-    batch_size: 32
+    rounds: 30
+    self_play_games_per_round: 8
+    champion_games_per_round: 8
+    total_games: 480
+    simulations: 64
+    gradient_updates_per_round: 100
+    total_gradient_updates: 3000
+    batch_size: 64
     replay_capacity_per_channel: 50000
+    champion_sparring_budget_ms: 500
+    save_full_game_diagnostics: true
+    checkpoint_every_round: true
   optimizer:
     name: AdamW
     learning_rate: 0.0001
     weight_decay: 0.0001
     gradient_clip_norm: 1.0
-    warmup_steps: 10
+    warmup_steps: 100
   checkpoints:
     directory: checkpoints_dual
     save_every_round: true

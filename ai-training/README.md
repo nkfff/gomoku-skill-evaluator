@@ -201,7 +201,7 @@ Run from `ai-training/` after the V4.1.4 pilot has created
 model:
 
 ```bash
-python -m gomoku.evaluate --checkpoint checkpoints/latest.pt --device mps --games 10 --simulations 24 --champion-time-ms 500
+python -m gomoku.evaluate --checkpoint checkpoints/latest.pt --device mps --games 20 --simulations 64 --opening-plies 6 --seed 2028 --champion-time-ms 500 --output evaluation/baseline_v4_1_4_diagnostics.csv
 ```
 
 Then start dual-channel learning:
@@ -210,51 +210,91 @@ Then start dual-channel learning:
 python -m gomoku.dual_train --device mps
 ```
 
-Default dual-learning pilot:
-- 5 rounds.
-- 4 TEBA self-play games and 4 champion games per round.
-- 24 PUCT simulations per learner move.
-- 50 optimizer updates per round, batch size 32.
+### V4.1.6 — Evaluation diagnostics and extended dual learning
+
+V4.1.6 upgrades the five-round dual-learning pilot to a longer M4 research run
+and makes both training and evaluation games auditable.
+
+**Default extended M4 schedule**
+- 30 total rounds.
+- 8 TEBA self-play games and 8 V4.0 champion games per round: 480 games total.
+- 64 PUCT simulations per learner move.
+- 100 optimizer updates per round: 3,000 updates total.
+- Batch size 64; three replay buffers capped at 50,000 positions each.
 - 60% self-play RL objective and 40% champion-sparring RL objective.
-- Additional champion policy-distillation coefficient: 0.15.
-- AdamW at 1e-4, float32, gradient clipping.
+- Additional successful-champion policy-distillation coefficient: 0.15.
+- AdamW at 1e-4, float32, gradient clipping, 100 warmup steps.
 - V4.0 champion: hard level, width 14, 500 ms and maximum depth 10.
+- Full model/replay checkpoint saved after every round.
 
-Outputs are local:
-- `checkpoints_dual/latest.pt`: full model/optimizer/scheduler and all three
-  replay buffers.
-- `checkpoints_dual/round_NNNN_model.pt`: model-only snapshots.
-- `checkpoints_dual/dual_training.csv`: channel data counts, match outcomes,
-  component losses and elapsed time.
+The 30-round setting is the default total target, not 30 additional rounds
+when resuming. To continue a completed run to 60 total rounds, pass
+`--resume checkpoints_dual/latest.pt --rounds 60`. The trainer keeps the
+original `checkpoints/latest.pt` Pilot untouched.
 
-Resume an interrupted dual-learning run:
+**Training artifacts**
+- `checkpoints_dual/latest.pt`: model, optimizer, scheduler, RNG states and
+  all three replay buffers for exact round-boundary resume.
+- `checkpoints_dual/round_NNNN_model.pt`: model-only snapshot from each round.
+- `checkpoints_dual/dual_training.csv`: channel sizes, game outcomes,
+  component losses, learning rate and elapsed time.
+- `checkpoints_dual/training_games.jsonl`: complete self-play and champion
+  sparring move records, board-before snapshots, search data and tactical flags.
+
+**Start or resume extended training**
+
+```bash
+python -m gomoku.dual_train --device mps
+```
+
+If interrupted, resume from the latest completed round:
 
 ```bash
 python -m gomoku.dual_train --device mps --resume checkpoints_dual/latest.pt
 ```
 
-To extend a completed 5-round run to 10 total rounds:
+To extend a completed 30-round run to 60 total rounds:
 
 ```bash
-python -m gomoku.dual_train --device mps --resume checkpoints_dual/latest.pt --rounds 10
+python -m gomoku.dual_train --device mps --resume checkpoints_dual/latest.pt --rounds 60
 ```
 
 The trainer refuses to overwrite an existing `checkpoints_dual/latest.pt`
 unless `--resume` is supplied. Use a new `--output-dir` for an independent run.
+Checkpoints are written every completed round; an interruption during a round
+resumes from the preceding completed checkpoint.
 
-Evaluate the resulting model against the V4.0 hard champion with equal black
-and white assignments:
+**Paired-opening evaluation with full diagnostics**
 
 ```bash
 python -m gomoku.evaluate \
   --checkpoint checkpoints_dual/latest.pt \
   --device mps \
-  --games 10 \
-  --simulations 32 \
+  --games 20 \
+  --simulations 64 \
+  --opening-plies 6 \
+  --seed 2028 \
   --champion-time-ms 500
 ```
 
-The evaluation writes `evaluation/champion_match.csv` and reports match score
-and an explicitly small-sample Elo estimate. Do not promote a checkpoint based
-on training loss alone; compare it against the frozen champion and previous
-TEBA checkpoints with equal colors and fixed compute budgets.
+Each two-game pair reuses the same randomized legal opening and swaps TEBA's
+color. This controls opening variation and first-player bias. Evaluation
+outputs:
+- `evaluation/champion_match_diagnostics.csv`: per-game score, length,
+  latency and tactical-miss counts.
+- `evaluation/champion_match_diagnostics_games.jsonl`: full game records and
+  every move.
+- `evaluation/champion_match_diagnostics_plies.jsonl`: one searchable JSON
+  record per ply, including the pre-move board, selected move, TEBA root
+  top-five visits/priors or V4.0 nodes/depth/reason, elapsed time, and exact
+  immediate-win / forced-block / fork diagnostics.
+
+The evaluator reports immediate-win misses and forced-block misses separately.
+A multi-threat forced-loss position is not incorrectly counted as a missed
+single-move block. The fork flag refers to the project's explicit one-ply
+two-winning-reply definition; it is not a proof of a forced win.
+
+Do not promote a checkpoint based on training loss alone. Compare it against
+the frozen champion and previous TEBA checkpoints using the same opening pairs,
+colors, PUCT simulations and champion search budget. A 20-game match is still
+an early screening result, not a publication-grade Elo estimate.

@@ -1,7 +1,7 @@
 # 五子棋棋力评估 · Gomoku Skill Evaluator
 
-> 📘 [开发规划与完整版本档案](docs/DEVELOPMENT_ROADMAP.md)：项目定位、V1–V4.1.5 版本演进、Bug 修复记录、当前验收状态与后续路线。
-> 🧠 [V4.1 AI 训练与双通道学习](ai-training/README.md)：TEBA-Net-S、M4 本地训练、自博弈、V4.0 王者挑战与模型评估。
+> 📘 [开发规划与完整版本档案](docs/DEVELOPMENT_ROADMAP.md)：项目定位、V1–V4.1.6 版本演进、Bug 修复记录、当前验收状态与后续路线。
+> 🧠 [V4.1 AI 训练与双通道学习](ai-training/README.md)：TEBA-Net-S、M4 长周期双通道训练、自博弈、V4.0 王者挑战、完整棋谱与战术诊断。
 
 **当前稳定版：V2.2 · 最新预览版：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 

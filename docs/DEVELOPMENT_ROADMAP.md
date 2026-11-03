@@ -628,3 +628,75 @@ python -m gomoku.evaluate --checkpoint checkpoints_dual/latest.pt --device mps -
 5. 普通 PUCT 与 TEBA 自适应搜索预算的等计算量对照。
 
 主要报告固定算力下的胜率、Elo、战术准确率、样本效率、每步延迟和总训练时间。只有证明双通道或 TEBA 机制带来可重复的增益，才能形成论文贡献。
+
+
+## 10. V4.1.6：评估诊断与长周期双通道训练（2026-11-03）
+
+### 10.1 版本定位
+
+V4.1.6 承接 V4.1.5 的双通道训练框架，针对首轮 Pilot 与 V4.0 王者对战暴露出的两个问题升级：
+
+1. 旧评估只记录胜负、步数和平均搜索时间，无法定位具体失误。
+2. 默认 5 轮、每通道每轮 4 局、24 次 PUCT 模拟的规模过小，不足以支撑持续强化学习实验。
+
+- **开发/测试分支：** `feat/4.1.6-diagnostics-extended-training`
+- **合并目标分支：** `feat/4.1-teba-mcts`
+- **PR：** [#30 — V4.1.6: evaluation diagnostics and extended dual learning](https://github.com/nkfff/gomoku-skill-evaluator/pull/30)。
+- **状态：** PR 已创建；首轮 GitHub Actions 为 106 passed、4 skipped；最新提交的 CI 仍在运行；M4 实测待验收；不代表线上 V4.0 游戏已更新。
+
+### 10.2 评估器升级
+
+- 每 2 局组成一个配对：使用相同随机合法开局，分别让 TEBA 执黑和执白。
+- 默认 6 个开局半回合，20 局评估对应 10 组不同开局。
+- 固定随机种子，保证开局可复现。
+- 保留每步落子前 225 格棋盘快照、当前玩家、最后一步、落子坐标和代理类型。
+- TEBA 记录 PUCT 模拟次数、根节点 Value、强制败势标记、Top-5 访问次数与先验概率、搜索耗时。
+- V4.0 记录 Alpha-Beta 节点数、完成深度、引擎报告耗时、决策原因及外部实测耗时。
+- 统计 TEBA 漏掉即时获胜点、唯一强制防守点和定义内双威胁（FORK）的次数。
+- 多个对手必胜点导致的强制败势不会错误计为“漏掉单点防守”。
+
+### 10.3 训练规模升级
+
+| 参数 | V4.1.5 Pilot | V4.1.6 默认 |
+|---|---:|---:|
+| 总训练轮数 | 5 | 30 |
+| 每轮自博弈 | 4 | 8 |
+| 每轮王者挑战 | 4 | 8 |
+| 总对局数 | 40 | 480 |
+| 每步 PUCT 模拟 | 24 | 64 |
+| 每轮梯度更新 | 50 | 100 |
+| 总梯度更新 | 250 | 3,000 |
+| Batch Size | 32 | 64 |
+| 每个 Replay Buffer | 50,000 | 50,000 |
+| Warmup steps | 10 | 100 |
+
+损失权重、网络结构和优化器保持 V4.1.5 冻结配置：Self-Play / Champion Sparring 为 0.6 / 0.4，成功王者示范策略蒸馏系数 0.15，AdamW 学习率 1e-4，weight decay 1e-4，梯度裁剪 1.0。V4.0 王者仍采用 width=14、500 ms、max_depth=10，避免在同一实验中同时改变对手强度。
+
+30 轮是默认总目标；`--resume ... --rounds 60` 表示延长到总计 60 轮，而不是额外增加 60 轮。每轮结束保存完整断点和模型快照，原始 `checkpoints/latest.pt` 不会被覆盖。
+
+### 10.4 新增代码与本地结果
+
+- `ai-training/gomoku/diagnostics.py`：统一棋盘快照、Top-K 搜索结果、战术错误标记和 JSONL 写入。
+- `ai-training/gomoku/evaluate.py`：随机配对开局、颜色交换、完整棋谱和逐步搜索诊断。
+- `ai-training/gomoku/train.py`：自博弈完整棋谱记录。
+- `ai-training/gomoku/dual_train.py`：王者挑战完整棋谱记录，默认扩展到 30 轮。
+- `ai-training/tests/test_diagnostics.py`：棋盘快照、战术漏步、搜索 Top-K 和开局复现测试。
+- `ai-training/configs/teba_net_s.yaml`：同步长周期训练规格。
+- `ai-training/README.md`：训练、续训、评估和诊断文件说明。
+
+本地输出：
+- `checkpoints_dual/latest.pt`：每轮更新的完整断点。
+- `checkpoints_dual/round_NNNN_model.pt`：每轮模型快照。
+- `checkpoints_dual/dual_training.csv`：每轮训练指标。
+- `checkpoints_dual/training_games.jsonl`：自博弈与王者挑战的完整训练棋谱。
+- `evaluation/champion_match_diagnostics.csv`：每局结果和错误汇总。
+- `evaluation/champion_match_diagnostics_games.jsonl`：每局完整棋谱。
+- `evaluation/champion_match_diagnostics_plies.jsonl`：每一步搜索和战术诊断。
+
+### 10.5 验收边界
+
+- GitHub Actions 尚待本 PR 触发并通过。
+- 用户 M4 必须执行完整测试，特别是 MPS 三通道反向传播与延长训练的稳定性。
+- 首轮至少观察 1–2 个完整训练轮次的真实耗时、内存占用、Replay 增长和 Loss 数值，再决定是否继续 30 轮。
+- 训练 Loss 下降不代表棋力提升；至少应比较训练前后相同随机开局、黑白交换、固定 64 次 PUCT 与固定王者预算下的结果。
+- 20 局只能作为初筛；论文实验应增加对局数量、置信区间、Elo 或 Bradley–Terry 估计及消融实验。
