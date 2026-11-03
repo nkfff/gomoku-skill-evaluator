@@ -42,6 +42,26 @@ browser game.
 - Fork detection is a one-ply double-threat definition; it is not a general
   proof of a forced win or a substitute for MCTS.
 
+### V4.1.4 — Neural PUCT baseline
+
+- `gomoku/mcts.py` connects TEBA-Net-S outputs to a PUCT search tree.
+- Selection uses `-Q(child) + c_puct * P(child) * sqrt(N(parent)) / (1 + N(child))`.
+- Values are stored from each node's side-to-move perspective and signs are
+  flipped during backup.
+- Policy priors are masked to local legal candidates; tactical-head logits
+  provide a configurable, low-weight prior adjustment.
+- Exact immediate wins and a unique immediate block are enforced by the
+  rule-based tactical analyzer, not by trusting neural predictions.
+- Two or more opponent immediate-winning cells are reported as a forced loss,
+  while legal moves remain available for a least-bad decision.
+- Optional root Dirichlet noise is available for self-play. Evaluation defaults
+  to no root noise.
+- Search returns root visit counts, a 225-cell visit policy, root priors,
+  value estimate, and forced-loss diagnostics.
+- `TorchEvaluator` performs TEBA-Net-S inference on CPU or Apple MPS.
+- This is the PUCT baseline. The adaptive TEBA search-budget mechanism is a
+  separate research stage and is not claimed to be implemented here.
+
 ## Activate the local environment
 
 From the repository root:
