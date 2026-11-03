@@ -39,6 +39,10 @@ jobs:
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install numpy pytest
 
+      - name: Validate M4 long-run launcher
+        working-directory: ai-training
+        run: bash -n scripts/run_m4_long_training.sh
+
       - name: Run AI training tests
         working-directory: ai-training
         run: python -m pytest tests -v
