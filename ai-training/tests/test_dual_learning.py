@@ -163,3 +163,26 @@ def test_v40_champion_bridge_returns_legal_center_move_on_empty_board():
 
     assert move == spot(7, 7)
     assert diagnostics["index"] == move
+
+
+
+@pytest.mark.skipif(
+    not torch.backends.mps.is_available(),
+    reason="Apple MPS is not available on this machine",
+)
+def test_dual_train_step_runs_three_channel_backward_on_mps():
+    device = torch.device("mps")
+    model = build_model().to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+
+    metrics = dual_train_step(
+        model,
+        optimizer,
+        _batch(batch_size=2),
+        _batch(batch_size=2),
+        _batch(batch_size=2),
+        device,
+    )
+    torch.mps.synchronize()
+
+    assert all(np.isfinite(value) for value in metrics.values())
