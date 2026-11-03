@@ -70,6 +70,9 @@ jobs:
               db.close()
           print("Legacy and partially upgraded puzzle schemas repaired without losing challenge records.")
           PY
+      - name: Verify admin operations against SQLite
+        working-directory: v4.0
+        run: python tools/test_admin_operations.py
       - name: Automated tests
         working-directory: v4.0
         run: npm test

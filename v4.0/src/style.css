@@ -306,3 +306,9 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 @keyframes pvpConfettiFall{0%{transform:translateY(-12px) rotate(0) scale(.6);opacity:0}18%{opacity:1}75%{opacity:.85}100%{transform:translateY(370px) rotate(260deg) scale(1.15);opacity:0}}
 @media(max-width:640px){.pvp-result-card{padding:31px 21px 22px;border-radius:23px}.pvp-result-card h2{font-size:25px}.pvp-result-icon{width:68px;height:68px;font-size:34px}}
 @media(prefers-reduced-motion:reduce){.pvp-result-backdrop,.pvp-result-card,.pvp-result-confetti i{animation:none!important}.pvp-result-confetti{display:none}}
+
+.admin-feedback{margin:10px 0;padding:11px 13px;border:1px solid var(--border,var(--v4-line));border-radius:11px;background:var(--surface,#fff);color:var(--heading,var(--v4-ink));font-size:13px;font-weight:750;line-height:1.65;overflow-wrap:anywhere}
+.admin-feedback.error{border-color:#bd786f;background:rgba(189,120,111,.12);color:#ffd5ce}
+.admin-feedback:not(.error){border-color:#668c78;background:rgba(102,140,120,.12);color:var(--heading,var(--v4-ink))}
+.admin-feedback[hidden]{display:none!important}
+#adminActions button:disabled{opacity:.65;cursor:wait}
