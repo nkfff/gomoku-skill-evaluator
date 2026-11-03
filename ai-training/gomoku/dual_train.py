@@ -360,6 +360,10 @@ def run_training(args: argparse.Namespace) -> Path:
     device = resolve_device(args.device)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    if not args.resume and (output_dir / "latest.pt").exists():
+        raise FileExistsError(
+            f"{output_dir / 'latest.pt'} already exists; use --resume or choose a new --output-dir"
+        )
 
     random.seed(args.seed)
     rng = np.random.default_rng(args.seed)
