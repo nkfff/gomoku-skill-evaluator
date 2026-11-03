@@ -104,6 +104,22 @@
 </div>
 <p class="note">断线后系统会尝试自动重连，断线宽限期为 60 秒。对局结束后，双方可点击“再来一局”继续与同一好友对弈；“重新匹配”返回好友大厅，创建或加入新房间。当前版本使用邀请码房间，尚未提供随机匹配队列。</p>
 </div>
+<div id="pvpResultModal" class="pvp-result-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pvpResultTitle" aria-describedby="pvpResultMessage">
+ <div class="pvp-result-backdrop"></div>
+ <div class="pvp-result-card">
+  <button id="pvpResultClose" class="pvp-result-close" aria-label="关闭对局结果">×</button>
+  <div class="pvp-result-confetti" aria-hidden="true"><i>✦</i><i>✧</i><i>✦</i><i>✧</i><i>●</i><i>✦</i></div>
+  <div id="pvpResultIcon" class="pvp-result-icon" aria-hidden="true">🏆</div>
+  <span id="pvpResultEyebrow" class="eyebrow">MATCH RESULT</span>
+  <h2 id="pvpResultTitle">胜利！</h2>
+  <p id="pvpResultMessage">对手认输，你获得本局胜利。</p>
+  <div class="pvp-result-stats">
+   <div><small>本局结果</small><strong id="pvpResultOutcome">胜利</strong></div>
+   <div><small>段位变化</small><strong id="pvpResultRating">+0</strong></div>
+  </div>
+  <button id="pvpResultContinue" class="primary pvp-result-continue">返回对局</button>
+ </div>
+</div>
 <div id="pvpDiceStage" class="dice-stage" hidden aria-live="polite"><div class="dice-stage-head"><span>先手争夺</span><strong>3D 幸运骰子</strong></div><div class="dice-pair"><div class="dice-player"><small id="pvpDiceLeftLabel">房主</small><div class="dice-cube-shell"><div id="pvpDiceLeft" class="dice-cube show-5" role="img" aria-label="5点"><span class="dice-cube-face face-front" data-value="1"></span><span class="dice-cube-face face-back" data-value="6"></span><span class="dice-cube-face face-right" data-value="3"></span><span class="dice-cube-face face-left" data-value="4"></span><span class="dice-cube-face face-top" data-value="2"></span><span class="dice-cube-face face-bottom" data-value="5"></span></div></div></div><div class="dice-vs">VS</div><div class="dice-player"><small id="pvpDiceRightLabel">好友</small><div class="dice-cube-shell"><div id="pvpDiceRight" class="dice-cube show-2" role="img" aria-label="2点"><span class="dice-cube-face face-front" data-value="1"></span><span class="dice-cube-face face-back" data-value="6"></span><span class="dice-cube-face face-right" data-value="3"></span><span class="dice-cube-face face-left" data-value="4"></span><span class="dice-cube-face face-top" data-value="2"></span><span class="dice-cube-face face-bottom" data-value="5"></span></div></div></div></div><p id="pvpDiceStatus">双方掷骰中…</p><strong id="pvpDiceWinner" class="dice-winner"></strong></div><h3>真人排行榜</h3><div id="pvpPodium" class="leaderboard-podium pvp-podium" aria-label="真人排行榜前三名"></div>
 <div class="tableWrap"><table><thead><tr><th>排名</th><th>玩家</th><th>段位</th><th>Elo</th><th>对局</th><th>胜/负/平</th></tr></thead><tbody id="pvpRankRows"><tr><td colspan="6">尚无数据</td></tr></tbody></table></div>
 <h3>我的最近战绩</h3>
