@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/4.1-teba-mcts
+      - feat/4.1.5-dual-learning
     paths:
       - "ai-training/**"
       - ".github/workflows/ai-training-check.yml"
