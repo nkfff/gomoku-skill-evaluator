@@ -298,3 +298,62 @@ Do not promote a checkpoint based on training loss alone. Compare it against
 the frozen champion and previous TEBA checkpoints using the same opening pairs,
 colors, PUCT simulations and champion search budget. A 20-game match is still
 an early screening result, not a publication-grade Elo estimate.
+
+
+## V4.1.7 — Frozen-checkpoint head-to-head comparison
+
+V4.1.7 adds a direct, reproducible match between two saved TEBA checkpoints.
+It is designed to answer whether later training actually improves playing
+strength, rather than relying on training loss or matches against only the
+fixed V4.0 champion.
+
+**Comparison protocol**
+- MODEL_A and MODEL_B are loaded from separate frozen checkpoint files.
+- Both use the same PUCT simulations, `c_puct`, candidate rules and
+  deterministic evaluation mode (no root Dirichlet noise).
+- Each opening pair generates one reproducible legal six-ply opening.
+- The exact same opening is replayed twice: MODEL_A plays BLACK in game one
+  and WHITE in game two.
+- The default is 40 games = 20 distinct opening pairs.
+- Search is sequential on the selected device; both models remain frozen.
+
+**Run the Round 5 vs Round 30 comparison on M4**
+
+```bash
+python -m gomoku.compare_checkpoints \
+  --checkpoint-a checkpoints_dual/round_0005_model.pt \
+  --checkpoint-b checkpoints_dual/round_0030_model.pt \
+  --device mps \
+  --games 40 \
+  --simulations 64 \
+  --opening-plies 6 \
+  --seed 2028 \
+  --output evaluation/round05_vs_round30_head_to_head.csv
+```
+
+MODEL_A is the first checkpoint (Round 5); MODEL_B is the second checkpoint
+(Round 30). The output files are:
+- `evaluation/round05_vs_round30_head_to_head.csv`: per-game results,
+  color assignment, pair outcome, game length, latency and tactical misses.
+- `evaluation/round05_vs_round30_head_to_head_games.jsonl`: complete game
+  records, including opening sequence and all moves.
+- `evaluation/round05_vs_round30_head_to_head_plies.jsonl`: one diagnostic
+  record per ply, including board-before state, selected move, PUCT root
+  top-five visits/priors, root value and exact tactical opportunity flags.
+
+The summary reports each model's wins/draws/losses, score, color-specific
+results, paired-opening outcomes, mean search latency and tactical misses.
+A paired result is based on the two color-swapped games: a model winning both
+(or winning one and drawing the other) wins the pair; equal pair points are a
+paired draw. The smoothed Elo value is descriptive only and must not be
+presented as a publication-grade rating.
+
+**Interpretation**
+- A later checkpoint should not be promoted merely because its training loss
+  decreased or because it survives longer against the champion.
+- The paired head-to-head is the direct test of relative checkpoint strength.
+- 20 opening pairs are an initial screening experiment. Publication-grade
+  comparisons need substantially more independent openings, confidence
+  intervals and repeated seeds.
+- Keep all source checkpoints unchanged; comparison is inference-only and
+  writes separate evaluation artifacts.

@@ -700,3 +700,89 @@ V4.1.6 承接 V4.1.5 的双通道训练框架，针对首轮 Pilot 与 V4.0 王�
 - 首轮至少观察 1–2 个完整训练轮次的真实耗时、内存占用、Replay 增长和 Loss 数值，再决定是否继续 30 轮。
 - 训练 Loss 下降不代表棋力提升；至少应比较训练前后相同随机开局、黑白交换、固定 64 次 PUCT 与固定王者预算下的结果。
 - 20 局只能作为初筛；论文实验应增加对局数量、置信区间、Elo 或 Bradley–Terry 估计及消融实验。
+
+
+## 11. V4.1.7：冻结 Checkpoint 直接对战与棋力进化诊断（2026-11-03）
+
+### 11.1 版本定位
+
+V4.1.7 不新增训练轮数，也不修改 TEBA-Net-S 网络、训练损失或既有 Checkpoint。核心目标是建立公平、可复现的模型对模型评估，直接回答 V4.1.6 的长周期双通道训练是否带来棋力提升。
+
+- **开发/测试分支：** `feat/4.1.7-checkpoint-head-to-head`
+- **合并目标分支：** `feat/4.1-teba-mcts`
+- **PR：** 待创建。
+- **状态：** 开发中；GitHub Actions 与 M4 本地测试待验收；不代表线上 V4.0 浏览器游戏已更新。
+
+### 11.2 实验背景
+
+用户已完成 V4.1.6 的 30 轮双通道训练，保留了：
+- `checkpoints_dual/round_0005_model.pt`
+- `checkpoints_dual/round_0030_model.pt`
+- `checkpoints_dual/latest.pt`
+
+两份模型在相同评估条件下分别对 V4.0 王者进行了 20 局测试（10 组随机开局、64 次 PUCT、固定随机种子 2028）：
+
+| 指标 | Round 5 | Round 30 |
+|---|---:|---:|
+| 胜 / 平 / 负 | 0 / 0 / 20 | 0 / 0 / 20 |
+| Match Score | 0.000 | 0.000 |
+| TEBA 平均搜索耗时 | 207.9 ms | 216.5 ms |
+| 漏即时胜 / 漏强制防守 / 漏 Fork | 0 / 0 / 0 | 0 / 0 / 0 |
+
+这只能说明两份 Checkpoint 均未在该小样本中击败 V4.0 王者，不能据此推断 Round 30 相比 Round 5 没有任何提升。下一步必须进行两个 TEBA Checkpoint 的直接对战。
+
+### 11.3 配对对战协议
+
+- MODEL_A：Round 5 Checkpoint。
+- MODEL_B：Round 30 Checkpoint。
+- 每组只生成一次可复现的合法随机开局，并在两局中完全复用。
+- 第一局 MODEL_A 执黑、MODEL_B 执白；第二局交换颜色。
+- 默认 40 局，即 20 组独立开局、每个模型各执黑和执白 20 局。
+- 双方使用相同设备、PUCT 模拟次数、(c_{puct})、候选生成规则和无根噪声评估模式。
+- 两个模型均冻结，仅推理，不更新任何权重或训练状态。
+
+### 11.4 新增代码与产物
+
+- `ai-training/gomoku/compare_checkpoints.py`：双 Checkpoint 加载、相同开局复用、颜色交换、对局统计、逐步搜索与战术诊断。
+- `ai-training/tests/test_compare_checkpoints.py`：颜色交换、配对统计、即时获胜、参数默认值与非法输入测试。
+- `ai-training/README.md`：新增 V4.1.7 实验协议和 M4 命令。
+
+默认输出：
+- `evaluation/round05_vs_round30_head_to_head.csv`：逐局汇总。
+- `evaluation/round05_vs_round30_head_to_head_games.jsonl`：完整对局记录。
+- `evaluation/round05_vs_round30_head_to_head_plies.jsonl`：逐步棋盘、落子、PUCT Top-5、Value 与战术机会记录。
+
+### 11.5 M4 执行命令
+
+更新分支并测试：
+
+```bash
+git switch feat/4.1-teba-mcts
+git pull --ff-only origin feat/4.1-teba-mcts
+cd ai-training
+python -m pytest tests -v
+```
+
+执行 Round 5 对 Round 30 的直接对战：
+
+```bash
+python -m gomoku.compare_checkpoints \
+  --checkpoint-a checkpoints_dual/round_0005_model.pt \
+  --checkpoint-b checkpoints_dual/round_0030_model.pt \
+  --device mps \
+  --games 40 \
+  --simulations 64 \
+  --opening-plies 6 \
+  --seed 2028 \
+  --output evaluation/round05_vs_round30_head_to_head.csv
+```
+
+### 11.6 验收标准与解释边界
+
+- 40 局必须完整结束，20 组开局均完成黑白交换。
+- 每一组的两局必须使用完全相同的开局序列。
+- 双方每一步使用完全相同的 PUCT 搜索预算。
+- 输出 CSV、完整对局 JSONL 和逐步诊断 JSONL。
+- 汇报模型总胜平负、黑白分色结果、配对胜负、搜索耗时与战术漏步。
+- 该实验是棋力进化的初筛，不足以支撑论文级结论；后续需要增加开局数量、多个随机种子、置信区间与消融实验。
+- 本版本只做评估，不覆盖训练 Checkpoint，不改线上 V4.0 游戏。
