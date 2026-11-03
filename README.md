@@ -4,7 +4,7 @@
 
 **当前稳定版：V2.2 · 最新预览版：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-> **最近更新：2026-11-03** · V4.1.7 Checkpoint 直接对战评估器已合并至 AI 开发分支，GitHub Actions 112 项通过、4 项 MPS 测试跳过；M4 本地验收及 40 局模型对战待执行。线上游戏最新预览仍为 V4.0。
+> **最近更新：2026-11-03** · V4.1.7 Checkpoint 直接对战评估器已合并至 AI 开发分支，GitHub Actions 112 项通过、4 项 MPS 测试跳过；M4 本地验收及 40 局模型对战待执行。线上游戏最新预览版本为 V4.0.2。
 
 一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V4.0.2 是最新预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 保留为历史预览入口。V4.1 是独立 AI 研究分支，不改变线上 V4.0。V4.0 前端 Pages 已部署，相关 Worker/D1 维护迁移与自动化检查通过；完整真实浏览器验收仍待完成。
 
