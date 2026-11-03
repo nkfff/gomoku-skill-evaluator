@@ -67,37 +67,63 @@ async function refresh(){
 }
 function adminRow(user){
  const tr=document.createElement("tr");
- for(const value of [user.name+" / "+user.id.slice(0,8),String(user.points),String(user.earned_points),user.banned?"封禁":"正常"]){
-  const td=document.createElement("td");td.textContent=value;tr.appendChild(td);
- }
+ const games=Number(user.games_played??(Number(user.wins||0)+Number(user.losses||0)+Number(user.draws||0)));
+ const rank=user.leaderboard_rank?("第"+user.leaderboard_rank+"名"):"未上榜";
+ const values=[user.name+" / "+user.id.slice(0,8),String(user.points),String(user.earned_points),String(games),
+  String(user.wins||0),Number(user.win_rate||0).toFixed(1)+"%",rank,user.banned?"封禁":"正常"];
+ for(const value of values){const td=document.createElement("td");td.textContent=value;tr.appendChild(td);}
  const td=document.createElement("td"),button=document.createElement("button");
- button.textContent="管理";button.onclick=()=>selectUser(user);
+ button.type="button";button.textContent="管理";button.onclick=()=>selectUser(user);
  td.appendChild(button);tr.appendChild(td);return tr;
 }
 let selectedUser=null;
+function sqliteRound(value){return Math.sign(value)*Math.floor(Math.abs(value)+0.5);}
+function refreshAdminStatsPreview(){
+ const preview=$("adminStatsPreview");if(!preview)return;
+ if(!selectedUser){preview.textContent="请先选择一个账号。";return;}
+ const games=Number($("adminGames").value),wins=Number($("adminWins").value),earned=Number($("adminEarnedPoints").value),draws=Number(selectedUser.draws||0);
+ if(!Number.isSafeInteger(games)||games<0||!Number.isSafeInteger(wins)||wins<0||!Number.isSafeInteger(earned)||earned<0||earned>1000000){
+  preview.textContent="请输入非负整数；竞技积分上限为 1,000,000。";return;
+ }
+ if(wins+draws>games){preview.textContent="胜局数 + 当前平局数不能超过总场次。";return;}
+ const losses=games-wins-draws,winRate=games?100*wins/games:0,adjustedRate=100*(wins+2.5)/(games+5);
+ const rankPoints=Math.max(0,sqliteRound(earned+(adjustedRate-50)*Math.min(games,20)/10));
+ preview.textContent="预计胜率 "+winRate.toFixed(1)+"% · 胜 "+wins+" / 平 "+draws+" / 负 "+losses+
+  " · 排行榜综合积分 "+rankPoints+"（竞技积分基数 "+earned+"）";
+}
 function selectUser(u){
  selectedUser=u;
- $("selectedUser").textContent=u.name+" ("+u.id+") · 现有积分 "+u.points;
+ const rank=u.leaderboard_rank?("第"+u.leaderboard_rank+"名"):"未上榜";
+ $("selectedUser").textContent=u.name+" ("+u.id+") · 账户余额 "+u.points+" · 当前排行榜 "+rank;
  $("adminActions").hidden=false;
+ $("adminGames").value=String(u.games_played??(Number(u.wins||0)+Number(u.losses||0)+Number(u.draws||0)));
+ $("adminWins").value=String(u.wins||0);
+ $("adminEarnedPoints").value=String(u.earned_points||0);
+ refreshAdminStatsPreview();
 }
 async function searchUsers(){
  try{
-  const q=encodeURIComponent($("adminSearch").value.trim());
-  const res=await call("admin/users?q="+q,null,"GET");
+  const q=encodeURIComponent($("adminSearch").value.trim()),res=await call("admin/users?q="+q,null,"GET");
+  const users=Array.isArray(res.users)?res.users:[];
   const tbody=$("adminResults");tbody.replaceChildren();
-  for(const u of res.users)tbody.appendChild(adminRow(u));
- }catch(e){setMessage("管理员列表："+e.message,true);}
+  for(const u of users)tbody.appendChild(adminRow(u));
+  if(selectedUser){const fresh=users.find(user=>user.id===selectedUser.id);if(fresh)selectUser(fresh);}
+  return users;
+ }catch(e){setMessage("管理员列表："+e.message,true);return [];}
 }
-async function adminPost(path,data){
- if(!selectedUser)return;
- const name=selectedUser.name;
+async function adminPost(path,data,successMessage,button){
+ if(!selectedUser){setMessage("请先查询并选择一个账号",true);return false;}
+ const targetId=selectedUser.id,name=selectedUser.name;if(button)button.disabled=true;
  try{
-  const result=await call(path,{targetId:selectedUser.id,...data});
-  setMessage("已完成 "+name+" 的管理操作，日志已记录");
+  const result=await call(path,{targetId,...data});
+  if(!result?.profile)throw Error("服务器未返回更新后的账号资料");
   selectedUser=result.profile;
-  await searchUsers();
-  $("selectedUser").textContent=name+" · 最新积分 "+result.profile.points;
- }catch(e){setMessage(e.message,true);}
+  const users=await searchUsers(),fresh=users.find(user=>user.id===targetId);
+  if(fresh)selectUser(fresh);
+  if(typeof window.gomokuRefreshLeaderboard==="function")await window.gomokuRefreshLeaderboard();
+  setMessage(successMessage||("已完成 "+name+" 的管理操作，日志已记录"));return true;
+ }catch(e){setMessage("管理操作失败："+e.message,true);return false;}
+ finally{if(button)button.disabled=false;}
 }
 export async function initAccount(onAuthChange,onRemoteProfileChange){
  onChange=onAuthChange||(()=>{});
@@ -187,25 +213,40 @@ $("saveDisplayName").onclick=async()=>{
  }catch(e){setMessage("保存显示名称失败："+e.message,true);}
  finally{button.disabled=false;}
 };
+for(const id of ["adminGames","adminWins","adminEarnedPoints"])$(id).addEventListener("input",refreshAdminStatsPreview);
 $("adminFind").onclick=searchUsers;
+$("adminSaveStats").onclick=async()=>{
+ if(!selectedUser){setMessage("请先查询并选择一个账号",true);return;}
+ const gamesPlayed=Number($("adminGames").value),wins=Number($("adminWins").value),earnedPoints=Number($("adminEarnedPoints").value);
+ const draws=Number(selectedUser.draws||0),reason=$("adminReason").value.trim();
+ if(!reason){setMessage("请填写操作原因",true);return;}
+ if(!Number.isSafeInteger(gamesPlayed)||gamesPlayed<0||!Number.isSafeInteger(wins)||wins<0||
+    !Number.isSafeInteger(earnedPoints)||earnedPoints<0||earnedPoints>1000000||wins+draws>gamesPlayed){
+  refreshAdminStatsPreview();setMessage("战绩数据不合法，请检查总场次、胜局数和竞技积分",true);return;
+ }
+ if(!confirm("确定将 "+selectedUser.name+" 的 AI 战绩调整为 "+gamesPlayed+" 场、"+wins+" 胜，并将竞技积分基数设为 "+earnedPoints+"？"))return;
+ await adminPost("admin/adjust-stats",{gamesPlayed,wins,earnedPoints,reason},
+  "战绩与竞技积分已保存，胜率、综合积分和排行榜名次已重新计算。",$("adminSaveStats"));
+};
 $("adminAdjust").onclick=async()=>{
- const delta=Number($("adminDelta").value);
- const reason=$("adminReason").value.trim();
- if(!Number.isInteger(delta)||delta===0||!reason){setMessage("请输入非零整数积分和操作原因",true);return;}
- if(!confirm("确定对 "+selectedUser?.name+" 调整 "+delta+" 积分吗？"))return;
- await adminPost("admin/adjust-points",{delta,reason});
+ if(!selectedUser){setMessage("请先选择账号",true);return;}
+ const delta=Number($("adminDelta").value),reason=$("adminReason").value.trim();
+ if(!Number.isInteger(delta)||delta===0||!reason){setMessage("请输入非零整数账户余额调整值和操作原因",true);return;}
+ if(!confirm("确定对 "+selectedUser.name+" 调整账户余额 "+delta+" 积分吗？此操作不影响排行榜。"))return;
+ await adminPost("admin/adjust-points",{delta,reason},"账户余额已调整；该余额不参与排行榜。",$("adminAdjust"));
 };
 $("adminReset").onclick=async()=>{
  const reason=$("adminReason").value.trim();
- if(!reason||!selectedUser){setMessage("请填写重置原因并选择用户",true);return;}
- if(prompt("此操作将清零目标账号积分、战绩、皮肤，请输入 RESET 确认")!=="RESET")return;
- await adminPost("admin/reset",{reason});
+ if(!reason||!selectedUser){setMessage("请填写清空原因并选择用户",true);return;}
+ const confirmation=prompt("将清空 "+selectedUser.name+" 的全部 AI 对局记录、胜负战绩和竞技积分；账户皮肤与真人 PVP/Elo 记录保留。请输入 CLEAR 确认");
+ if(confirmation!=="CLEAR"){setMessage("已取消清空操作。");return;}
+ await adminPost("admin/reset",{reason},"AI 对局记录、胜负战绩和竞技积分已清空；账户皮肤及真人 PVP/Elo 记录保留。",$("adminReset"));
 };
 $("adminBan").onclick=async()=>{
- if(!selectedUser)return;
+ if(!selectedUser){setMessage("请先选择账号",true);return;}
  const banned=!selectedUser.banned;
  if(!confirm((banned?"封禁":"解除封禁")+"账号 "+selectedUser.name+"？"))return;
- await adminPost("admin/ban",{banned});
+ await adminPost("admin/ban",{banned},banned?"账号已封禁。":"账号已解除封禁。",$("adminBan"));
 };
 $("adminAudit").onclick=async()=>{
  try{
