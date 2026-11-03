@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import torch
 
 from gomoku.game import BLACK, WHITE, GomokuGame, new_board, spot
 from gomoku.mcts import PUCTConfig, PUCTSearch, TorchEvaluator
@@ -277,3 +278,22 @@ def test_select_move_rejects_invalid_temperature():
 
     with pytest.raises(ValueError):
         PUCTSearch.select_move(result, temperature=-0.1)
+
+
+
+@pytest.mark.skipif(
+    not torch.backends.mps.is_available(),
+    reason="Apple MPS is not available on this machine",
+)
+def test_puct_search_runs_with_teba_network_on_mps():
+    model = build_model()
+    evaluator = TorchEvaluator(model, device="mps")
+    search = PUCTSearch(
+        evaluator,
+        PUCTConfig(simulations=2),
+    )
+
+    result = search.search(GomokuGame())
+
+    assert result.best_move == spot(7, 7)
+    assert sum(result.visit_counts.values()) == 2
