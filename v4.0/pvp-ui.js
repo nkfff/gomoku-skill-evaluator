@@ -841,6 +841,7 @@ async function restorePvpRoomOnLoad() {
     if (!roomId || !roomState) return;
     saveRoomSession(roomId, inviteCode);
     syncRoomUrl(roomId, inviteCode);
+    if (typeof window.activateGomokuTab === "function") window.activateGomokuTab("pvp");
     restoredPlayerId = playerId;
     notice("已恢复你此前的好友房间，棋盘和对局状态已同步。");
   } catch (error) {
@@ -863,6 +864,9 @@ window.addEventListener("gomoku:auth-changed", event => {
   if (event.detail && event.detail.signedIn) restorePvpRoomOnLoad();
 });
 waitForAuthReady().then(() => {
+  if (initialPvpRoom || initialInvite) {
+    if (typeof window.activateGomokuTab === "function") window.activateGomokuTab("pvp");
+  }
   if (loggedIn()) {
     restorePvpRoomOnLoad();
   } else if (initialPvpRoom || initialInvite) {
