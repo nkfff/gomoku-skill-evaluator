@@ -269,3 +269,40 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 .admin-stats-preview{margin:12px 0;padding:11px 12px;border:1px solid var(--border,var(--v4-line));border-radius:11px;background:var(--surface,#fff);color:var(--heading,var(--v4-ink));font-size:12px;font-weight:750;line-height:1.7}
 .admin-stats-editor .controls{margin-bottom:0}
 @media(max-width:640px){.admin-stats-grid{grid-template-columns:1fr 1fr}}
+
+
+/* V4.0.3 PVP result feedback: clear draw/resign outcomes and a restrained victory celebration. */
+.pvp-result-modal[hidden]{display:none!important}
+.pvp-result-modal{position:fixed;z-index:1200;inset:0;display:grid;place-items:center;padding:20px}
+.pvp-result-backdrop{position:absolute;inset:0;background:rgba(43,31,35,.52);backdrop-filter:blur(9px);animation:pvpResultFade .22s ease}
+.pvp-result-card{position:relative;width:min(100%,430px);padding:34px 30px 28px;border:1px solid rgba(255,255,255,.78);border-radius:28px;background:linear-gradient(155deg,#fffefa 0%,#fff5f5 100%);box-shadow:0 32px 100px rgba(35,22,25,.28);text-align:center;overflow:hidden;animation:pvpResultPop .42s cubic-bezier(.18,.78,.2,1)}
+.pvp-result-close{position:absolute;z-index:2;top:12px;right:13px;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:#f5e8e9;color:#986878;font-size:22px;line-height:1}
+.pvp-result-icon{position:relative;z-index:1;display:grid;place-items:center;width:76px;height:76px;margin:4px auto 14px;border:1px solid #efdae0;border-radius:24px;background:linear-gradient(145deg,#fff9f1,#f8e8ed);font-size:38px;box-shadow:0 10px 24px rgba(166,95,118,.12)}
+.pvp-result-card h2{position:relative;z-index:1;margin:8px 0 9px;color:#684351;font-size:28px;letter-spacing:-.04em}
+.pvp-result-card>p{position:relative;z-index:1;max-width:320px;min-height:42px;margin:0 auto 20px;color:#89747a;font-size:13px;line-height:1.75}
+.pvp-result-stats{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 20px}
+.pvp-result-stats>div{padding:13px 10px;border:1px solid #efdee1;border-radius:14px;background:rgba(255,255,255,.74)}
+.pvp-result-stats small{display:block;margin-bottom:5px;color:#a08b90;font-size:10px;font-weight:700}
+.pvp-result-stats strong{color:#76505e;font-size:19px;font-variant-numeric:tabular-nums}
+.pvp-result-continue{position:relative;z-index:1;width:100%;min-height:44px;font-size:13px}
+.pvp-result-modal.is-win .pvp-result-icon{border-color:#ead5a7;background:linear-gradient(145deg,#fff8dc,#f9e6bd);box-shadow:0 10px 28px rgba(205,160,79,.22)}
+.pvp-result-modal.is-win .pvp-result-card h2{color:#936a2d}
+.pvp-result-modal.is-win .pvp-result-stats strong:last-child{color:#3f8a67}
+.pvp-result-modal.is-loss .pvp-result-icon{background:linear-gradient(145deg,#f4f0f0,#e9e2e4);filter:saturate(.72)}
+.pvp-result-modal.is-loss .pvp-result-card h2{color:#795e66}
+.pvp-result-modal.is-draw .pvp-result-icon{background:linear-gradient(145deg,#edf7f2,#e1f0e9)}
+.pvp-result-modal.is-draw .pvp-result-card h2{color:#527d6b}
+.pvp-result-confetti{position:absolute;inset:0;overflow:hidden;pointer-events:none;opacity:0}
+.pvp-result-modal.is-win .pvp-result-confetti{opacity:1}
+.pvp-result-confetti i{position:absolute;top:-12%;left:var(--x,50%);color:var(--c,#d8ad62);font-size:17px;font-style:normal;animation:pvpConfettiFall 2.8s ease-in-out infinite;animation-delay:var(--delay,0s)}
+.pvp-result-confetti i:nth-child(1){--x:9%;--c:#d6a34e;--delay:-.2s}
+.pvp-result-confetti i:nth-child(2){--x:25%;--c:#d78aa2;--delay:-1.1s}
+.pvp-result-confetti i:nth-child(3){--x:43%;--c:#cda45d;--delay:-.7s}
+.pvp-result-confetti i:nth-child(4){--x:66%;--c:#c9879a;--delay:-1.8s}
+.pvp-result-confetti i:nth-child(5){--x:82%;--c:#d6a34e;--delay:-.4s}
+.pvp-result-confetti i:nth-child(6){--x:94%;--c:#c9879a;--delay:-1.4s}
+@keyframes pvpResultFade{from{opacity:0}to{opacity:1}}
+@keyframes pvpResultPop{from{opacity:0;transform:translateY(18px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes pvpConfettiFall{0%{transform:translateY(-12px) rotate(0) scale(.6);opacity:0}18%{opacity:1}75%{opacity:.85}100%{transform:translateY(370px) rotate(260deg) scale(1.15);opacity:0}}
+@media(max-width:640px){.pvp-result-card{padding:31px 21px 22px;border-radius:23px}.pvp-result-card h2{font-size:25px}.pvp-result-icon{width:68px;height:68px;font-size:34px}}
+@media(prefers-reduced-motion:reduce){.pvp-result-backdrop,.pvp-result-card,.pvp-result-confetti i{animation:none!important}.pvp-result-confetti{display:none}}
