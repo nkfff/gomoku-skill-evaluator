@@ -10,6 +10,9 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Local-only environment diagnostics
+ai-training/check_mps.py
+
 # Local AI training artifacts
 ai-training/checkpoints/
 ai-training/datasets/
