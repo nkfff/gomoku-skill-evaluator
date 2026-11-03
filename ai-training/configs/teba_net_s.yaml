@@ -106,9 +106,9 @@ dual_learning:
       - transposition_table
       - tactical_extension
     level: hard
-    width: 12
-    time_budget_ms: 180
-    max_depth: 7
+    width: 14
+    time_budget_ms: 500
+    max_depth: 10
   channels:
     self_play:
       enabled: true
