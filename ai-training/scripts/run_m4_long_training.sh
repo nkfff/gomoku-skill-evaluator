@@ -94,7 +94,7 @@ EOF
 
 set -o pipefail
 if command -v caffeinate >/dev/null 2>&1; then
-  caffeinate -dimsu python -m gomoku.dual_train \
+  caffeinate -dimsu python -u -m gomoku.dual_train \
     --device mps \
     --resume "$LATEST_CHECKPOINT" \
     --rounds "$TARGET_ROUNDS" \
@@ -108,7 +108,7 @@ if command -v caffeinate >/dev/null 2>&1; then
     2>&1 | tee -a "$LOG_FILE"
 else
   echo "Warning: caffeinate is unavailable; macOS may sleep during the run." | tee -a "$LOG_FILE"
-  python -m gomoku.dual_train \
+  python -u -m gomoku.dual_train \
     --device mps \
     --resume "$LATEST_CHECKPOINT" \
     --rounds "$TARGET_ROUNDS" \
