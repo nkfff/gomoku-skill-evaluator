@@ -40,7 +40,7 @@ export function calculateCompetitiveStats({gamesPlayed,wins,draws=0,earnedPoints
  if(wins+draws>gamesPlayed)throw invalid("胜局数与平局数之和不能超过总场次");
  const losses=gamesPlayed-wins-draws,winRate=gamesPlayed?100*wins/gamesPlayed:0;
  const adjustedWinRate=100*(wins+2.5)/(gamesPlayed+5);
- const rankPoints=Math.max(0,sqliteRound(earnedPoints+(adjustedWinRate-50)*Math.min(gamesPlayed,20)/10));
+ const rankPoints=gamesPlayed?Math.max(0,sqliteRound(earnedPoints+(adjustedWinRate-50)*Math.min(gamesPlayed,20)/10)):0;
  return {gamesPlayed,wins,losses,draws,earnedPoints,winRate,adjustedWinRate,rankPoints};
 }
 async function profile(env,id){
