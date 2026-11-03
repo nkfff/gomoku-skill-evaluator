@@ -121,6 +121,20 @@
   <button id="pvpResultContinue" class="primary pvp-result-continue">返回对局</button>
  </div>
 </div>
+
+<div id="pvpRematchInviteModal" class="pvp-rematch-invite-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pvpRematchInviteTitle" aria-describedby="pvpRematchInviteMessage">
+ <div class="pvp-rematch-invite-backdrop"></div>
+ <div class="pvp-rematch-invite-card">
+  <div class="pvp-rematch-invite-mark" aria-hidden="true">♟</div>
+  <span class="eyebrow">FRIEND INVITATION</span>
+  <h2 id="pvpRematchInviteTitle">再来一局邀请</h2>
+  <p id="pvpRematchInviteMessage"><strong id="pvpRematchInviteFrom">好友</strong> 邀请你继续对弈，是否接受？</p>
+  <div class="pvp-rematch-invite-actions">
+   <button id="pvpRematchInviteDecline" type="button">暂不继续</button>
+   <button id="pvpRematchInviteAccept" class="primary" type="button">接受邀请</button>
+  </div>
+ </div>
+</div>
 <h3>真人排行榜</h3><div id="pvpPodium" class="leaderboard-podium pvp-podium" aria-label="真人排行榜前三名"></div>
 <div class="tableWrap"><table><thead><tr><th>排名</th><th>玩家</th><th>段位</th><th>Elo</th><th>对局</th><th>胜/负/平</th></tr></thead><tbody id="pvpRankRows"><tr><td colspan="6">尚无数据</td></tr></tbody></table></div>
 <h3>我的最近战绩</h3>
