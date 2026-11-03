@@ -31,6 +31,10 @@ export function isAdminUser(env,user){
  const id=String(user?.id||"").trim().toLowerCase();
  return configured.length>0&&id===configured;
 }
+export function validateAdminTargetAction(action,adminId,targetId){
+ if(!uuid(targetId))throw invalid("目标账号 ID 无效");
+ if(action==="ban"&&targetId===adminId)throw invalid("为避免管理员锁定自己，不能封禁自己的账号");
+}
 function sqliteRound(value){return Math.sign(value)*Math.floor(Math.abs(value)+0.5);}
 export function calculateCompetitiveStats({gamesPlayed,wins,draws=0,earnedPoints=0}={}){
  if(!Number.isSafeInteger(gamesPlayed)||gamesPlayed<0)throw invalid("总场次必须为非负整数");
@@ -143,8 +147,7 @@ export default {
    if(url.pathname.startsWith("/api/admin/")){
     adminOrThrow(env,user);
     const target=body.targetId;
-    if(!uuid(target))throw invalid("目标账号 ID 无效");
-     if(target===user.id&&url.pathname!=="/api/admin/adjust-points")throw invalid("管理员仅可调整自己的账户余额，不能修改自己的战绩、清空或封禁自己的账号");
+    validateAdminTargetAction(url.pathname.slice("/api/admin/".length),user.id,target);
     const current=await profile(env,target);
     if(!current)throw invalid("用户不存在",404);
     if(url.pathname==="/api/admin/adjust-stats"){
@@ -155,7 +158,8 @@ export default {
       env.DB.prepare("UPDATE players SET wins=?,losses=?,draws=?,earned_points=? WHERE id=?").bind(stats.wins,stats.losses,stats.draws,stats.earnedPoints,target),
       env.DB.prepare("INSERT INTO admin_audit(id,admin_id,target_id,action,detail) VALUES(?,?,?,?,?)").bind(crypto.randomUUID(),user.id,target,"adjust_stats",JSON.stringify(detail))
      ]);
-     if(result[0].meta.changes!==1)throw invalid("战绩更新失败，请刷新后重试",409);
+     if(result.length!==2||Number(result[0]?.meta?.changes||0)!==1||Number(result[1]?.meta?.changes||0)!==1)
+      throw invalid("战绩或审计记录未完整写入，请刷新后重试",409);
     }else if(url.pathname==="/api/admin/adjust-points"){
      const delta=body.delta;
      if(!Number.isInteger(delta)||delta===0||Math.abs(delta)>100000)throw invalid("积分改动必须为非零整数，绝对值不超过 100000");
@@ -171,12 +175,14 @@ export default {
      await audit(env,user.id,target,"set_ban",{banned:!!banned});
     }else if(url.pathname==="/api/admin/reset"){
      const reason=clean(body.reason);if(!reason)throw invalid("请填写清空原因");
-     await env.DB.batch([
+     const result=await env.DB.batch([
       env.DB.prepare("DELETE FROM games WHERE player_id=?").bind(target),
       env.DB.prepare("UPDATE players SET points=0,earned_points=0,wins=0,losses=0,draws=0 WHERE id=?").bind(target),
       env.DB.prepare("INSERT INTO admin_audit(id,admin_id,target_id,action,detail) VALUES(?,?,?,?,?)")
        .bind(crypto.randomUUID(),user.id,target,"reset_ai_data",JSON.stringify({reason,scope:"ai_games_and_competitive_stats"}))
      ]);
+     if(result.length!==3||Number(result[1]?.meta?.changes||0)!==1||Number(result[2]?.meta?.changes||0)!==1)
+      throw invalid("清空操作未完整写入；请刷新账号并查看审计日志",409);
     }else throw invalid("路径不存在",404);
     return reply({ok:true,profile:await profile(env,target)},200,cors);
    }
