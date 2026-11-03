@@ -87,7 +87,7 @@ function refreshAdminStatsPreview(){
  }
  if(wins+draws>games){preview.textContent="胜局数 + 当前平局数不能超过总场次。";return;}
  const losses=games-wins-draws,winRate=games?100*wins/games:0,adjustedRate=100*(wins+2.5)/(games+5);
- const rankPoints=Math.max(0,sqliteRound(earned+(adjustedRate-50)*Math.min(games,20)/10));
+ const rankPoints=games?Math.max(0,sqliteRound(earned+(adjustedRate-50)*Math.min(games,20)/10)):0;
  preview.textContent="预计胜率 "+winRate.toFixed(1)+"% · 胜 "+wins+" / 平 "+draws+" / 负 "+losses+
   " · 排行榜综合积分 "+rankPoints+"（竞技积分基数 "+earned+"）";
 }
