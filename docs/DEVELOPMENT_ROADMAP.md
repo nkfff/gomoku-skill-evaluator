@@ -832,7 +832,7 @@ Round 5 与 Round 30 先前分别挑战 V4.0 王者时，均为 20 局 **0 胜 /
 **本次产物（M4 本地）：**
 - `evaluation/round05_vs_round30_head_to_head.csv`
 - `evaluation/round05_vs_round30_head_to_head_games.jsonl`
-- `evaluation/round05_vs_round30_head_to_round30_head_to_head_plies.jsonl`
+- `evaluation/round05_vs_round30_head_to_head_plies.jsonl`
 
 ### 11.8 下一步实验计划
 
