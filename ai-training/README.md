@@ -165,3 +165,78 @@ only after measuring the M4 throughput.
 A small pilot is an engineering validation, not evidence of playing strength.
 Strength evaluation against fixed baselines and held-out tactical positions
 must be added before claiming a trained model is stronger.
+
+
+### V4.1.5 — Dual-channel learning and champion evaluation
+
+The dual-learning stage preserves the completed V4.1.4 pilot and initializes
+from `checkpoints/latest.pt`. It does not overwrite the original checkpoint.
+
+The two reinforcement-learning channels are:
+
+1. **Self-play:** the current TEBA model plays both colors against itself.
+   PUCT visit distributions supervise policy; terminal outcomes supervise value.
+2. **Champion sparring:** TEBA plays one side against the actual V4.0 hard AI
+   from `v4.0/src/engine.js`. Learner turns are trained from PUCT targets and
+   game outcomes. Learner colors alternate between games.
+
+A third, deliberately low-weight auxiliary signal uses successful champion
+demonstrations. V4.0 moves are distilled only from games in which the champion
+wins or draws. A losing champion trajectory is not treated as expert policy.
+This avoids blindly imitating mistakes. Teacher demonstrations contribute only
+to policy loss; they do not directly train value or tactical heads.
+
+The champion is the real V4.0 hard engine (iterative-deepening alpha-beta,
+transposition table, tactical move ordering and tactical extension). Its
+per-move budget is capped at 180 ms for practical local training throughput;
+this is not the original 2.4-second full hard-mode budget. Both learner colors
+are evaluated to reduce first-player bias.
+
+Node.js is required because the champion bridge calls the actual V4.0
+JavaScript engine rather than a separately reimplemented approximation.
+
+Run from `ai-training/` after the V4.1.4 pilot has created
+`checkpoints/latest.pt`:
+
+```bash
+python -m gomoku.dual_train --device mps
+```
+
+Default dual-learning pilot:
+- 5 rounds.
+- 4 TEBA self-play games and 4 champion games per round.
+- 24 PUCT simulations per learner move.
+- 50 optimizer updates per round, batch size 32.
+- 60% self-play RL objective and 40% champion-sparring RL objective.
+- Additional champion policy-distillation coefficient: 0.15.
+- AdamW at 1e-4, float32, gradient clipping.
+- V4.0 champion: hard level, width 12, 180 ms and maximum depth 7.
+
+Outputs are local:
+- `checkpoints_dual/latest.pt`: full model/optimizer/scheduler and all three
+  replay buffers.
+- `checkpoints_dual/round_NNNN_model.pt`: model-only snapshots.
+- `checkpoints_dual/dual_training.csv`: channel data counts, match outcomes,
+  component losses and elapsed time.
+
+Resume a dual-learning run:
+
+```bash
+python -m gomoku.dual_train --device mps --resume checkpoints_dual/latest.pt
+```
+
+Evaluate the resulting model against the V4.0 hard champion with equal black
+and white assignments:
+
+```bash
+python -m gomoku.evaluate \\
+  --checkpoint checkpoints_dual/latest.pt \\
+  --device mps \\
+  --games 10 \\
+  --simulations 32
+```
+
+The evaluation writes `evaluation/champion_match.csv` and reports match score
+and an explicitly small-sample Elo estimate. Do not promote a checkpoint based
+on training loss alone; compare it against the frozen champion and previous
+TEBA checkpoints with equal colors and fixed compute budgets.
