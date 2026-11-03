@@ -357,3 +357,49 @@ presented as a publication-grade rating.
   intervals and repeated seeds.
 - Keep all source checkpoints unchanged; comparison is inference-only and
   writes separate evaluation artifacts.
+
+## Recorded result — Round 5 vs Round 30 (2026-11-03)
+
+Run on Apple M4 / MPS with frozen checkpoints, 40 games, 20 color-swapped
+opening pairs, six-ply shared openings, 64 PUCT simulations per move and seed
+2028.
+
+| Metric | Round 5 (MODEL_A) | Round 30 (MODEL_B) |
+|---|---:|---:|
+| Wins / draws / losses | 13 / 0 / 27 | 27 / 0 / 13 |
+| Match score | 0.325 | 0.675 |
+| As BLACK wins/draws/losses | 7 / 0 / 13 | 13 / 0 / 7 |
+| As WHITE wins/draws/losses | 6 / 0 / 14 | 14 / 0 / 6 |
+| Mean search latency | 222.6 ms/move | 214.7 ms/move |
+| Missed win / forced block / fork | 0 / 0 / 12 | 0 / 0 / 44 |
+
+Paired outcomes (Round 5 sweep / split pair / Round 30 sweep): **1 / 11 / 8**.
+Among the nine non-tied opening pairs, Round 30 won eight and Round 5 won one;
+the exact two-sided paired sign test gives *p* = **0.0391**. This is preliminary
+evidence from only 20 opening pairs, not a publication-grade strength estimate.
+The reported smoothed Elo difference is MODEL_A − MODEL_B = **−123.6** and is
+descriptive only.
+
+Both checkpoints previously scored 0 wins, 0 draws and 20 losses against the
+V4.0 champion in their separate 20-game evaluations. The head-to-head therefore
+supports Round 30 being stronger than Round 5, but does not show that Round 30
+has surpassed the V4.0 champion.
+
+The 44 vs 12 fork-miss counts require a denominator before they can be
+interpreted as rates. In the evaluator, a missed fork means the one-ply
+rule-based analyzer found at least one move creating two or more distinct
+immediate winning continuations, but the model selected a move outside those
+fork candidates when no immediate win or forced block took priority. It is a
+missed opportunity to create a fork, not a failure to defend against an
+opponent's fork. Use the per-ply JSONL to calculate fork-opportunity counts and
+conditional miss rates, then inspect representative positions.
+
+Artifacts:
+- `evaluation/round05_vs_round30_head_to_head.csv`
+- `evaluation/round05_vs_round30_head_to_head_games.jsonl`
+- `evaluation/round05_vs_round30_head_to_head_plies.jsonl`
+
+Next: audit fork-miss rates, repeat the paired comparison over at least 100
+independent opening pairs and multiple seeds, and separately evaluate Round 30
+against the V4.0 champion under the same search budget.
+
