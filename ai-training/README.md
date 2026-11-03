@@ -227,11 +227,20 @@ Outputs are local:
 - `checkpoints_dual/dual_training.csv`: channel data counts, match outcomes,
   component losses and elapsed time.
 
-Resume a dual-learning run:
+Resume an interrupted dual-learning run:
 
 ```bash
 python -m gomoku.dual_train --device mps --resume checkpoints_dual/latest.pt
 ```
+
+To extend a completed 5-round run to 10 total rounds:
+
+```bash
+python -m gomoku.dual_train --device mps --resume checkpoints_dual/latest.pt --rounds 10
+```
+
+The trainer refuses to overwrite an existing `checkpoints_dual/latest.pt`
+unless `--resume` is supplied. Use a new `--output-dir` for an independent run.
 
 Evaluate the resulting model against the V4.0 hard champion with equal black
 and white assignments:
