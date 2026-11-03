@@ -362,21 +362,34 @@ def load_dual_checkpoint(
     teacher_replay: ReplayBuffer,
     device: torch.device,
     rng: np.random.Generator,
-) -> tuple[int, int]:
+    *,
+    return_metadata: bool = False,
+):
     checkpoint = torch.load(path, map_location=device, weights_only=False)
     if checkpoint.get("format_version") != DUAL_CHECKPOINT_VERSION:
         raise ValueError("unsupported dual-learning checkpoint version")
 
     model.load_state_dict(checkpoint["model_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+    if scheduler is not None:
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
     self_play_replay.samples.extend(checkpoint["self_play_replay_samples"])
     sparring_replay.samples.extend(checkpoint["sparring_replay_samples"])
     teacher_replay.samples.extend(checkpoint["teacher_replay_samples"])
     rng.bit_generator.state = checkpoint["numpy_rng_state"]
     torch.set_rng_state(checkpoint["torch_rng_state"].cpu())
     random.setstate(checkpoint["python_rng_state"])
-    return int(checkpoint["round_index"]), int(checkpoint["global_step"])
+
+    round_index = int(checkpoint["round_index"])
+    global_step = int(checkpoint["global_step"])
+    if return_metadata:
+        return (
+            round_index,
+            global_step,
+            dict(checkpoint.get("run_config", {})),
+            checkpoint.get("scheduler_state_dict"),
+        )
+    return round_index, global_step
 
 
 def _load_initial_model(
@@ -408,6 +421,125 @@ def _append_dual_log(path: Path, row: dict[str, object]) -> None:
         writer.writerow(row)
 
 
+def _build_dual_scheduler(
+    optimizer: torch.optim.Optimizer,
+    args: argparse.Namespace,
+    start_round: int,
+    checkpoint_run_config: dict[str, object] | None = None,
+    checkpoint_scheduler_state: dict[str, object] | None = None,
+):
+    """
+    Build a cosine schedule that is safe for both exact resume and run extension.
+
+    A LambdaLR callable is not serialized with a checkpoint. Reconstructing it
+    with a larger total step count while loading the old scheduler state changes
+    the schedule underneath the saved last_epoch and can cause a large LR jump.
+    When extending a completed run, start a new cosine phase from the checkpoint's
+    actual optimizer LR. When resuming the same phase, reconstruct the original
+    schedule and restore its scheduler state.
+    """
+    if checkpoint_run_config is None:
+        schedule_start_round = 0
+        schedule_base_lr = float(args.learning_rate)
+        schedule_warmup_steps = int(args.warmup_steps)
+        total_steps = max(1, int(args.rounds) * int(args.updates_per_round))
+        schedule_mode = "initial"
+        restore_scheduler_state = False
+    else:
+        previous_target_rounds = int(
+            checkpoint_run_config.get(
+                "schedule_target_rounds",
+                checkpoint_run_config.get("rounds", 0),
+            )
+        )
+        previous_start_round = int(
+            checkpoint_run_config.get("schedule_start_round", 0)
+        )
+        previous_base_lr = checkpoint_run_config.get(
+            "schedule_base_lr",
+            checkpoint_run_config.get("learning_rate"),
+        )
+        previous_warmup_steps = int(
+            checkpoint_run_config.get(
+                "schedule_warmup_steps",
+                checkpoint_run_config.get("warmup_steps", args.warmup_steps),
+            )
+        )
+        previous_updates_per_round = int(
+            checkpoint_run_config.get(
+                "schedule_updates_per_round",
+                checkpoint_run_config.get("updates_per_round", args.updates_per_round),
+            )
+        )
+        previous_total_steps = checkpoint_run_config.get("schedule_total_steps")
+
+        can_resume_same_schedule = (
+            previous_target_rounds == int(args.rounds)
+            and previous_updates_per_round == int(args.updates_per_round)
+            and previous_base_lr is not None
+            and previous_start_round <= int(start_round)
+            and checkpoint_scheduler_state is not None
+        )
+
+        if can_resume_same_schedule:
+            schedule_start_round = previous_start_round
+            schedule_base_lr = float(previous_base_lr)
+            schedule_warmup_steps = previous_warmup_steps
+            total_steps = int(previous_total_steps) if previous_total_steps is not None else max(
+                1,
+                (int(args.rounds) - schedule_start_round)
+                * int(args.updates_per_round),
+            )
+            schedule_mode = "resume_same_schedule"
+            restore_scheduler_state = True
+        else:
+            if int(args.rounds) <= int(start_round):
+                raise ValueError(
+                    f"target rounds ({args.rounds}) must exceed the checkpoint "
+                    f"round ({start_round})"
+                )
+            schedule_start_round = int(start_round)
+            schedule_base_lr = float(optimizer.param_groups[0]["lr"])
+            schedule_warmup_steps = 0
+            total_steps = max(
+                1,
+                (int(args.rounds) - int(start_round))
+                * int(args.updates_per_round),
+            )
+            schedule_mode = "extended_phase"
+            restore_scheduler_state = False
+
+    current_lrs = [float(group["lr"]) for group in optimizer.param_groups]
+    for group in optimizer.param_groups:
+        group["initial_lr"] = schedule_base_lr
+        if schedule_mode == "extended_phase":
+            group["lr"] = schedule_base_lr
+
+    scheduler = _make_scheduler(
+        optimizer,
+        total_steps=total_steps,
+        warmup_steps=schedule_warmup_steps,
+    )
+
+    if restore_scheduler_state:
+        # LambdaLR initialization writes the first scheduled LR. Restore the
+        # checkpoint's current LR before loading its step counter and base LRs.
+        for group, current_lr in zip(optimizer.param_groups, current_lrs):
+            group["lr"] = current_lr
+        scheduler.load_state_dict(checkpoint_scheduler_state)
+
+    schedule_config = {
+        "schedule_mode": schedule_mode,
+        "schedule_target_rounds": int(args.rounds),
+        "schedule_start_round": int(schedule_start_round),
+        "schedule_base_lr": float(schedule_base_lr),
+        "schedule_warmup_steps": int(schedule_warmup_steps),
+        "schedule_updates_per_round": int(args.updates_per_round),
+        "schedule_total_steps": int(total_steps),
+    }
+    return scheduler, schedule_config
+
+
 def run_training(args: argparse.Namespace) -> Path:
     device = resolve_device(args.device)
     output_dir = Path(args.output_dir)
@@ -427,30 +559,38 @@ def run_training(args: argparse.Namespace) -> Path:
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
     )
-    scheduler = _make_scheduler(
-        optimizer,
-        total_steps=max(1, args.rounds * args.updates_per_round),
-        warmup_steps=args.warmup_steps,
-    )
 
     self_play_replay = ReplayBuffer(args.replay_capacity)
     sparring_replay = ReplayBuffer(args.replay_capacity)
     teacher_replay = ReplayBuffer(args.replay_capacity)
     start_round = 0
     global_step = 0
+    checkpoint_run_config = None
+    checkpoint_scheduler_state = None
 
     if args.resume:
-        start_round, global_step = load_dual_checkpoint(
+        (
+            start_round,
+            global_step,
+            checkpoint_run_config,
+            checkpoint_scheduler_state,
+        ) = load_dual_checkpoint(
             Path(args.resume),
             model,
             optimizer,
-            scheduler,
-            self_play_replay,
-            sparring_replay,
-            teacher_replay,
-            device,
-            rng,
+            scheduler=None,
+            self_play_replay=self_play_replay,
+            sparring_replay=sparring_replay,
+            teacher_replay=teacher_replay,
+            device=device,
+            rng=rng,
+            return_metadata=True,
         )
+        if args.rounds <= start_round:
+            raise SystemExit(
+                f"--rounds is the target total round count and must exceed "
+                f"the checkpoint round ({start_round}); received {args.rounds}"
+            )
         print(
             f"Resumed dual checkpoint: round={start_round}, "
             f"step={global_step}, self_play={len(self_play_replay)}, "
@@ -468,7 +608,25 @@ def run_training(args: argparse.Namespace) -> Path:
         print(f"Initialized from: {args.init_checkpoint}")
         print(f"Imported self-play positions: {len(self_play_replay)}")
 
+    scheduler, schedule_config = _build_dual_scheduler(
+        optimizer,
+        args,
+        start_round,
+        checkpoint_run_config=checkpoint_run_config,
+        checkpoint_scheduler_state=checkpoint_scheduler_state,
+    )
+    print(
+        "Learning-rate schedule: "
+        f"mode={schedule_config['schedule_mode']} | "
+        f"start_round={schedule_config['schedule_start_round']} | "
+        f"target_rounds={schedule_config['schedule_target_rounds']} | "
+        f"base_lr={schedule_config['schedule_base_lr']:.8g} | "
+        f"warmup_steps={schedule_config['schedule_warmup_steps']} | "
+        f"total_steps={schedule_config['schedule_total_steps']}"
+    )
+
     run_config = vars(args).copy()
+    run_config.update(schedule_config)
     run_config["device_resolved"] = str(device)
     run_config["model"] = "TEBA-Net-S"
     run_config["parameter_count"] = model.trainable_parameter_count

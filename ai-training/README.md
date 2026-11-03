@@ -403,3 +403,89 @@ Next: audit fork-miss rates, repeat the paired comparison over at least 100
 independent opening pairs and multiple seeds, and separately evaluate Round 30
 against the V4.0 champion under the same search budget.
 
+## V4.1.8 — Safe extended training and checkpoint resume
+
+V4.1.8 fixes the learning-rate scheduler when extending a completed dual-learning
+run. A PyTorch `LambdaLR` checkpoint stores its step state but not the Python
+schedule function. Rebuilding the scheduler for a longer target and loading the
+old step counter can therefore reinterpret (for example) step 3,000 as step
+3,000 of a new 6,000-step schedule, causing an unintended learning-rate jump.
+
+The updated trainer now distinguishes two cases:
+
+- **Resume the same target:** reconstruct the original schedule and restore its
+  scheduler state, so an interrupted run continues at the same learning rate
+  and schedule position.
+- **Extend the target:** start a new cosine phase from the optimizer learning
+  rate stored in the checkpoint, with no warmup and no discontinuous jump. The
+  new phase decays from that saved rate to 10% of it over the additional
+  updates. The new phase metadata is saved in every checkpoint so another
+  interruption can resume the same phase exactly.
+
+The `--rounds` argument remains the **target total round count**, not the
+number of extra rounds. Extending Round 30 to Round 60 adds 30 rounds:
+
+| Added work | Planned amount |
+|---|---:|
+| Additional rounds | 30 |
+| Self-play games | 240 |
+| V4.0 champion-sparring games | 240 |
+| Total additional games | 480 |
+| Additional optimizer updates | 3,000 |
+| PUCT simulations per learner move | 64 |
+| Batch size | 64 |
+| Replay capacity per channel | 50,000 |
+| V4.0 hard-AI budget | 500 ms/move |
+
+**Start the guarded M4 run** from the repository root:
+
+```bash
+bash ai-training/scripts/run_m4_long_training.sh
+```
+
+Or, from inside `ai-training/`:
+
+```bash
+bash scripts/run_m4_long_training.sh
+```
+
+The launcher:
+- verifies MPS, Node.js and the current checkpoint;
+- requires the target round to be later than the checkpoint round;
+- preserves a full resumable checkpoint before `latest.pt` is advanced;
+- prevents an obvious duplicate `gomoku.dual_train` process;
+- uses `caffeinate -dimsu` when available and writes a timestamped log under
+  `ai-training/logs/`;
+- resumes the existing model, AdamW optimizer, all three replay buffers and
+  random-number-generator states.
+
+For the planned first extension, the starting checkpoint is
+`checkpoints_dual/latest.pt` at Round 30 and the target is Round 60. The
+launcher does not commit training artifacts to Git. Keep the Mac connected to
+power, leave the lid open, and allow airflow during the multi-hour MPS run.
+Because MacBook Air is fanless, sustained load can thermally throttle; avoid
+running other GPU-heavy applications at the same time.
+
+If the run is interrupted, rerun the same launcher. It reads the latest
+completed round and continues toward Round 60 without resetting the optimizer
+or the extended-phase scheduler. Checkpoints are saved at completed round
+boundaries; work from an interrupted in-progress round is replayed.
+
+**After Round 60**, compare Round 30 and Round 60 on 100 color-swapped opening
+pairs (200 games), using the same 64-simulation budget:
+
+```bash
+python -m gomoku.compare_checkpoints \
+  --checkpoint-a checkpoints_dual/round_0030_model.pt \
+  --checkpoint-b checkpoints_dual/round_0060_model.pt \
+  --device mps \
+  --games 200 \
+  --simulations 64 \
+  --opening-plies 6 \
+  --seed 2029 \
+  --output evaluation/round30_vs_round60_200.csv
+```
+
+Do not promote Round 60 based on loss alone. Compare its match score, paired
+opening outcomes, color-specific results, tactical opportunity-conditioned
+miss rates and performance against the frozen V4.0 champion.
