@@ -53,7 +53,7 @@ def play_champion_game(
     model: torch.nn.Module,
     device: torch.device,
     search_config: PUCTConfig,
-    champion: LegacyEngineOpponent,
+    champion,
     learner_player: int,
     rng: np.random.Generator,
     temperature_moves: int = 12,
@@ -148,7 +148,7 @@ def play_champion_game(
             legal_mask = _candidate_mask(actions)
             if not legal_mask[move]:
                 raise RuntimeError(
-                    f"V4.0 champion selected a move outside the candidate set: {move}"
+                    f"{opponent_name} selected a move outside the candidate set: {move}"
                 )
 
             teacher_policy = np.zeros(225, dtype=np.float32)
