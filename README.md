@@ -1,11 +1,11 @@
 # 五子棋棋力评估 · Gomoku Skill Evaluator
 
-> 📘 [开发规划与完整版本档案](docs/DEVELOPMENT_ROADMAP.md)：项目定位、V1–V4.1.7 版本演进、Bug 修复记录、当前验收状态与后续路线。
-> 🧠 [V4.1 AI 训练与双通道学习](ai-training/README.md)：TEBA-Net-S、M4 长周期双通道训练、自博弈、V4.0 王者挑战、Checkpoint 直接对战与战术诊断。
+> 📘 [开发规划与完整版本档案](docs/DEVELOPMENT_ROADMAP.md)：项目定位、V1–V4.1.9 版本演进、Bug 修复记录、当前验收状态与后续路线。
+> 🧠 [V4.1 AI 训练与长期强化学习](ai-training/README.md)：TEBA-Net-S、30,000 轮长期训练、Opponent League、自博弈、D4 数据增强、自动晋级与早停。
 
 **当前稳定版：V2.2 · 最新预览版：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-> **最近更新：2026-11-03** · V4.1.7 Checkpoint 直接对战评估器已合并至 AI 开发分支，GitHub Actions 112 项通过、4 项 MPS 测试跳过；M4 本地验收及 40 局模型对战待执行。线上游戏最新预览仍为 V4.0。
+> **最近更新：2026-11-03** · V4.1.9 长期强化学习系统已合并至 AI 开发分支；GitHub Actions 124 项通过、4 项 MPS 测试跳过。M4 本地冒烟与 30,000 轮训练尚未启动。线上游戏最新预览仍为 V4.0。
 
 一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V4.0 是最新已部署预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 保留为历史预览入口。V4.1 是独立 AI 研究分支，不改变线上 V4.0。V4.0 前端 Pages 已部署，相关 Worker/D1 维护迁移与自动化检查通过；完整真实浏览器验收仍待完成。
 
@@ -16,11 +16,12 @@ V4.1 是独立的 AI 训练与棋力研究分支，不是新的网页游戏发�
 - **V4.1.5：** 建立 TEBA-Net-S 与 Self-Play / Champion Sparring 双通道训练框架。
 - **V4.1.6：** 增加完整棋谱、逐步搜索诊断和战术漏步统计；将训练计划扩展为 30 轮、每步 64 次 PUCT 模拟。
 - **V4.1.7：** 新增两个冻结 Checkpoint 的配对直接对战评估，复用相同开局并交换黑白棋，默认 40 局 / 20 组开局。\n- **V4.1.8：** 修复扩展续训时 LambdaLR 调度器可能导致的学习率跳升；新增 M4 长时间训练启动脚本，支持 Round 30 → Round 60 安全续训。
-- **代码状态：** V4.1.7 已合并至 `feat/4.1-teba-mcts`；V4.1.8 PR [#32](https://github.com/nkfff/gomoku-skill-evaluator/pull/32) 已合并到本研究分支；合并后 GitHub Actions 为 **114 passed、4 skipped**，M4 本机续训尚未启动；尚未合并到默认分支 `main`，也未部署为线上游戏版本。
-- **自动化验证：** 开发分支 GitHub Actions 为 **112 passed、4 skipped**；跳过项为 Linux CI 无法运行的 Apple MPS 专项测试。
+- **V4.1.9：** 从 Round 60 启动 30,000 轮长期强化学习；加入历史 TEBA Opponent League、战术专项对手、D4 八重对称增强、40 局筛选 / 100 局确认、自动模型晋级、早停与可恢复阶段训练。训练输出写入独立的 `checkpoints_longrun/`，不覆盖 `checkpoints_dual/`。
+- **代码状态：** V4.1.9 PR [#34](https://github.com/nkfff/gomoku-skill-evaluator/pull/34) 与战术对手验证 PR [#35](https://github.com/nkfff/gomoku-skill-evaluator/pull/35) 已合并至 `feat/4.1-teba-mcts`；尚未合并到默认分支 `main`，也未部署为线上游戏版本。
+- **自动化验证：** 最终组合代码 GitHub Actions 为 **124 passed、4 skipped**；4 项跳过测试依赖 Apple MPS，Ubuntu CI 无法执行。M4 本地训练尚未启动。
 - **M4 40 局结果（2026-11-03）：** Round 30（MODEL_B）27 胜、Round 5（MODEL_A）13 胜、0 平，Match Score 0.675；20 组黑白交换开局中，Round 30 双胜 8 组、Round 5 双胜 1 组、11 组各胜一局。配对精确符号检验双侧 *p* = 0.0391（仅 9 组非平局，属于初步证据）。
 - **结果边界：** 这证明 Round 30 在本轮设定下优于 Round 5，但两份 Checkpoint 先前对 V4.0 王者的 20 局评估均为 0 胜 / 0 平 / 20 负，因此不能宣称 Round 30 已超过 V4.0 王者。Round 30 的 missed fork 原始计数为 44，Round 5 为 12，需要按实际 fork 机会数进一步诊断。
-- **下一步：** 完成 V4.1.8 CI 与 M4 本机验收后，从 Round 30 续训至 Round 60（新增 480 局、3,000 次梯度更新）；随后进行 Round 30 vs Round 60 的 100 组配对评估，并审计 Fork 机会条件漏选率。
+- **下一步：** 在 M4 本机先运行 2 轮隔离目录冒烟测试，再启动 30,000 轮长期训练；每 500 轮自动评估、按配对置信区间晋级，定期对照 V4.0 王者。
 
 详细训练配置、命令与输出文件见 [V4.1 AI 训练说明](https://github.com/nkfff/gomoku-skill-evaluator/blob/feat/4.1-teba-mcts/ai-training/README.md)。
 
