@@ -1,11 +1,11 @@
 {
   "version": "4.0.5",
-  "cacheVersion": "pvp-auth-persistent-20261104",
+  "cacheVersion": "pvp-auth-persistent-20261104-2",
   "onnxruntime": "1.31.1",
   "files": {
     "index.html": "3086f2a14f12e81fc3f5d77b35c113ea1dc8c550fa3c4ab324f6a5f6f50e67af",
     "config.js": "a912311267c2dac8e20aa8e21c8617e19964ac21404b9c1c607073f10ed53bda",
-    "pvp-ui.js": "297d52f9c0c31f4f9769ce2b14ef7ba803cee59b6799f16897833c089139cf59",
+    "pvp-ui.js": "6752920e467c0ea40bee05be1c2ca71a01763bda264316728612a4e10561774b",
     "special-modes-ui.js": "69e47e04a88705bf707b85c2ab1d0fee93f9a30cb3e30a871f127bef7bdbfcea",
     "models/model.json": "4640cd8a82143d055fe5881178b632b0330573d2ea368863f1a6f0f76562aa60",
     "models/gunuce.onnx": "9cc91391167c3fc94534208aa0d38fe911d3055da4558b8c6067ec44eeee042e",
@@ -30,6 +30,6 @@
     "vendor/ort/ort-wasm-simd-threaded.mjs": "30ed0b5cd1182ede931fea448afb567d4dc705ec957af09f108a2be5f770dac3",
     "vendor/ort/ort-wasm-simd-threaded.wasm": "4b884c203b0fa48d057be3332c65513ff85aa3c5bddd6946acc0fab7ecda001d"
   },
-  "totalAssetBytes": 48527513,
+  "totalAssetBytes": 48528976,
   "note": "Runtime/model cached lazily on first Gunuce use. No inference endpoint."
 }
