@@ -415,6 +415,7 @@ async function switchToRematchRoom(nextRoomId) {
   $("pvpInviteCode").value = "";
   const url = new URL(window.location.href);
   url.searchParams.delete("invite");
+  url.searchParams.set("pvpRoom", nextRoomId);
   history.replaceState(null, "", url.toString());
   await connectSocket(roomId);
   await refreshRoomState();
@@ -511,6 +512,7 @@ function returnToPvpLobby() {
   diceAnimationComplete = false;
   const url = new URL(window.location.href);
   url.searchParams.delete("invite");
+  url.searchParams.delete("pvpRoom");
   history.replaceState(null, "", url.toString());
   $("pvpRoom").hidden = true;
   $("pvpLobby").hidden = false;
@@ -614,10 +616,19 @@ $("pvpBoard").addEventListener("click", event => {
   sendAction({type: "move", cellIndex, revision: match.revision, actionId: crypto.randomUUID()});
 });
 
-const initialInvite = new URLSearchParams(window.location.search).get("invite");
+const initialParams = new URLSearchParams(window.location.search);
+const initialInvite = initialParams.get("invite");
+const initialPvpRoom = initialParams.get("pvpRoom");
 if (initialInvite) $("pvpInviteCode").value = initialInvite.toUpperCase();
 if (!API) notice("PVP 后端尚未部署。当前分支先完成前端与服务端开发，部署后即可联调。", true);
 else notice("PVP 服务已配置。登录后创建房间或输入好友邀请码。");
+if (initialPvpRoom && !initialInvite) {
+  roomId = initialPvpRoom;
+  tokenOrThrow()
+    .then(() => connectSocket(roomId))
+    .then(() => refreshRoomState())
+    .catch(error => notice(error.message, true));
+}
 refreshLeaderboard();
 setInterval(() => {
   renderClock();
