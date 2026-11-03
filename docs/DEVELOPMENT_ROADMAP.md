@@ -926,8 +926,9 @@ Round 60 完成后：
 - 保留 TEBA-Net-S 现有 77,477 参数残差 CNN，不在此版本直接扩大网络。
 - 保留 PUCT/MCTS 搜索、Policy / Value / Tactical 三头和双通道经验训练。
 - 每轮 8 局 Self-play、8 局 Sparring、100 次梯度更新、Batch Size 64。
-- Sparring 对手由固定 V4.0 王者与历史 TEBA 模型联赛构成；默认 25% 对局
-  从最多 8 个冻结历史 Checkpoint 中随机抽取。
+- Sparring 对手由固定 V4.0 王者、历史 TEBA 模型和战术专项对手构成：
+  75% 对局使用 V4.0，20% 从最多 8 个冻结历史 Checkpoint 中抽取，
+  5% 使用优先即时胜、强制防守和 Fork 的战术专项对手。
 - 每次晋级后登记新的模型快照，供后续训练阶段使用；历史快照不会参与梯度更新。
 - 在每个训练 batch 上按样本独立执行 D4 八种旋转/镜像增强，并同步变换
   state、policy、tactical targets 和 legal mask。
