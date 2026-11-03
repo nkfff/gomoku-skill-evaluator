@@ -112,6 +112,9 @@ function handleMessage(message) {
     notice(message.playerId === playerId
       ? "已发起再战邀请，等待好友同意。"
       : "好友邀请你再来一局，点击「接受再来一局」即可继续。");
+  } else if (message.type === "rematch_started") {
+    notice("双方已同意再战，正在切换到新棋局…");
+    switchToRematchRoom(message.newRoomId).catch(error => notice(error.message, true));
   } else if (message.type === "draw_offered") {
     if (message.playerId !== playerId) notice("对手提出和棋，你可以接受或拒绝。");
   } else if (message.type === "draw_declined") {
@@ -399,8 +402,31 @@ async function playDiceReveal(match, room) {
   $("pvpBoard").hidden = false;
   drawBoard();
 }
+async function switchToRematchRoom(nextRoomId) {
+  if (!nextRoomId || roomId === nextRoomId) return;
+  intentionalClose = true;
+  closeSocket();
+  roomId = nextRoomId;
+  inviteCode = "";
+  roomState = null;
+  diceAnimationRunId++;
+  diceAnimationMatchId = "";
+  diceAnimationComplete = false;
+  $("pvpInviteCode").value = "";
+  const url = new URL(window.location.href);
+  url.searchParams.delete("invite");
+  history.replaceState(null, "", url.toString());
+  await connectSocket(roomId);
+  await refreshRoomState();
+  notice("双方已同意再来一局，新棋局已创建。");
+}
+
 function renderRoom(room) {
  if(!room)return;
+ if (room.rematchRoomId && roomId && roomId !== room.rematchRoomId) {
+   switchToRematchRoom(room.rematchRoomId).catch(error => notice(error.message, true));
+   return;
+ }
  roomState=room;$("pvpLobby").hidden=true;$("pvpRoom").hidden=false;$("pvpAuthRequired").hidden=true;
  const names=(room.hostName||"房主")+"（房主） vs "+(room.guestName||"等待好友加入");
  $("pvpRoomTitle").textContent="房间 "+room.roomId.slice(0,8);
@@ -488,6 +514,7 @@ function returnToPvpLobby() {
   history.replaceState(null, "", url.toString());
   $("pvpRoom").hidden = true;
   $("pvpLobby").hidden = false;
+  $("pvpInviteCode").value = "";
   $("pvpDiceStage").hidden = true;
   $("pvpBoard").hidden = true;
   notice("已返回好友对战大厅。可以创建新房间或输入其他好友的邀请码。");
