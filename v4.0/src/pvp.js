@@ -154,6 +154,25 @@ export function ratingTier(rating, ratedGames = 10) {
   return "大师";
 }
 
+export function requestPvpRematch(room, playerId) {
+  if (!room || room.status !== "finished" || !room.match || room.match.status !== "finished" ||
+      !room.hostPlayerId || !room.guestPlayerId) throw new Error("ROOM_NOT_FINISHED");
+  if (playerId !== room.hostPlayerId && playerId !== room.guestPlayerId) throw new Error("NOT_A_ROOM_MEMBER");
+  const rematchByPlayer = {...(room.rematchByPlayer || {}), [playerId]: true};
+  const acceptedByBoth = Boolean(rematchByPlayer[room.hostPlayerId] && rematchByPlayer[room.guestPlayerId]);
+  return {
+    acceptedByBoth,
+    room: {
+      ...room,
+      status: acceptedByBoth ? "ready" : "finished",
+      rematchByPlayer: acceptedByBoth ? {} : rematchByPlayer,
+      readyByPlayer: acceptedByBoth
+        ? {[room.hostPlayerId]: true, [room.guestPlayerId]: true}
+        : (room.readyByPlayer || {})
+    }
+  };
+}
+
 export function publicMatchState(state, viewerPlayerId) {
   if (!state) return null;
   const isPlayer = viewerPlayerId === state.blackPlayerId || viewerPlayerId === state.whitePlayerId;
