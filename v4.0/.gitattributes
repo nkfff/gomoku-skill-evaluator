@@ -1,0 +1,3 @@
+models/*.onnx binary
+vendor/ort/*.wasm binary
+vendor/ort/* -whitespace
