@@ -1,6 +1,6 @@
 {
   "version": "4.0.6",
-  "cacheVersion": "pvp-invite-dice-sync-20261104-1",
+  "cacheVersion": "pvp-invite-dice-sync-20261104-2",
   "onnxruntime": "1.31.1",
   "files": {
     "index.html": "a5934399c13544db1ce75f2f6477710c650eaadd4e5affb1684a493eee0a262a",
