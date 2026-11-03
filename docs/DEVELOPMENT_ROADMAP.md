@@ -962,7 +962,8 @@ Round 60 的旧学习率约为 `1.164e-6`。新阶段明确 rebase 到
 ### 13.5 Checkpoint 与本地磁盘管理
 
 - 完整训练 Checkpoint 默认每 10 轮保存一次，并在阶段边界强制保存。
-- Model-only 快照每 500 轮和阶段边界保存。
+- Model-only 快照每 500 轮和阶段边界保存；阶段对战评估直接加载紧凑模型快照，
+  避免每次读取完整 Replay Buffer Checkpoint。
 - 新训练输出目录为 `ai-training/checkpoints_longrun/`，从
   `checkpoints_dual/latest.pt` 复制初始状态，不覆盖 Round 60 原始产物。
 - 训练经验、模型权重和评估结果留在本地，不提交到 Git。
@@ -988,10 +989,14 @@ bash scripts/run_m4_long_training.sh
 - [x] 增加 D4 空间数据增强。
 - [x] 增加配对对战、bootstrap 晋级门槛和早停状态持久化。
 - [x] 增加 30,000 轮 M4 启动脚本与 README / Roadmap。
-- [ ] GitHub Actions 全量测试通过。
+- [x] GitHub Actions 全量测试通过：124 passed / 4 skipped；4 项为 Ubuntu
+  环境无法执行的 Apple MPS 专项测试。
 - [ ] M4 本机冒烟训练（建议先用临时目录、目标 2 轮）。
 - [ ] M4 正式长时间训练启动与持续监控。
 - [ ] Round 500 起的自动晋级结果与 V4.0 王者趋势评估。
+
+**代码合并：** PR #34（V4.1.9）与 PR #35（战术对手专项验证）已合并至
+`feat/4.1-teba-mcts`；当前研究代码尚未合并到默认分支 `main`。
 
 **状态边界：** GitHub 代码更新不代表 M4 本地训练已启动。训练只有在用户本机启动，
 且 `checkpoints_longrun/latest.pt` 与日志持续增长后，才计为运行中。
