@@ -109,6 +109,7 @@ test("PVP join endpoint lets either existing member resume before active-match r
   assert.ok(pvpApi.includes('callRoom(env, room.id, "/internal/state", {playerId: user.id})'));
   assert.ok(pvpApi.includes("resumed: true"));
   assert.ok(pvpApi.includes('url.pathname === "/api/pvp/rooms/current"'));
+  assert.ok(pvpApi.includes("invite_code_hash=?"));
   assert.ok(pvpApi.includes("ORDER BY created_at DESC LIMIT 1"));
 });
 
