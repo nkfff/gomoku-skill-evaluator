@@ -10,6 +10,7 @@ let roomState = null;
 let diceAnimationMatchId = "";
 let diceAnimationComplete = false;
 let diceAnimationRunId = 0;
+let pvpResultMatchId = "";
 let socket = null;
 let reconnectTimer = null;
 let intentionalClose = false;
@@ -103,9 +104,10 @@ function handleMessage(message) {
   } else if (message.type === "game_over") {
     const match = message.room && message.room.match;
     const result = match ? match.result : "";
-    notice(result === "draw" ? "棋逢对手！本局按真人 Elo 和棋规则结算。" :
+    notice(result === "draw" ? "本局已和棋，真人 Elo 已结算。" :
       match && match.winnerPlayerId === playerId ? "漂亮！你赢下了这局真人对战。" :
-      "本局结束，别急着走，复盘一下会更强。");
+      "本局已结束，结果与真人 Elo 已结算。");
+    if (match) showPvpResult(match, message.room);
     refreshHistory().catch(() => {});
     refreshLeaderboard().catch(() => {});
   } else if (message.type === "rematch_requested") {
@@ -120,9 +122,13 @@ function handleMessage(message) {
     notice("双方已同意再战，正在切换到新棋局…");
     switchToRematchRoom(message.newRoomId).catch(error => notice(error.message, true));
   } else if (message.type === "draw_offered") {
-    if (message.playerId !== playerId) notice("对手提出和棋，你可以接受或拒绝。");
+    notice(message.playerId === playerId
+      ? "和棋请求已送达，等待对手回应。"
+      : "对手提出和棋，请选择「接受和棋」或「拒绝和棋」。");
   } else if (message.type === "draw_declined") {
-    notice("对手拒绝了和棋，继续战斗。");
+    notice(message.playerId === playerId
+      ? "你已拒绝和棋，对局继续。"
+      : "对手拒绝了和棋，继续战斗。");
   }
 }
 
@@ -144,6 +150,53 @@ function currentClock(match, color) {
     remaining -= Math.max(0, Date.now() - Number(match.turnStartedAt));
   }
   return Math.max(0, remaining);
+}
+
+
+function closePvpResultModal() {
+  const modal = $("pvpResultModal");
+  if (modal) modal.hidden = true;
+}
+
+function showPvpResult(match, room = roomState) {
+  if (!match || match.status !== "finished" || !match.matchId || pvpResultMatchId === match.matchId) return;
+  pvpResultMatchId = match.matchId;
+  const isDraw = match.result === "draw";
+  const won = !isDraw && match.winnerPlayerId === playerId;
+  const opponentName = room
+    ? (room.hostPlayerId === playerId ? room.guestName : room.hostName) || "对手"
+    : "对手";
+  const reason = match.endReason || "";
+  let message = "本局已结束，真人段位分已完成结算。";
+  if (reason === "resign") {
+    message = won ? opponentName + " 选择认输，你获得本局胜利。" : "你选择了认输，本局判负。";
+  } else if (reason === "timeout") {
+    message = won ? opponentName + " 用时耗尽，你获得胜利。" : "你的剩余时间已耗尽，本局判负。";
+  } else if (reason === "disconnect_timeout") {
+    message = won ? opponentName + " 断线超时，你获得胜利。" : "你断线超过宽限时间，本局判负。";
+  } else if (reason === "five_in_row") {
+    message = won ? "你率先连成五子，赢下本局。" : opponentName + " 率先连成五子，本局失利。";
+  } else if (reason === "draw_agreement") {
+    message = "双方同意和棋，本局按平局规则结算。";
+  } else if (reason === "board_full") {
+    message = "棋盘已满，双方平局。";
+  }
+
+  const before = Number(match.initialRatings && match.initialRatings[playerId]);
+  const after = Number(match.finalRatings && match.finalRatings[playerId]);
+  const hasRating = Number.isFinite(before) && Number.isFinite(after);
+  const delta = hasRating ? after - before : null;
+  const deltaText = delta === null ? "—" : (delta > 0 ? "+" : "") + String(delta);
+  const modal = $("pvpResultModal");
+  modal.classList.remove("is-win", "is-loss", "is-draw");
+  modal.classList.add(isDraw ? "is-draw" : won ? "is-win" : "is-loss");
+  $("pvpResultIcon").textContent = isDraw ? "🤝" : won ? "🏆" : "♟";
+  $("pvpResultEyebrow").textContent = isDraw ? "MATCH DRAW" : won ? "VICTORY" : "MATCH OVER";
+  $("pvpResultTitle").textContent = isDraw ? "握手言和" : won ? "胜利！" : "本局失利";
+  $("pvpResultMessage").textContent = message;
+  $("pvpResultOutcome").textContent = isDraw ? "和棋" : won ? "胜利" : "失利";
+  $("pvpResultRating").textContent = deltaText;
+  modal.hidden = false;
 }
 
 function renderClock() {
@@ -408,6 +461,7 @@ async function playDiceReveal(match, room) {
 }
 async function switchToRematchRoom(nextRoomId) {
   if (!nextRoomId || roomId === nextRoomId) return;
+  closePvpResultModal();
   intentionalClose = true;
   closeSocket();
   roomId = nextRoomId;
@@ -450,8 +504,13 @@ function renderRoom(room) {
   $("pvpDiceStage").hidden=true;$("pvpBoard").hidden=!room.match;
   if(room.match&&!room.match.diceRolls)notice("当前真人对战服务尚未升级摇骰子协议，请先部署 V4.0 服务端。",true);
  }
- $("pvpOfferDraw").hidden=room.status!=="active";$("pvpResign").hidden=room.status!=="active";
  const drawBy=room.match&&room.match.pendingDrawBy;
+ const drawPending=Boolean(drawBy);
+ const myDrawOffer=drawBy===playerId;
+ $("pvpOfferDraw").hidden=room.status!=="active"||(drawPending&&!myDrawOffer);
+ $("pvpOfferDraw").disabled=myDrawOffer;
+ $("pvpOfferDraw").textContent=myDrawOffer?"等待对手回应…":"提出和棋";
+ $("pvpResign").hidden=room.status!=="active";
  $("pvpAcceptDraw").hidden=room.status!=="active"||!drawBy||drawBy===playerId;
  $("pvpDeclineDraw").hidden=room.status!=="active"||!drawBy||drawBy===playerId;
  const finished = room.status === "finished" && room.match && room.match.status === "finished";
@@ -475,6 +534,7 @@ function renderRoom(room) {
   $("pvpTurn").style.color=match.turnPlayerId===playerId?"#986076":"#9a8c86";
  }else{$("pvpTurn").textContent=room.status==="ready"?"等待双方准备":"等待好友加入";$("pvpMyRating").textContent="1000 · 定级中";}
  renderClock();drawBoard();
+ if (finished) showPvpResult(room.match, room);
 }
 async function createRoom() {
   try {
@@ -558,9 +618,22 @@ async function refreshHistory() {
 function sendAction(message) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     notice("实时连接尚未就绪，请稍等或刷新房间状态。", true);
-    return;
+    return false;
   }
-  socket.send(JSON.stringify(message));
+  try {
+    socket.send(JSON.stringify(message));
+  } catch {
+    notice("操作发送失败，请检查网络连接后重试。", true);
+    return false;
+  }
+  const feedback = {
+    offer_draw: "已向对手发送和棋请求，等待回应。",
+    accept_draw: "你已接受和棋请求，正在完成结算…",
+    decline_draw: "已拒绝和棋请求，对局继续。",
+    resign: "已提交认输，正在确认本局结果…"
+  };
+  if (feedback[message.type]) notice(feedback[message.type]);
+  return true;
 }
 
 $("tab-pvp").onclick = () => {
@@ -572,6 +645,8 @@ $("pvpLoginLink").onclick = () => {
 $("pvpCreateRoom").onclick = async () => { await tokenOrThrow().catch(error => notice(error.message, true)); if (playerId) await createRoom(); };
 $("pvpJoinRoom").onclick = async () => { await tokenOrThrow().catch(error => notice(error.message, true)); if (playerId) await joinRoom(); };
 $("pvpReady").onclick = () => sendAction({type: "ready"});
+$("pvpResultClose").onclick = closePvpResultModal;
+$("pvpResultContinue").onclick = closePvpResultModal;
 $("pvpRematch").onclick = () => sendAction({type: "rematch"});
 $("pvpNewMatch").onclick = () => { if (roomState && roomState.status === "finished") returnToPvpLobby(); };
 $("pvpOfferDraw").onclick = () => sendAction({type: "offer_draw"});
