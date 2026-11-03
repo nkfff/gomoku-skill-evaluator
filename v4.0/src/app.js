@@ -511,7 +511,7 @@ function renderShop(){
  drawSkinPreview();
 }
 function formatTime(){if(!game)return;if(!game.startedGame){$("totalTime").textContent="00:00";$("thinkTime").textContent="未开始";return;}const now=game.ended||performance.now(),total=Math.max(0,Math.floor((now-game.started)/1000));$("totalTime").textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");$("thinkTime").textContent=game.result?"已停止":game.turn===game.humanColor?((performance.now()-game.turnStart)/1000).toFixed(1)+"s":"AI 行棋";}
-function download(){const payload={version:"4.0.1",identity:profile.id,level:game.level,playerColor:game.humanColor,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves,game.humanColor)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v4.0.1-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
+function download(){const payload={version:"4.0.2",identity:profile.id,level:game.level,playerColor:game.humanColor,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves,game.humanColor)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v4.0.2-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
 async function localRank(){
  const rankPoints=(earned,wins,losses,draws)=>{const games=wins+losses+draws,adjusted=games?100*(wins+2.5)/(games+5):0;return Math.max(0,Math.round(Number(earned||0)+(adjusted-50)*Math.min(games,20)/10));};
  const titles=["棋圣","棋王","棋宗"];
@@ -528,6 +528,7 @@ async function localRank(){
  renderPodium([{name:profile.name,rank_points:score}]);
  $("rankRows").innerHTML="<tr><td>1 <span class='rank-title rank-1'>棋圣</span></td><td>"+escapeText(profile.name)+"</td><td>"+wins+"</td><td>"+games+"</td><td>"+winRate.toFixed(1)+"%</td><td><strong>"+score+"</strong></td></tr>";
 }
+window.gomokuRefreshLeaderboard=localRank;
 function escapeText(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function setName(){const name=$("nickname").value.trim().slice(0,24);if(name.length<2||name.length>24||/[<>]/.test(name)){alert("显示名称需为 2–24 个字符，且不能包含 < 或 >");return;}if(cloudMode()){try{const v=await api("name",{name});applyRemoteProfile(v.profile);}catch(e){alert("保存失败："+e.message);return;}}else{profile.name=name;save();}if($("accountDisplayName"))$("accountDisplayName").value=profile.name;render();localRank();}
 for(const name of ["game","replay","store","leaderboard","account","puzzle","random"])$("tab-"+name).onclick=()=>activate(name);
