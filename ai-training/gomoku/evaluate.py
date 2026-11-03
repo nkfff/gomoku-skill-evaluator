@@ -258,6 +258,8 @@ def run_evaluation(args: argparse.Namespace) -> Path:
         args.games_output
         or output.with_name(f"{output.stem}_games.jsonl")
     )
+    plies_output.parent.mkdir(parents=True, exist_ok=True)
+    games_output.parent.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(args.seed)
 
     # Each pair shares exactly the same opening; only TEBA's color is swapped.
