@@ -94,3 +94,55 @@ search:
     immediate_win: true
     unique_immediate_block: true
     multiple_opponent_winning_cells: report_forced_loss
+
+
+dual_learning:
+  champion:
+    name: V4.0 hard
+    source: v4.0/src/engine.js
+    algorithm:
+      - tactical_move_ordering
+      - iterative_deepening_alpha_beta
+      - transposition_table
+      - tactical_extension
+    level: hard
+    width: 14
+    time_budget_ms: 500
+    max_depth: 10
+  channels:
+    self_play:
+      enabled: true
+      loss_weight: 0.6
+      policy_target: puct_visit_distribution
+      value_target: terminal_outcome
+    champion_sparring:
+      enabled: true
+      loss_weight: 0.4
+      learner_color: alternate_black_white
+      policy_target: learner_puct_visit_distribution
+      value_target: terminal_outcome
+    champion_distillation:
+      enabled: true
+      policy_weight: 0.15
+      target: champion_selected_move
+      retain_only_if_champion_wins_or_draws: true
+      value_loss: disabled
+      tactical_loss: disabled
+  schedule:
+    rounds: 5
+    self_play_games_per_round: 4
+    champion_games_per_round: 4
+    simulations: 24
+    gradient_updates_per_round: 50
+    batch_size: 32
+    replay_capacity_per_channel: 50000
+  optimizer:
+    name: AdamW
+    learning_rate: 0.0001
+    weight_decay: 0.0001
+    gradient_clip_norm: 1.0
+    warmup_steps: 10
+  checkpoints:
+    directory: checkpoints_dual
+    save_every_round: true
+    resume_all_three_replay_buffers: true

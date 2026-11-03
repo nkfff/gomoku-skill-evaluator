@@ -15,6 +15,8 @@ ai-training/check_mps.py
 
 # Local AI training artifacts
 ai-training/checkpoints/
+ai-training/checkpoints_dual/
+ai-training/evaluation/
 ai-training/datasets/
 ai-training/logs/
 
