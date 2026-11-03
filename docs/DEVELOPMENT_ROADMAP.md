@@ -479,3 +479,152 @@ Top-1 / Top-3 用于展示，不直接加分；对局长短不直接增加或扣
 ---
 
 **文档维护原则：** 每次版本发布后更新“版本演进总览”“Bug 修复与维护记录”“当前版本状态”和对应验收清单。所有未经过真实验收的功能必须明确标注，不得提前写成稳定可用。
+
+
+## 9. V4.1.5：TEBA 双通道学习与王者 AI 对战（2026-11-03）
+
+### 9.1 版本定位
+
+V4.1 是独立的本地 AI 研究与训练线，不等同于 V4.0 浏览器游戏的线上部署版本。V4.1.5 在 V4.1.4 已完成的 TEBA-Net-S + PUCT + M4 Pilot 基础上，增加双通道训练和固定对手评估。
+
+- **开发/测试分支：** `feat/4.1.5-dual-learning`
+- **合并目标分支：** `feat/4.1-teba-mcts`
+- **PR：** [#29 — TEBA Dual-Learning with V4.0 Champion Sparring](https://github.com/nkfff/gomoku-skill-evaluator/pull/29)
+- **合并 Commit：** `bce6c47027893f13a2f3b38555071ff35079b228`
+- **状态：** 代码已合并；M4 本地双通道训练尚待执行；不代表已部署到线上游戏。
+
+### 9.2 V4.1.4 Pilot 基线
+
+用户在 Apple M4 MacBook Air（统一内存 16 GB、8 核 GPU）完成第一轮 TEBA-Net-S Pilot：
+
+| 指标 | 结果 |
+|---|---:|
+| 网络参数量 | 77,477 |
+| 设备 | Apple MPS |
+| 战术预训练样本 | 1,200 |
+| 自博弈对局 | 12 |
+| Replay Buffer | 436 个局面 |
+| 全局梯度更新 | 250 |
+| 最终 Policy Loss | 2.0480 |
+| 最终 Value Loss | 0.9927 |
+| 最终 Tactical Loss | 0.2009 |
+
+诊断发现 Value Head 预测标准差约 0.0367、与终局标签 Pearson 相关约 0.207；Tactical Head 在阈值 0.5 下的 F1 很低。因此该结果只证明训练闭环跑通，尚不能证明棋力提升。上述 Checkpoint 保存在用户本地 `ai-training/checkpoints/latest.pt`，未提交 Git。
+
+### 9.3 双通道训练机制
+
+**通道 A：Self-Play 强化学习**
+
+- 同一个 TEBA-Net-S 分别执黑和执白，与自身对弈。
+- PUCT 访问次数分布作为 Policy 监督。
+- 最终胜负作为 Value 标签。
+- 规则分析器生成 WIN_NOW / MUST_BLOCK / FORK 辅助标签。
+
+**通道 B：Champion Sparring 强化学习**
+
+- TEBA-Net-S 与实际 V4.0 王者 AI 对弈。
+- 对手直接调用 `v4.0/src/engine.js`，不重新实现近似算法。
+- 旧版王者 AI 使用迭代加深 Alpha-Beta、置换表、战术排序和战术延伸。
+- 每局交换 TEBA 黑棋/白棋身份，控制先手偏差。
+- TEBA 自己的落子使用 PUCT 策略目标和最终胜负进行训练。
+
+**低权重冠军策略蒸馏**
+
+- 仅保留旧版王者 AI 获胜或和棋的对局中的王者落子作为低权重 Policy 示范。
+- 王者 AI 输掉的整局轨迹不被当成专家策略。
+- 示范数据只参与 Policy Loss，不直接参与 Value / Tactical Loss。
+
+训练目标为：
+
+`L = 0.6 L_self-play + 0.4 L_champion-sparring + 0.15 L_teacher-policy`
+
+其中前两项分别使用 Policy + Value + 0.2 × Tactical 多任务目标，最后一项仅为低权重策略模仿损失。两个强化学习通道在每轮联合更新；数据生成按通道顺序执行，避免 M4 上并行搜索争用资源。
+
+### 9.4 V4.1.5 默认训练参数
+
+| 参数 | 默认值 |
+|---|---:|
+| 训练轮数 | 5 |
+| 每轮自博弈 | 4 局 |
+| 每轮王者挑战 | 4 局 |
+| PUCT 模拟次数 | 24 |
+| 每轮梯度更新 | 50 |
+| Batch Size | 32 |
+| 每个 Replay Buffer 容量 | 50,000 |
+| Self-Play / Sparring 损失权重 | 0.6 / 0.4 |
+| 冠军策略蒸馏权重 | 0.15 |
+| AdamW 学习率 | 0.0001 |
+| 梯度裁剪 | 1.0 |
+| V4.0 王者对手搜索预算 | 500 ms / move |
+| 王者候选宽度 / 最大深度 | 14 / 10 |
+
+500 ms 是为训练吞吐设置的受控预算，并非 V4.0 hard 模式原始 2.4 秒预算。完整预算可通过命令行覆盖。对比实验必须固定两方搜索预算。
+
+### 9.5 新增代码与产物
+
+- `ai-training/gomoku/legacy_bridge.mjs`：通过持久 JSON-lines 进程调用真实 V4.0 JavaScript 引擎。
+- `ai-training/gomoku/legacy_opponent.py`：Python 训练侧对手封装。
+- `ai-training/gomoku/dual_train.py`：双通道训练、三套 Replay Buffer、成功示范蒸馏、断点恢复。
+- `ai-training/gomoku/evaluate.py`：黑白双方均衡的固定王者对战评估，输出胜/平/负、Match Score 和搜索延迟。
+- `ai-training/tests/test_dual_learning.py`：双通道损失、Checkpoint 恢复和 V4.0 引擎桥接测试。
+- `ai-training/configs/teba_net_s.yaml`：记录双通道配置。
+- `.gitignore`：忽略 `checkpoints_dual/` 和 `evaluation/` 等本地产物。
+
+### 9.6 自动化验证与待验收
+
+- PR #29 合并前 GitHub Actions：**99 passed，3 skipped**。
+- 3 个跳过项是 Linux CI 无法执行的 Apple MPS 专项测试；必须在用户的 M4 本机再次运行完整测试。
+- Node.js 桥接测试在 CI 中实际执行，调用真实 V4.0 JavaScript 引擎。
+- 当前尚未完成 M4 上的双通道训练、训练后对战和棋力提升验收。
+
+### 9.7 M4 执行顺序
+
+从仓库根目录更新：
+
+```bash
+git switch feat/4.1-teba-mcts
+git pull --ff-only origin feat/4.1-teba-mcts
+```
+
+进入训练目录并运行本机测试：
+
+```bash
+cd ai-training
+python -m pytest tests -v
+```
+
+先记录 V4.1.4 Pilot 对 V4.0 王者的基线：
+
+```bash
+python -m gomoku.evaluate --checkpoint checkpoints/latest.pt --device mps --games 10 --simulations 24 --champion-time-ms 500
+```
+
+再启动 V4.1.5 双通道训练：
+
+```bash
+python -m gomoku.dual_train --device mps
+```
+
+训练结束后评估：
+
+```bash
+python -m gomoku.evaluate --checkpoint checkpoints_dual/latest.pt --device mps --games 10 --simulations 32 --champion-time-ms 500
+```
+
+主要本地输出：
+
+- `checkpoints_dual/latest.pt`：模型、优化器、学习率调度器及三个 Replay Buffer 的完整断点。
+- `checkpoints_dual/dual_training.csv`：各通道数据量、对局结果和 Loss。
+- `evaluation/champion_match.csv`：与 V4.0 王者对战的逐局记录。
+
+### 9.8 论文实验边界
+
+双通道训练是当前工程方案，不应直接宣称为足以支撑顶会发表的算法创新。后续必须进行至少以下消融：
+
+1. Self-Play only。
+2. Champion Sparring RL only。
+3. Self-Play + Champion Sparring，不使用策略蒸馏。
+4. 完整双通道 + 成功示范蒸馏。
+5. 普通 PUCT 与 TEBA 自适应搜索预算的等计算量对照。
+
+主要报告固定算力下的胜率、Elo、战术准确率、样本效率、每步延迟和总训练时间。只有证明双通道或 TEBA 机制带来可重复的增益，才能形成论文贡献。
