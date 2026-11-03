@@ -6,7 +6,8 @@ import { chooseAI, CELLS } from "../src/engine.js";
 import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
 import {
   acceptPvpDraw, createMatchState, declinePvpDraw, finishByResign, offerPvpDraw,
-  declinePvpRematch, publicMatchState, requestPvpRematch
+  declinePvpRematch, getIncomingPvpRematchInvite, publicMatchState,
+  requestPvpRematch, shouldAnimatePvpDice
 } from "../src/pvp.js";
 import { hasOpenPlayerConnection, rollDice } from "../worker/pvp-room.js";
 
@@ -127,7 +128,10 @@ test("PVP frontend restores each signed-in player's room and does not replay rev
   assert.match(pvpUi, /function restorePvpRoomOnLoad/);
   assert.match(pvpUi, /\/api\/pvp\/rooms\/current/);
   assert.match(pvpUi, /function revealDiceImmediately/);
-  assert.match(pvpUi, /saved\.diceMatchId === room\.match\.matchId/);
+  assert.match(pvpUi, /shouldAnimatePvpDice\(room\.match\)/);
+  assert.match(pvpUi, /syncRematchInviteModal/);
+  assert.match(pvpUi, /finishedRoomSyncInFlight/);
+  assert.match(pvpUi, /document\.visibilityState/);
   assert.match(pvpUi, /saveRoomSession\(room\.roomId, inviteCode, match\.matchId\)/);
   assert.match(pvpUi, /clearRoomSession\(\)/);
   assert.match(pvpUi, /await waitForAuthReady\(\)/);
@@ -169,6 +173,39 @@ test("PVP rematch invitation can be declined and clears the inviter request", ()
   assert.throws(() => declinePvpRematch(room, "host-id"), /NO_PENDING_REMATCH_INVITE/);
   assert.throws(() => declinePvpRematch(room, "stranger"), /NOT_A_ROOM_MEMBER/);
   assert.throws(() => declinePvpRematch({...room,status:"active"}, "guest-id"), /ROOM_NOT_FINISHED/);
+});
+
+test("incoming rematch invitation is shown to the non-inviting player for either room role", () => {
+  const base = {
+    roomId:"room-1", status:"finished", hostPlayerId:"host-id", hostName:"房主昵称",
+    guestPlayerId:"guest-id", guestName:"好友昵称", match:{status:"finished"},
+    rematchStarting:false, rematchByPlayer:{}
+  };
+  const hostInvites = {...base, rematchByPlayer:{"host-id":true}};
+  assert.deepEqual(getIncomingPvpRematchInvite(hostInvites, "guest-id"), {
+    inviterPlayerId:"host-id", inviterName:"房主昵称"
+  });
+  assert.equal(getIncomingPvpRematchInvite(hostInvites, "host-id"), null);
+
+  const guestInvites = {...base, rematchByPlayer:{"guest-id":true}};
+  assert.deepEqual(getIncomingPvpRematchInvite(guestInvites, "host-id"), {
+    inviterPlayerId:"guest-id", inviterName:"好友昵称"
+  });
+  assert.equal(getIncomingPvpRematchInvite(guestInvites, "guest-id"), null);
+  assert.equal(getIncomingPvpRematchInvite(hostInvites, "stranger"), null);
+  assert.equal(getIncomingPvpRematchInvite({...hostInvites,rematchStarting:true}, "guest-id"), null);
+  assert.equal(getIncomingPvpRematchInvite({...hostInvites,rematchRoomId:"next-room"}, "guest-id"), null);
+});
+
+test("both players see the dice opening until the first move; reconnect after play reveals immediately", () => {
+  const match = {
+    status:"active", diceRolls:[{round:1,hostRoll:6,guestRoll:2}],
+    moves:[]
+  };
+  assert.equal(shouldAnimatePvpDice(match), true);
+  assert.equal(shouldAnimatePvpDice({...match,moves:[{cellIndex:112}]}), false);
+  assert.equal(shouldAnimatePvpDice({...match,status:"finished"}), false);
+  assert.equal(shouldAnimatePvpDice({...match,diceRolls:[]}), false);
 });
 
 test("PVP rematch rejects non-members and unfinished games", () => {
@@ -237,9 +274,11 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   assert.match(pvpRoom, /internal\/init-rematch/);
   assert.match(pvpUi, /function showPvpResult/);
   assert.match(pvpUi, /等待对手回应/);
-  assert.match(pvpUi, /incomingRematchInvite/);
+  assert.match(pvpUi, /syncRematchInviteModal/);
   assert.match(pvpUi, /wasRematchInviteHidden/);
-  assert.match(pvpUi, /pvpRematchInviteAccept.*focus/);
+  assert.match(pvpUi, /syncRematchInviteModal\(room, message\.playerId\)/);
+  assert.match(pvpUi, /finishedRoomSyncInFlight/);
+  assert.match(pvpUi, /pvpRematchInviteAccept"\)\.focus/);
   assert.match(pvpUi, /decline_rematch/);
   assert.match(pvpRoom, /message.type === "decline_rematch"/);
   assert.match(pvpRoom, /type: "rematch_declined", playerId, room:/);
