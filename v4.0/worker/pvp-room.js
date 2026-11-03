@@ -280,9 +280,9 @@ export class PvpRoom {
       inviteCodeHash, this.room.timeControlMs
     ).run();
 
+    const stub = this.env.PVP_ROOMS.get(this.env.PVP_ROOMS.idFromName(newRoomId));
     let newRoomActive = false;
     try {
-      const stub = this.env.PVP_ROOMS.get(this.env.PVP_ROOMS.idFromName(newRoomId));
       const response = await stub.fetch(new Request("https://pvp-room/internal/init-rematch", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
@@ -302,13 +302,21 @@ export class PvpRoom {
       newRoomActive = false;
     }
     if (!newRoomActive) {
-      const row = await this.env.DB.prepare("SELECT status FROM pvp_rooms WHERE id=?").bind(newRoomId).first();
-      if (row?.status !== "active") {
-        await this.env.DB.prepare(
-          "UPDATE pvp_rooms SET status='cancelled',ended_at=datetime('now') WHERE id=? AND status IN ('ready','active')"
-        ).bind(newRoomId).run();
-        throw new Error("REMATCH_START_FAILED");
+      try {
+        const stateResponse = await stub.fetch(new Request("https://pvp-room/internal/state", {
+          headers: {"x-player-id": this.room.hostPlayerId}
+        }));
+        const state = await stateResponse.json().catch(() => ({}));
+        newRoomActive = stateResponse.ok && state.status === "active" && state.match?.status === "active";
+      } catch {
+        newRoomActive = false;
       }
+    }
+    if (!newRoomActive) {
+      await this.env.DB.prepare(
+        "UPDATE pvp_rooms SET status='cancelled',ended_at=datetime('now') WHERE id=? AND status IN ('ready','active')"
+      ).bind(newRoomId).run();
+      throw new Error("REMATCH_START_FAILED");
     }
 
     this.room.rematchByPlayer = {};
