@@ -15,6 +15,7 @@ from .game import BLACK, WHITE, GomokuGame
 from .legacy_opponent import LegacyEngineOpponent
 from .mcts import PUCTConfig, PUCTSearch, TorchEvaluator
 from .network import build_model
+from .tactical import analyze_tactical_evidence
 
 
 def load_model(checkpoint_path: Path, device: torch.device):
@@ -55,13 +56,39 @@ def generate_opening_moves(
     return opening
 
 
-def _replay_opening(game: GomokuGame, opening_moves: list[dict[str, int]]) -> None:
+def _replay_opening(
+    game: GomokuGame,
+    opening_moves: list[dict[str, int]],
+) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
     for item in opening_moves:
         if game.current_player != int(item["player"]):
             raise ValueError("opening sequence has an invalid player order")
-        game.play(int(item["move"]))
+        player = game.current_player
+        board_before = game.board.copy()
+        last_move_before = game.last_move
+        move = int(item["move"])
+        evidence = analyze_tactical_evidence(
+            board_before,
+            player,
+            include_forks=True,
+        )
+        game.play(move)
         if game.done:
             raise ValueError("opening sequence must not contain a terminal move")
+        records.append(
+            make_ply_record(
+                board_before,
+                game.move_count - 1,
+                player,
+                "RANDOM_OPENING",
+                move,
+                evidence,
+                0.0,
+                last_move=last_move_before,
+            )
+        )
+    return records
 
 
 def play_evaluation_game(
@@ -78,7 +105,7 @@ def play_evaluation_game(
 ) -> dict[str, object]:
     game = GomokuGame()
     opening_moves = list(opening_moves or [])
-    _replay_opening(game, opening_moves)
+    move_records = _replay_opening(game, opening_moves)
 
     evaluator = TorchEvaluator(model, device=str(device))
     search = PUCTSearch(
@@ -93,14 +120,12 @@ def play_evaluation_game(
     champion_moves = 0
     learner_search_seconds = []
     champion_search_seconds = []
-    move_records: list[dict[str, object]] = []
 
     while not game.done and game.move_count < max_plies:
         player = game.current_player
         board_before = game.board.copy()
         last_move_before = game.last_move
 
-        from .tactical import analyze_tactical_evidence
         evidence = analyze_tactical_evidence(
             board_before,
             player,
@@ -212,6 +237,8 @@ def run_evaluation(args: argparse.Namespace) -> Path:
         raise ValueError("--games must be even so both colors are tested equally")
     if not 0 <= args.opening_plies <= 20:
         raise ValueError("--opening-plies must be between 0 and 20")
+    if args.max_plies < args.opening_plies or args.max_plies > 225:
+        raise ValueError("--max-plies must be >= opening-plies and <= 225")
 
     device = torch.device(args.device)
     if device.type == "mps" and not torch.backends.mps.is_available():
