@@ -497,7 +497,7 @@ V4.1 是独立的本地 AI 研究与训练线，不等同于 V4.0 浏览器游�
 - **合并目标分支：** `feat/4.1-teba-mcts`
 - **PR：** [#29 — TEBA Dual-Learning with V4.0 Champion Sparring](https://github.com/nkfff/gomoku-skill-evaluator/pull/29)
 - **合并 Commit：** `bce6c47027893f13a2f3b38555071ff35079b228`
-- **状态：** 代码已合并至 AI 开发分支；用户已完成 M4 30 轮双通道训练并保留 Round 5 / Round 30 Checkpoint；V4.1.7 的 M4 回归测试与两模型 40 局直接对战仍待执行；不代表已部署到线上游戏。
+- **状态：** 代码已合并至 AI 开发分支；用户已完成 M4 30 轮双通道训练及 Round 5 vs Round 30 的 40 局配对对战（Round 30 以 27:13 获胜）；V4.1.7 完整本机测试套件状态仍需单独记录；不代表已部署到线上游戏。
 
 ### 9.2 V4.1.4 Pilot 基线
 
@@ -651,7 +651,7 @@ V4.1.6 承接 V4.1.5 的双通道训练框架，针对首轮 Pilot 与 V4.0 王�
 - **合并目标分支：** `feat/4.1-teba-mcts`
 - **PR：** [#30 — V4.1.6: evaluation diagnostics and extended dual learning](https://github.com/nkfff/gomoku-skill-evaluator/pull/30)，已合并。
 - **合并 Commit：** `fa5a02f829384bc99fcca6bae0eaed957036b8e1`。
-- **状态：** PR 已合并；V4.1.6 合并时 GitHub Actions 为 **106 passed、4 skipped**；V4.1.7 开发分支最新 CI 为 **112 passed、4 skipped**。用户已完成 M4 30 轮长周期训练；V4.1.7 新增代码的 M4 回归测试与 Checkpoint 直接对战仍待验收；不代表线上 V4.0 游戏已更新。
+- **状态：** PR 已合并；V4.1.6 合并时 GitHub Actions 为 **106 passed、4 skipped**；V4.1.7 开发分支最新 CI 为 **112 passed、4 skipped**。用户已完成 M4 30 轮长周期训练及 Round 5 vs Round 30 的 40 局直接对战（Round 30 以 27:13 获胜）；V4.1.7 完整本机测试套件状态仍需单独记录；不代表线上 V4.0 游戏已更新。
 
 ### 10.2 评估器升级
 
@@ -722,7 +722,7 @@ V4.1.7 不新增训练轮数，也不修改 TEBA-Net-S 网络、训练损失或�
 - **PR：** [#31 — V4.1.7: paired head-to-head checkpoint evaluation](https://github.com/nkfff/gomoku-skill-evaluator/pull/31)，已合并至开发分支。
 - **合并 Commit：** `43a5c6801afbfefe0f0af8ef26b2898bbe240081`。
 - **CI：** GitHub Actions **112 passed、4 skipped**；4 项为 Linux 环境无法执行的 MPS 专项测试。
-- **状态：** 开发分支代码已合并；M4 本地测试与 40 局 Checkpoint 直接对战待验收。尚未合并到默认分支 `main`，也不代表线上 V4.0 浏览器游戏已更新。
+- **状态：** 开发分支代码已合并；M4 上的 40 局 Checkpoint 直接对战已完成（Round 30 以 27:13 胜 Round 5），完整本机测试套件状态仍需单独记录。研究代码尚未合并到默认分支 `main`，也不代表线上 V4.0 浏览器游戏已更新。
 
 ### 11.2 实验背景
 
