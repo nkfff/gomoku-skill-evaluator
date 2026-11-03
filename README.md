@@ -2,7 +2,7 @@
 
 > 📘 [开发规划与完整版本档案](docs/DEVELOPMENT_ROADMAP.md)：项目定位、V1–V4.1.7 版本演进、Bug 修复记录、当前验收状态与后续路线。
 
-**当前稳定版：V2.2 · 最新预览版：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
+**当前稳定版：V2.2 · 最新预览版：V4.0.2** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
 > **最近更新：2026-11-03** · V4.1.7 Checkpoint 直接对战评估器已合并至 AI 开发分支，GitHub Actions 112 项通过、4 项 MPS 测试跳过；M4 本地验收及 40 局模型对战待执行。线上游戏最新预览版本为 V4.0.2。
 
@@ -216,6 +216,7 @@ V4.0 在 V3.4 基础上独立开发，不覆盖旧版本。主要更新：
 - **2026-10-30 维护修复**：修复旧版 D1 `mode_challenges` 表缺少 `solution_moves` 字段导致的残局生成失败，并增加迁移兼容与历史记录保留验证；统一管理员 UUID 比较并修复 Token 刷新后管理员面板偶发隐藏；皮肤收藏卡片改为跟随当前棋盘主题色，并增强皮肤名称文字对比度。
 - **2026-11-03 状态栏可读性修复**：棋盘状态栏背景、胜利提示文字和辅助文字改为读取当前棋盘主题的 surface / heading / muted 色值；六种棋盘主题均加入 WCAG AA（至少 4.5:1）对比度回归测试。同步更新 Service Worker 缓存版本与离线资源校验值；本次仅修改前端静态资源，不涉及 Worker、D1、账号数据或积分规则。
 - **2026-11-03 V4.0.2 好友 PVP 更新**：双方确认再战后创建新房间与独立 matchId，逐局结算 Elo；增加 3D 骰子动画、刷新恢复、并发防重复创建和失败重试。重新匹配返回邀请码大厅；当前未实现随机匹配队列。
+- **2026-11-03 V4.0.2 管理员后台更新**：修复清空账号 AI 对局记录、战绩和积分；新增场次、胜局及竞技积分基数编辑，自动计算胜率、综合积分和排行榜名次。账户皮肤与真人 PVP/Elo 数据保留。
 - **棋力评分修复**：评分汇总按玩家实际执棋颜色筛选着法；玩家执白时统计白棋，不再错误统计黑棋。实时评分和棋谱 JSON 导出统一传入玩家颜色，原有评分公式不变。
 - **自动化与部署**：V4.0 语法检查、D1 迁移、旧版残局数据兼容、自动化测试及 Chromium 离线运行检查全部通过；GitHub Pages 部署成功，Cloudflare V2/V3 Worker 发布成功，两个 `/api/health` 均返回 V4.0.0，V3 的 `pvpConfigured` 为 true。部署前 D1 备份成功导出，本次无新增 D1 迁移。真实双账号 PVP、云端积分与手机端体验仍建议人工验收。
 

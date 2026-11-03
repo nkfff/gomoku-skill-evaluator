@@ -31,6 +31,18 @@ export function isAdminUser(env,user){
  const id=String(user?.id||"").trim().toLowerCase();
  return configured.length>0&&id===configured;
 }
+function sqliteRound(value){return Math.sign(value)*Math.floor(Math.abs(value)+0.5);}
+export function calculateCompetitiveStats({gamesPlayed,wins,draws=0,earnedPoints=0}={}){
+ if(!Number.isSafeInteger(gamesPlayed)||gamesPlayed<0)throw invalid("总场次必须为非负整数");
+ if(!Number.isSafeInteger(wins)||wins<0)throw invalid("胜局数必须为非负整数");
+ if(!Number.isSafeInteger(draws)||draws<0)throw invalid("平局数必须为非负整数");
+ if(!Number.isSafeInteger(earnedPoints)||earnedPoints<0||earnedPoints>1000000)throw invalid("竞技积分必须为 0–1,000,000 的整数");
+ if(wins+draws>gamesPlayed)throw invalid("胜局数与平局数之和不能超过总场次");
+ const losses=gamesPlayed-wins-draws,winRate=gamesPlayed?100*wins/gamesPlayed:0;
+ const adjustedWinRate=100*(wins+2.5)/(gamesPlayed+5);
+ const rankPoints=gamesPlayed?Math.max(0,sqliteRound(earnedPoints+(adjustedWinRate-50)*Math.min(gamesPlayed,20)/10)):0;
+ return {gamesPlayed,wins,losses,draws,earnedPoints,winRate,adjustedWinRate,rankPoints};
+}
 async function profile(env,id){
  const u=await env.DB.prepare("SELECT id,name,points,earned_points,wins,losses,draws,inventory,selected_board,selected_piece,banned FROM players WHERE id=?").bind(id).first();
  return u?{...u,inventory:JSONparse(u.inventory,[]),isAdmin:isAdminUser(env,{id})}:null;
@@ -108,7 +120,7 @@ export default {
     adminOrThrow(env,user);
     if(url.pathname==="/api/admin/users"&&request.method==="GET"){
      const q=clean(url.searchParams.get("q"));
-     const {results}=await env.DB.prepare("SELECT id,name,email,points,earned_points,wins,losses,draws,banned,selected_board,selected_piece FROM players WHERE name LIKE ? OR id LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT 60")
+     const {results}=await env.DB.prepare("WITH base AS (SELECT id,COALESCE(earned_points,0) AS earned_points,wins,losses,draws,banned,(wins+losses+draws) AS games_played,CASE WHEN (wins+losses+draws)>0 THEN ROUND(100.0*wins/(wins+losses+draws),1) ELSE 0 END AS win_rate,MAX(0,ROUND(COALESCE(earned_points,0)+(100.0*(wins+2.5)/(wins+losses+draws+5)-50)*MIN(wins+losses+draws,20)/10.0)) AS rank_points FROM players), ranked AS (SELECT id,rank_points,ROW_NUMBER() OVER (ORDER BY rank_points DESC,earned_points DESC,wins DESC,games_played DESC) AS leaderboard_rank FROM base WHERE banned=0 AND games_played>0) SELECT p.id,p.name,p.email,p.points,p.earned_points,p.wins,p.losses,p.draws,p.banned,p.selected_board,p.selected_piece,COALESCE(b.games_played,0) AS games_played,COALESCE(b.win_rate,0) AS win_rate,CASE WHEN COALESCE(b.games_played,0)>0 THEN COALESCE(b.rank_points,0) ELSE 0 END AS rank_points,r.leaderboard_rank FROM players p LEFT JOIN base b ON b.id=p.id LEFT JOIN ranked r ON r.id=p.id WHERE p.name LIKE ? OR p.id LIKE ? OR p.email LIKE ? ORDER BY p.created_at DESC LIMIT 60")
       .bind("%"+q+"%","%"+q+"%","%"+q+"%").all();
      return reply({users:results},200,cors);
     }
@@ -132,10 +144,19 @@ export default {
     adminOrThrow(env,user);
     const target=body.targetId;
     if(!uuid(target))throw invalid("目标账号 ID 无效");
-     if(target===user.id&&url.pathname!=="/api/admin/adjust-points")throw invalid("管理员可以调整自己的积分，但不能封禁或重置自己的账号");
+     if(target===user.id&&url.pathname!=="/api/admin/adjust-points")throw invalid("管理员仅可调整自己的账户余额，不能修改自己的战绩、清空或封禁自己的账号");
     const current=await profile(env,target);
     if(!current)throw invalid("用户不存在",404);
-    if(url.pathname==="/api/admin/adjust-points"){
+    if(url.pathname==="/api/admin/adjust-stats"){
+     const reason=clean(body.reason);if(!reason)throw invalid("请填写操作原因");
+     const stats=calculateCompetitiveStats({gamesPlayed:body.gamesPlayed,wins:body.wins,draws:Number(current.draws||0),earnedPoints:body.earnedPoints});
+     const detail={...stats,reason};
+     const result=await env.DB.batch([
+      env.DB.prepare("UPDATE players SET wins=?,losses=?,draws=?,earned_points=? WHERE id=?").bind(stats.wins,stats.losses,stats.draws,stats.earnedPoints,target),
+      env.DB.prepare("INSERT INTO admin_audit(id,admin_id,target_id,action,detail) VALUES(?,?,?,?,?)").bind(crypto.randomUUID(),user.id,target,"adjust_stats",JSON.stringify(detail))
+     ]);
+     if(result[0].meta.changes!==1)throw invalid("战绩更新失败，请刷新后重试",409);
+    }else if(url.pathname==="/api/admin/adjust-points"){
      const delta=body.delta;
      if(!Number.isInteger(delta)||delta===0||Math.abs(delta)>100000)throw invalid("积分改动必须为非零整数，绝对值不超过 100000");
      const result=await env.DB.prepare("UPDATE players SET points=points+? WHERE id=? AND points+?>=0").bind(delta,target,delta).run();
@@ -149,9 +170,13 @@ export default {
      await env.DB.prepare("UPDATE players SET banned=? WHERE id=?").bind(banned,target).run();
      await audit(env,user.id,target,"set_ban",{banned:!!banned});
     }else if(url.pathname==="/api/admin/reset"){
-     // Keep transaction history; reset earned score and cosmetics only after admin confirmation.
-     await env.DB.prepare("UPDATE players SET points=0,earned_points=0,wins=0,losses=0,draws=0,inventory='[\"classic\",\"board:classic\",\"piece:classic\"]',selected_board='classic',selected_piece='classic' WHERE id=?").bind(target).run();
-     await audit(env,user.id,target,"reset_profile",{reason:clean(body.reason)});
+     const reason=clean(body.reason);if(!reason)throw invalid("请填写清空原因");
+     await env.DB.batch([
+      env.DB.prepare("DELETE FROM games WHERE player_id=?").bind(target),
+      env.DB.prepare("UPDATE players SET points=0,earned_points=0,wins=0,losses=0,draws=0 WHERE id=?").bind(target),
+      env.DB.prepare("INSERT INTO admin_audit(id,admin_id,target_id,action,detail) VALUES(?,?,?,?,?)")
+       .bind(crypto.randomUUID(),user.id,target,"reset_ai_data",JSON.stringify({reason,scope:"ai_games_and_competitive_stats"}))
+     ]);
     }else throw invalid("路径不存在",404);
     return reply({ok:true,profile:await profile(env,target)},200,cors);
    }

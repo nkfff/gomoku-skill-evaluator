@@ -261,3 +261,11 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 @media(prefers-reduced-motion:reduce){.dice-cube{transition:none!important}.dice-cube.is-rolling{animation-duration:.01ms!important}}
 
 /* V4.0.2 PVP room handoff: resume links and serialized mutual rematches. */
+
+.admin-stats-editor{margin:14px 0;padding:14px;border:1px solid var(--border,var(--v4-line));border-radius:15px;background:var(--surface,#faf5f1)}
+.admin-stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.admin-stats-grid label{min-width:0;margin:0;color:var(--muted,var(--v4-muted))}
+.admin-stats-grid input{box-sizing:border-box;width:100%}
+.admin-stats-preview{margin:12px 0;padding:11px 12px;border:1px solid var(--border,var(--v4-line));border-radius:11px;background:var(--surface,#fff);color:var(--heading,var(--v4-ink));font-size:12px;font-weight:750;line-height:1.7}
+.admin-stats-editor .controls{margin-bottom:0}
+@media(max-width:640px){.admin-stats-grid{grid-template-columns:1fr 1fr}}
