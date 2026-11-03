@@ -3,7 +3,7 @@
 > **项目名称：** Gomoku Skill Evaluator（五子棋棋力评估）  
 > **仓库：** [nkfff/gomoku-skill-evaluator](https://github.com/nkfff/gomoku-skill-evaluator)  
 > **文档版本：** 1.0  
-> **整理日期：** 2026-11-02  
+> **整理日期：** 2026-11-03  
 > **文档用途：** 统一记录历史版本、功能迭代、Bug 修复、当前验收状态与后续开发路线。
 
 ---
@@ -18,6 +18,9 @@
 6. [后续开发规划](#6-后续开发规划)
 7. [版本发布与质量控制规范](#7-版本发布与质量控制规范)
 8. [V4.0 验收清单](#8-v40-验收清单)
+9. [V4.1.5：TEBA 双通道学习与王者 AI 对战](#9-v415-teba-双通道学习与王者-ai-对战2026-11-03)
+10. [V4.1.6：评估诊断与长周期双通道训练](#10-v416-评估诊断与长周期双通道训练2026-11-03)
+11. [V4.1.7：冻结 Checkpoint 直接对战与棋力进化诊断](#11-v417-冻结-checkpoint-直接对战与棋力进化诊断2026-11-03)
 
 ## 1. 项目定位与技术结构
 
@@ -66,11 +69,12 @@
 | V3.2 | 特殊玩法初版 | 残局挑战、随机 3–10 连珠 | 兼容入口保留；初版难度经用户实测反馈过低，后续持续强化 |
 | V3.3 | 战术玩法强化 | 王者 AI、自适应随机连珠、多步唯一首着残局 | 独立入口；自动化测试通过，仍需持续实战评估 |
 | V3.4 | 深层搜索 AI | 迭代加深 Alpha-Beta、Zobrist 置换表、Worker 搜索、积分难度快照修复 | 独立入口；实战强度仍需基准测试 |
-| V4.0 | 视觉与竞技系统升级 | 暖色 UI、玩家选择黑白、平局 5 倍奖励、PVP 摇骰子、排行榜头衔及维护修复 | **最新已部署预览版**；自动化检查和部署通过，完整人工验收待完成 |
+| V4.0 | 视觉与竞技系统升级 | 暖色 UI、玩家选择黑白、平局 5 倍奖励、PVP 摇骰子、排行榜头衔及维护修复 | **最新已部署游戏预览版**；完整人工验收待完成 |
+| V4.1.5–V4.1.7 | AI 训练与棋力研究 | TEBA-Net-S、双通道学习、完整对局诊断、冻结 Checkpoint 配对直接对战 | **开发分支已实现；PR #31 已合并至 `feat/4.1-teba-mcts`；CI 112 passed / 4 skipped；M4 本地对战待验收；未部署、未进入 `main`** |
 
 **版本命名说明：**
 
-- 当前仓库有 V1、V2.1、V2.2、V2.3、V3.0、V3.1、V3.2、V3.3、V3.4、V4.0 的目录或入口。
+- 当前游戏发布入口包括 V1、V2.1、V2.2、V2.3、V3.0、V3.1、V3.2、V3.3、V3.4、V4.0。V4.1.5–V4.1.7 是 AI 训练研究版本，不对应新的网页游戏目录或线上发布入口。
 - 当前仓库没有独立的 V2.0 或 V3.5 发布目录。
 - 2026-10-30 讨论过的 V3.5 需求（平局动画与奖励、排行榜前三头衔、AI 先后手选择、真人摇骰子）最终纳入 V4.0，不应将其记为已独立发布的 V3.5。
 
@@ -301,7 +305,8 @@ Top-1 / Top-3 用于展示，不直接加分；对局长短不直接增加或扣
 | V3.1 | 独立入口保留 | 需回归不同页面的按钮/棋盘显隐规则 |
 | V3.2 | 兼容入口保留 | 后续强化以 V3.3/V3.4 为主 |
 | V3.3 / V3.4 | 独立入口与自动化测试已建立 | AI 实战强度和残局体验仍需持续评估 |
-| V4.0 | 最新已部署预览版 | 2026-10-30 的 Pages、Worker 部署及 V4.0 检查有成功记录；完整人工验收未完成 |
+| V4.0 | 最新已部署游戏预览版 | 2026-10-30 的 Pages、Worker 部署及 V4.0 检查有成功记录；完整人工验收未完成 |
+| V4.1.5–V4.1.7 | AI 训练研究开发分支 | PR #31 已合并到 `feat/4.1-teba-mcts`；GitHub Actions 112 passed、4 skipped；M4 本地 40 局 Checkpoint 对战待执行；未合并到 `main`、未部署为线上游戏 |
 
 ### 5.2 当前主要风险
 
@@ -314,7 +319,9 @@ Top-1 / Top-3 用于展示，不直接加分；对局长短不直接增加或扣
 
 ## 6. 后续开发规划
 
-后续开发建议遵循：**先完成 V4.0 验收和稳定性闭环，再提升 AI 与训练质量，最后扩展竞技和成长系统。** 不建议在基础链路尚未完成验收时连续堆叠新功能。
+后续开发建议遵循：**保持 V4.0 线上游戏稳定；先用配对实验验证 V4.1 训练是否带来真实棋力提升，再决定是否进入更大规模训练或产品集成。** 不建议仅凭训练 Loss 或单次对局结果升级模型。
+
+**截至 2026-11-03：** V4.1.5 双通道训练框架、V4.1.6 训练诊断与 30 轮训练配置、V4.1.7 冻结 Checkpoint 直接对战评估器均已进入开发分支。用户已完成 30 轮训练；Round 5 与 Round 30 对 V4.0 王者的既有 20 局评估均为 0 胜、0 平、20 负。当前待完成的是 M4 本地测试，以及 Round 5 vs Round 30 的 40 局配对直接对战。
 
 ### 阶段一：V4.0.1 稳定性收尾（最高优先级）
 
@@ -339,9 +346,9 @@ Top-1 / Top-3 用于展示，不直接加分；对局长短不直接增加或扣
 - README 统一后的版本状态。
 - 可复现的端到端回归用例。
 
-### 阶段二：V4.1 AI 棋力与残局质量提升
+### 阶段二：V4.1 AI 棋力与训练研究（进行中）
 
-目标：从“参数更深”升级为“有数据证明的棋力提升”。
+目标：从“参数更深”升级为“有数据证明的棋力提升”。当前阶段已建立 TEBA 双通道训练、逐步诊断和 Checkpoint 直接对战工具；下一步先完成 M4 40 局配对对战，再根据结果确定训练或架构调整。
 
 任务：
 
@@ -479,3 +486,311 @@ Top-1 / Top-3 用于展示，不直接加分；对局长短不直接增加或扣
 ---
 
 **文档维护原则：** 每次版本发布后更新“版本演进总览”“Bug 修复与维护记录”“当前版本状态”和对应验收清单。所有未经过真实验收的功能必须明确标注，不得提前写成稳定可用。
+
+## 9. V4.1.5：TEBA 双通道学习与王者 AI 对战（2026-11-03）
+
+### 9.1 版本定位
+
+V4.1 是独立的本地 AI 研究与训练线，不等同于 V4.0 浏览器游戏的线上部署版本。V4.1.5 在 V4.1.4 已完成的 TEBA-Net-S + PUCT + M4 Pilot 基础上，增加双通道训练和固定对手评估。
+
+- **开发/测试分支：** `feat/4.1.5-dual-learning`
+- **合并目标分支：** `feat/4.1-teba-mcts`
+- **PR：** [#29 — TEBA Dual-Learning with V4.0 Champion Sparring](https://github.com/nkfff/gomoku-skill-evaluator/pull/29)
+- **合并 Commit：** `bce6c47027893f13a2f3b38555071ff35079b228`
+- **状态：** 代码已合并；M4 本地双通道训练尚待执行；不代表已部署到线上游戏。
+
+### 9.2 V4.1.4 Pilot 基线
+
+用户在 Apple M4 MacBook Air（统一内存 16 GB、8 核 GPU）完成第一轮 TEBA-Net-S Pilot：
+
+| 指标 | 结果 |
+|---|---:|
+| 网络参数量 | 77,477 |
+| 设备 | Apple MPS |
+| 战术预训练样本 | 1,200 |
+| 自博弈对局 | 12 |
+| Replay Buffer | 436 个局面 |
+| 全局梯度更新 | 250 |
+| 最终 Policy Loss | 2.0480 |
+| 最终 Value Loss | 0.9927 |
+| 最终 Tactical Loss | 0.2009 |
+
+诊断发现 Value Head 预测标准差约 0.0367、与终局标签 Pearson 相关约 0.207；Tactical Head 在阈值 0.5 下的 F1 很低。因此该结果只证明训练闭环跑通，尚不能证明棋力提升。上述 Checkpoint 保存在用户本地 `ai-training/checkpoints/latest.pt`，未提交 Git。
+
+### 9.3 双通道训练机制
+
+**通道 A：Self-Play 强化学习**
+
+- 同一个 TEBA-Net-S 分别执黑和执白，与自身对弈。
+- PUCT 访问次数分布作为 Policy 监督。
+- 最终胜负作为 Value 标签。
+- 规则分析器生成 WIN_NOW / MUST_BLOCK / FORK 辅助标签。
+
+**通道 B：Champion Sparring 强化学习**
+
+- TEBA-Net-S 与实际 V4.0 王者 AI 对弈。
+- 对手直接调用 `v4.0/src/engine.js`，不重新实现近似算法。
+- 旧版王者 AI 使用迭代加深 Alpha-Beta、置换表、战术排序和战术延伸。
+- 每局交换 TEBA 黑棋/白棋身份，控制先手偏差。
+- TEBA 自己的落子使用 PUCT 策略目标和最终胜负进行训练。
+
+**低权重冠军策略蒸馏**
+
+- 仅保留旧版王者 AI 获胜或和棋的对局中的王者落子作为低权重 Policy 示范。
+- 王者 AI 输掉的整局轨迹不被当成专家策略。
+- 示范数据只参与 Policy Loss，不直接参与 Value / Tactical Loss。
+
+训练目标为：
+
+`L = 0.6 L_self-play + 0.4 L_champion-sparring + 0.15 L_teacher-policy`
+
+其中前两项分别使用 Policy + Value + 0.2 × Tactical 多任务目标，最后一项仅为低权重策略模仿损失。两个强化学习通道在每轮联合更新；数据生成按通道顺序执行，避免 M4 上并行搜索争用资源。
+
+### 9.4 V4.1.5 默认训练参数
+
+| 参数 | 默认值 |
+|---|---:|
+| 训练轮数 | 5 |
+| 每轮自博弈 | 4 局 |
+| 每轮王者挑战 | 4 局 |
+| PUCT 模拟次数 | 24 |
+| 每轮梯度更新 | 50 |
+| Batch Size | 32 |
+| 每个 Replay Buffer 容量 | 50,000 |
+| Self-Play / Sparring 损失权重 | 0.6 / 0.4 |
+| 冠军策略蒸馏权重 | 0.15 |
+| AdamW 学习率 | 0.0001 |
+| 梯度裁剪 | 1.0 |
+| V4.0 王者对手搜索预算 | 500 ms / move |
+| 王者候选宽度 / 最大深度 | 14 / 10 |
+
+500 ms 是为训练吞吐设置的受控预算，并非 V4.0 hard 模式原始 2.4 秒预算。完整预算可通过命令行覆盖。对比实验必须固定两方搜索预算。
+
+### 9.5 新增代码与产物
+
+- `ai-training/gomoku/legacy_bridge.mjs`：通过持久 JSON-lines 进程调用真实 V4.0 JavaScript 引擎。
+- `ai-training/gomoku/legacy_opponent.py`：Python 训练侧对手封装。
+- `ai-training/gomoku/dual_train.py`：双通道训练、三套 Replay Buffer、成功示范蒸馏、断点恢复。
+- `ai-training/gomoku/evaluate.py`：黑白双方均衡的固定王者对战评估，输出胜/平/负、Match Score 和搜索延迟。
+- `ai-training/tests/test_dual_learning.py`：双通道损失、Checkpoint 恢复和 V4.0 引擎桥接测试。
+- `ai-training/configs/teba_net_s.yaml`：记录双通道配置。
+- `.gitignore`：忽略 `checkpoints_dual/` 和 `evaluation/` 等本地产物。
+
+### 9.6 自动化验证与待验收
+
+- PR #29 合并前 GitHub Actions：**99 passed，4 skipped**。
+- 4 个跳过项是 Linux CI 无法执行的 Apple MPS 专项测试；必须在用户的 M4 本机再次运行完整测试。
+- Node.js 桥接测试在 CI 中实际执行，调用真实 V4.0 JavaScript 引擎。
+- 用户已完成 M4 上的 30 轮双通道训练；训练后模型与 V4.0 王者的 20 局评估均为 0 / 0 / 20。模型之间的直接对战仍待完成，不能据此认定 Round 30 相比 Round 5 没有提升。
+
+### 9.7 M4 执行顺序
+
+从仓库根目录更新：
+
+```bash
+git switch feat/4.1-teba-mcts
+git pull --ff-only origin feat/4.1-teba-mcts
+```
+
+进入训练目录并运行本机测试：
+
+```bash
+cd ai-training
+python -m pytest tests -v
+```
+
+先记录 V4.1.4 Pilot 对 V4.0 王者的基线：
+
+```bash
+python -m gomoku.evaluate --checkpoint checkpoints/latest.pt --device mps --games 10 --simulations 24 --champion-time-ms 500
+```
+
+再启动 V4.1.5 双通道训练：
+
+```bash
+python -m gomoku.dual_train --device mps
+```
+
+训练结束后评估：
+
+```bash
+python -m gomoku.evaluate --checkpoint checkpoints_dual/latest.pt --device mps --games 10 --simulations 32 --champion-time-ms 500
+```
+
+主要本地输出：
+
+- `checkpoints_dual/latest.pt`：模型、优化器、学习率调度器及三个 Replay Buffer 的完整断点。
+- `checkpoints_dual/dual_training.csv`：各通道数据量、对局结果和 Loss。
+- `evaluation/champion_match.csv`：与 V4.0 王者对战的逐局记录。
+
+### 9.8 论文实验边界
+
+双通道训练是当前工程方案，不应直接宣称为足以支撑顶会发表的算法创新。后续必须进行至少以下消融：
+
+1. Self-Play only。
+2. Champion Sparring RL only。
+3. Self-Play + Champion Sparring，不使用策略蒸馏。
+4. 完整双通道 + 成功示范蒸馏。
+5. 普通 PUCT 与 TEBA 自适应搜索预算的等计算量对照。
+
+主要报告固定算力下的胜率、Elo、战术准确率、样本效率、每步延迟和总训练时间。只有证明双通道或 TEBA 机制带来可重复的增益，才能形成论文贡献。
+
+
+## 10. V4.1.6：评估诊断与长周期双通道训练（2026-11-03）
+
+### 10.1 版本定位
+
+V4.1.6 承接 V4.1.5 的双通道训练框架，针对首轮 Pilot 与 V4.0 王者对战暴露出的两个问题升级：
+
+1. 旧评估只记录胜负、步数和平均搜索时间，无法定位具体失误。
+2. 默认 5 轮、每通道每轮 4 局、24 次 PUCT 模拟的规模过小，不足以支撑持续强化学习实验。
+
+- **开发/测试分支：** `feat/4.1.6-diagnostics-extended-training`
+- **合并目标分支：** `feat/4.1-teba-mcts`
+- **PR：** [#30 — V4.1.6: evaluation diagnostics and extended dual learning](https://github.com/nkfff/gomoku-skill-evaluator/pull/30)，已合并。\n- **合并 Commit：** `fa5a02f829384bc99fcca6bae0eaed957036b8e1`。
+- **状态：** PR 已合并；最新 GitHub Actions 为 **106 passed、4 skipped**（4 项为 Linux 环境无法执行的 MPS 测试）；M4 本地完整测试与长周期训练待验收；不代表线上 V4.0 游戏已更新。
+
+### 10.2 评估器升级
+
+- 每 2 局组成一个配对：使用相同随机合法开局，分别让 TEBA 执黑和执白。
+- 默认 6 个开局半回合，20 局评估对应 10 组不同开局。
+- 固定随机种子，保证开局可复现。
+- 保留每步落子前 225 格棋盘快照、当前玩家、最后一步、落子坐标和代理类型。
+- TEBA 记录 PUCT 模拟次数、根节点 Value、强制败势标记、Top-5 访问次数与先验概率、搜索耗时。
+- V4.0 记录 Alpha-Beta 节点数、完成深度、引擎报告耗时、决策原因及外部实测耗时。
+- 统计 TEBA 漏掉即时获胜点、唯一强制防守点和定义内双威胁（FORK）的次数。
+- 多个对手必胜点导致的强制败势不会错误计为“漏掉单点防守”。
+
+### 10.3 训练规模升级
+
+| 参数 | V4.1.5 Pilot | V4.1.6 默认 |
+|---|---:|---:|
+| 总训练轮数 | 5 | 30 |
+| 每轮自博弈 | 4 | 8 |
+| 每轮王者挑战 | 4 | 8 |
+| 总对局数 | 40 | 480 |
+| 每步 PUCT 模拟 | 24 | 64 |
+| 每轮梯度更新 | 50 | 100 |
+| 总梯度更新 | 250 | 3,000 |
+| Batch Size | 32 | 64 |
+| 每个 Replay Buffer | 50,000 | 50,000 |
+| Warmup steps | 10 | 100 |
+
+损失权重、网络结构和优化器保持 V4.1.5 冻结配置：Self-Play / Champion Sparring 为 0.6 / 0.4，成功王者示范策略蒸馏系数 0.15，AdamW 学习率 1e-4，weight decay 1e-4，梯度裁剪 1.0。V4.0 王者仍采用 width=14、500 ms、max_depth=10，避免在同一实验中同时改变对手强度。
+
+30 轮是默认总目标；`--resume ... --rounds 60` 表示延长到总计 60 轮，而不是额外增加 60 轮。每轮结束保存完整断点和模型快照，原始 `checkpoints/latest.pt` 不会被覆盖。
+
+### 10.4 新增代码与本地结果
+
+- `ai-training/gomoku/diagnostics.py`：统一棋盘快照、Top-K 搜索结果、战术错误标记和 JSONL 写入。
+- `ai-training/gomoku/evaluate.py`：随机配对开局、颜色交换、完整棋谱和逐步搜索诊断。
+- `ai-training/gomoku/train.py`：自博弈完整棋谱记录。
+- `ai-training/gomoku/dual_train.py`：王者挑战完整棋谱记录，默认扩展到 30 轮。
+- `ai-training/tests/test_diagnostics.py`：棋盘快照、战术漏步、搜索 Top-K 和开局复现测试。
+- `ai-training/configs/teba_net_s.yaml`：同步长周期训练规格。
+- `ai-training/README.md`：训练、续训、评估和诊断文件说明。
+
+本地输出：
+- `checkpoints_dual/latest.pt`：每轮更新的完整断点。
+- `checkpoints_dual/round_NNNN_model.pt`：每轮模型快照。
+- `checkpoints_dual/dual_training.csv`：每轮训练指标。
+- `checkpoints_dual/training_games.jsonl`：自博弈与王者挑战的完整训练棋谱。
+- `evaluation/champion_match_diagnostics.csv`：每局结果和错误汇总。
+- `evaluation/champion_match_diagnostics_games.jsonl`：每局完整棋谱。
+- `evaluation/champion_match_diagnostics_plies.jsonl`：每一步搜索和战术诊断。
+
+### 10.5 验收边界
+
+- V4.1.6 合并时的 GitHub Actions 为 106 passed、4 skipped；V4.1.7 最新开发分支 CI 已达到 **112 passed、4 skipped**。4 项跳过均为 Linux CI 无法执行的 Apple MPS 专项测试。
+- 用户已在 M4 完成 30 轮双通道训练，并保留 Round 5、Round 30 与 latest Checkpoint。
+- Round 5 和 Round 30 对 V4.0 王者的既有评估均为 20 局 0 胜 / 0 平 / 20 负；该结果不能代替两个 TEBA Checkpoint 之间的直接比较。
+- 训练 Loss 下降不代表棋力提升；当前应比较相同随机开局、黑白交换、固定 64 次 PUCT 下两个冻结模型的对战结果。
+- 20 组开局仅用于初筛；论文实验应增加开局数量、多个随机种子、置信区间、Elo 或 Bradley–Terry 估计及消融实验。
+
+
+## 11. V4.1.7：冻结 Checkpoint 直接对战与棋力进化诊断（2026-11-03）
+
+### 11.1 版本定位
+
+V4.1.7 不新增训练轮数，也不修改 TEBA-Net-S 网络、训练损失或既有 Checkpoint。核心目标是建立公平、可复现的模型对模型评估，直接回答 V4.1.6 的长周期双通道训练是否带来棋力提升。
+
+- **开发/测试分支：** `feat/4.1.7-checkpoint-head-to-head`
+- **合并目标分支：** `feat/4.1-teba-mcts`
+- **PR：** [#31 — V4.1.7: paired head-to-head checkpoint evaluation](https://github.com/nkfff/gomoku-skill-evaluator/pull/31)，已合并至开发分支。
+- **合并 Commit：** `43a5c6801afbfefe0f0af8ef26b2898bbe240081`。
+- **CI：** GitHub Actions **112 passed、4 skipped**；4 项为 Linux 环境无法执行的 MPS 专项测试。
+- **状态：** 开发分支代码已合并；M4 本地测试与 40 局 Checkpoint 直接对战待验收。尚未合并到默认分支 `main`，也不代表线上 V4.0 浏览器游戏已更新。
+
+### 11.2 实验背景
+
+用户已完成 V4.1.6 的 30 轮双通道训练，保留了：
+- `checkpoints_dual/round_0005_model.pt`
+- `checkpoints_dual/round_0030_model.pt`
+- `checkpoints_dual/latest.pt`
+
+两份模型在相同评估条件下分别对 V4.0 王者进行了 20 局测试（10 组随机开局、64 次 PUCT、固定随机种子 2028）：
+
+| 指标 | Round 5 | Round 30 |
+|---|---:|---:|
+| 胜 / 平 / 负 | 0 / 0 / 20 | 0 / 0 / 20 |
+| Match Score | 0.000 | 0.000 |
+| TEBA 平均搜索耗时 | 207.9 ms | 216.5 ms |
+| 漏即时胜 / 漏强制防守 / 漏 Fork | 0 / 0 / 0 | 0 / 0 / 0 |
+
+这只能说明两份 Checkpoint 均未在该小样本中击败 V4.0 王者，不能据此推断 Round 30 相比 Round 5 没有任何提升。下一步必须进行两个 TEBA Checkpoint 的直接对战。
+
+### 11.3 配对对战协议
+
+- MODEL_A：Round 5 Checkpoint。
+- MODEL_B：Round 30 Checkpoint。
+- 每组只生成一次可复现的合法随机开局，并在两局中完全复用。
+- 第一局 MODEL_A 执黑、MODEL_B 执白；第二局交换颜色。
+- 默认 40 局，即 20 组独立开局、每个模型各执黑和执白 20 局。
+- 双方使用相同设备、PUCT 模拟次数、`c_puct`、候选生成规则和无根噪声评估模式。
+- 两个模型均冻结，仅推理，不更新任何权重或训练状态。
+
+### 11.4 新增代码与产物
+
+- `ai-training/gomoku/compare_checkpoints.py`：双 Checkpoint 加载、相同开局复用、颜色交换、对局统计、逐步搜索与战术诊断。
+- `ai-training/tests/test_compare_checkpoints.py`：颜色交换、配对统计、即时获胜、参数默认值与非法输入测试。
+- `ai-training/README.md`：新增 V4.1.7 实验协议和 M4 命令。
+
+默认输出：
+- `evaluation/round05_vs_round30_head_to_head.csv`：逐局汇总。
+- `evaluation/round05_vs_round30_head_to_head_games.jsonl`：完整对局记录。
+- `evaluation/round05_vs_round30_head_to_head_plies.jsonl`：逐步棋盘、落子、PUCT Top-5、Value 与战术机会记录。
+
+### 11.5 M4 执行命令
+
+更新分支并测试：
+
+```bash
+git switch feat/4.1-teba-mcts
+git pull --ff-only origin feat/4.1-teba-mcts
+cd ai-training
+python -m pytest tests -v
+```
+
+执行 Round 5 对 Round 30 的直接对战：
+
+```bash
+python -m gomoku.compare_checkpoints \
+  --checkpoint-a checkpoints_dual/round_0005_model.pt \
+  --checkpoint-b checkpoints_dual/round_0030_model.pt \
+  --device mps \
+  --games 40 \
+  --simulations 64 \
+  --opening-plies 6 \
+  --seed 2028 \
+  --output evaluation/round05_vs_round30_head_to_head.csv
+```
+
+### 11.6 验收标准与解释边界
+
+- 40 局必须完整结束，20 组开局均完成黑白交换。
+- 每一组的两局必须使用完全相同的开局序列。
+- 双方每一步使用完全相同的 PUCT 搜索预算。
+- 输出 CSV、完整对局 JSONL 和逐步诊断 JSONL。
+- 汇报模型总胜平负、黑白分色结果、配对胜负、搜索耗时与战术漏步。
+- 该实验是棋力进化的初筛，不足以支撑论文级结论；后续需要增加开局数量、多个随机种子、置信区间与消融实验。
+- 本版本只做评估，不覆盖训练 Checkpoint，不改线上 V4.0 游戏。
