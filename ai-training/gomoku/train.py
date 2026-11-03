@@ -6,7 +6,6 @@ import json
 import math
 import os
 import random
-import shutil
 import time
 from collections import deque
 from pathlib import Path
@@ -333,11 +332,6 @@ def play_self_play_game(
             "self-play game did not terminate; increase --max-plies to 225"
         )
 
-    outcome = (
-        0.0
-        if game.winner is None
-        else 1.0
-    )
     completed = []
 
     for state, policy, player, tactical, legal_mask in pending:
@@ -555,6 +549,7 @@ def run_training(args: argparse.Namespace) -> Path:
                 "value_loss": warmup["value_loss"],
                 "tactical_loss": warmup["tactical_loss"],
                 "learning_rate": optimizer.param_groups[0]["lr"],
+                "elapsed_seconds": 0.0,
             },
         )
         print(
@@ -662,9 +657,15 @@ def run_training(args: argparse.Namespace) -> Path:
             np_rng,
             run_config,
         )
-        shutil.copy2(
-            output_dir / "latest.pt",
-            output_dir / f"round_{round_index:04d}.pt",
+        torch.save(
+            {
+                "format_version": CHECKPOINT_VERSION,
+                "round_index": round_index,
+                "global_step": global_step,
+                "model_state_dict": model.state_dict(),
+                "run_config": run_config,
+            },
+            output_dir / f"round_{round_index:04d}_model.pt",
         )
 
     print(f"Training finished. Latest checkpoint: {output_dir / 'latest.pt'}")
