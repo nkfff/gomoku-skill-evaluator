@@ -224,6 +224,15 @@ async function createTicket(env, roomId, playerId, headers) {
   return reply({ticket, expiresInSeconds: 45}, 200, headers);
 }
 
+async function currentRoom(env, playerId, headers) {
+  const room = await env.DB.prepare(
+    "SELECT id FROM pvp_rooms WHERE (host_player_id=? OR guest_player_id=?) AND status IN ('waiting','ready','active') AND (status='active' OR expires_at>datetime('now')) ORDER BY created_at DESC LIMIT 1"
+  ).bind(playerId, playerId).first();
+  if (!room) return reply({room: null}, 200, headers);
+  const state = await callRoom(env, room.id, "/internal/state", {playerId});
+  return reply({room: {id: room.id, ...state}}, 200, headers);
+}
+
 async function leaderboard(env, headers) {
   const {results} = await env.DB.prepare(
     "SELECT p.id,p.name,r.rating,r.rated_games,r.wins,r.losses,r.draws,r.peak_rating,CASE WHEN r.rated_games<10 THEN '定级中' WHEN r.rating<800 THEN '新手' WHEN r.rating<1000 THEN '青铜' WHEN r.rating<1200 THEN '白银' WHEN r.rating<1400 THEN '黄金' WHEN r.rating<1600 THEN '铂金' WHEN r.rating<1800 THEN '钻石' ELSE '大师' END AS tier FROM pvp_ratings r JOIN players p ON p.id=r.player_id WHERE COALESCE(p.banned,0)=0 ORDER BY r.rating DESC,r.rated_games DESC,r.wins DESC LIMIT 50"
@@ -463,6 +472,10 @@ export default {
       if (url.pathname === "/api/pvp/history" && request.method === "GET") {
         await ensurePlayer(env, user);
         return await history(env, user.id, headers);
+      }
+      if (url.pathname === "/api/pvp/rooms/current" && request.method === "GET") {
+        await ensurePlayer(env, user);
+        return await currentRoom(env, user.id, headers);
       }
 
       const ticketMatch = url.pathname.match(/^\/api\/pvp\/rooms\/([0-9a-f-]+)\/ticket$/i);
