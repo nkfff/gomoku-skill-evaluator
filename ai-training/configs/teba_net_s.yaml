@@ -57,3 +57,24 @@ training:
   gradient_updates_per_round: 200
   parallel_games: 4
   inference_batch_size: 8
+
+search:
+  algorithm: neural_puct
+  simulations: 128
+  c_puct: 1.25
+  candidate_radius: 2
+  tactical_prior_weights:
+    win_now: 0.25
+    must_block: 0.25
+    fork: 0.15
+  root_dirichlet_noise:
+    enabled_for_self_play: true
+    alpha: 0.3
+    fraction: 0.25
+  inference:
+    default_device: mps
+    evaluation_batch_size: 1
+  exact_rule_overrides:
+    immediate_win: true
+    unique_immediate_block: true
+    multiple_opponent_winning_cells: report_forced_loss
