@@ -163,3 +163,22 @@ def test_tactical_analysis_rejects_invalid_player(player):
 def test_tactical_analysis_rejects_invalid_board():
     with pytest.raises(ValueError):
         analyze_tactical_evidence(np.zeros(100, dtype=np.int8), BLACK)
+
+
+
+def test_tactical_analysis_can_skip_expensive_fork_enumeration():
+    board = new_board()
+    for row, col in [
+        (7, 6), (7, 8), (7, 9),
+        (6, 7), (8, 7), (9, 7),
+    ]:
+        board[spot(row, col)] = BLACK
+
+    evidence = analyze_tactical_evidence(
+        board,
+        BLACK,
+        include_forks=False,
+    )
+
+    assert evidence.fork_moves == ()
+    assert not evidence.targets.any()
