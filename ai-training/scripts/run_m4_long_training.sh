@@ -46,7 +46,7 @@ Starting TEBA-Net-S long-horizon reinforcement learning
   stage length:            500 rounds
   self-play games/round:   8
   sparring games/round:    8
-  opponent league share:   25%
+  opponent league share:   25% (20% historical TEBA + 5% tactical specialist)
   PUCT simulations:        64
   optimizer updates/round: 100
   D4 board augmentation:   enabled
