@@ -15,3 +15,14 @@ test('Gunuce release wiring has no inference endpoint or explanatory difficulty 
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8'),html=readFileSync(new URL('../index.html',import.meta.url),'utf8'),client=readFileSync(new URL('../src/gunuce.js',import.meta.url),'utf8');
  assert.match(html,/V4\.0\.2/);assert.match(html,/<option value="gunuce">Gunuce<\/option>/);assert.doesNotMatch(html,/不计积分/);assert.doesNotMatch(app,/不计积分/);assert.match(html,/id="retryAI"/);assert.match(app,/game\.cloudSession=game\.level!=="gunuce"/);assert.match(app,/game\.aiError=error\.message/);assert.doesNotMatch(client,/api\/gunuce|fetch\(/);assert.match(client,/new Worker/);
 });
+
+test('service worker activates new releases and prompts existing tabs to refresh',()=>{
+ const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+ const cache=readFileSync(new URL('../src/offline-cache.js',import.meta.url),'utf8');
+ assert.match(sw,/await self\.skipWaiting\(\)/);
+ assert.match(sw,/await self\.clients\.claim\(\)/);
+ assert.match(sw,/sw-update-ready/);
+ assert.match(cache,/updateViaCache:\s*['"]none['"]/);
+ assert.match(cache,/controllerchange/);
+ assert.match(cache,/location\.reload\(\)/);
+});
