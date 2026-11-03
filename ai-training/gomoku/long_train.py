@@ -197,6 +197,7 @@ def _training_command(args: argparse.Namespace, latest: Path, stage_rounds: int)
         "--snapshot-interval", str(args.snapshot_interval),
         "--league-fraction", str(args.league_fraction),
         "--league-max-opponents", str(args.league_max_opponents),
+        "--tactical-opponent-fraction", str(args.tactical_opponent_fraction),
         "--max-plies", str(args.max_plies),
         "--temperature-moves", str(args.temperature_moves),
         "--candidate-radius", str(args.candidate_radius),
@@ -394,6 +395,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--league-fraction", type=float, default=0.25)
     parser.add_argument("--league-max-opponents", type=int, default=8)
+    parser.add_argument("--tactical-opponent-fraction", type=float, default=0.2)
     parser.add_argument("--d4-augmentation", action=argparse.BooleanOptionalAction, default=True)
 
     parser.add_argument("--eval-games", type=int, default=40)
@@ -438,8 +440,11 @@ def main() -> None:
         raise SystemExit("eval-games and confirm-games must be even integers >= 2")
     if args.eval_simulations < 1 or args.league_max_opponents < 1:
         raise SystemExit("eval simulations and league size must be positive")
-    if not 0.0 <= args.league_fraction <= 1.0:
-        raise SystemExit("league-fraction must be in [0, 1]")
+    if (
+        not 0.0 <= args.league_fraction <= 1.0
+        or not 0.0 <= args.tactical_opponent_fraction <= 1.0
+    ):
+        raise SystemExit("league and tactical opponent fractions must be in [0, 1]")
     if args.early_stop_patience < 1 or args.early_stop_min_round < 0:
         raise SystemExit("invalid early-stopping settings")
     if args.promotion_min_score <= 0.5 or not 0.0 <= args.promotion_ci_lower < 1.0:
