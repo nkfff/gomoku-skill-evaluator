@@ -12,6 +12,7 @@ import torch
 
 from .encoding import encode_state
 from .game import BLACK, WHITE, GomokuGame
+from .diagnostics import append_jsonl, make_ply_record
 from .legacy_opponent import LegacyEngineOpponent
 from .losses import compute_teba_loss, policy_cross_entropy
 from .mcts import PUCTConfig, PUCTSearch, TorchEvaluator
@@ -56,6 +57,8 @@ def play_champion_game(
     rng: np.random.Generator,
     temperature_moves: int = 12,
     max_plies: int = 225,
+    game_record: dict[str, object] | None = None,
+    game_id: str | None = None,
 ) -> tuple[list, list, int]:
     """
     Play the current TEBA model against the frozen V4.0 hard AI.
@@ -78,6 +81,7 @@ def play_champion_game(
     search = PUCTSearch(evaluator, search_config)
     pending_learner = []
     pending_teacher = []
+    move_records: list[dict[str, object]] = []
 
     for ply in range(max_plies):
         player = game.current_player
@@ -88,12 +92,16 @@ def play_champion_game(
         )
         evidence = analyze_tactical_evidence(game.board, player)
 
+        board_before = game.board.copy()
+        last_move_before = game.last_move
         if player == learner_player:
+            started = time.perf_counter()
             result = search.search(
                 game,
                 add_root_noise=True,
                 seed=int(rng.integers(0, 2**32 - 1)),
             )
+            search_ms = (time.perf_counter() - started) * 1000.0
             if result.best_move is None:
                 break
 
@@ -110,8 +118,23 @@ def play_champion_game(
             )
             if move is None:
                 break
+            move_records.append(
+                make_ply_record(
+                    board_before,
+                    ply,
+                    player,
+                    "TEBA_CHAMPION_SPAR",
+                    move,
+                    evidence,
+                    search_ms,
+                    last_move=last_move_before,
+                    search_result=result,
+                )
+            )
         else:
-            move, _diagnostics = champion.choose_move(game.board, player)
+            started = time.perf_counter()
+            move, champion_diagnostics = champion.choose_move(game.board, player)
+            search_ms = (time.perf_counter() - started) * 1000.0
             actions = game.get_candidates(radius=2)
             legal_mask = _candidate_mask(actions)
             if not legal_mask[move]:
@@ -123,6 +146,19 @@ def play_champion_game(
             teacher_policy[move] = 1.0
             pending_teacher.append(
                 (state, teacher_policy, player, evidence.targets, legal_mask)
+            )
+            move_records.append(
+                make_ply_record(
+                    board_before,
+                    ply,
+                    player,
+                    "V4.0_CHAMPION",
+                    move,
+                    evidence,
+                    search_ms,
+                    last_move=last_move_before,
+                    champion_diagnostics=champion_diagnostics,
+                )
             )
 
         game.play(move)
@@ -153,6 +189,22 @@ def play_champion_game(
             _sample(state, policy, champion_outcome, tactical, legal_mask)
             for state, policy, _player, tactical, legal_mask in pending_teacher
         ]
+
+    if game_record is not None:
+        game_record.update({
+            "game_id": game_id,
+            "mode": "champion_sparring",
+            "learner_player": "BLACK" if learner_player == BLACK else "WHITE",
+            "outcome": int(learner_outcome),
+            "winner": game.winner,
+            "winner_name": (
+                "DRAW" if game.winner is None
+                else "BLACK" if game.winner == BLACK
+                else "WHITE"
+            ),
+            "plies": game.move_count,
+            "moves": move_records,
+        })
 
     return learner_samples, teacher_samples, learner_outcome
 
@@ -432,6 +484,7 @@ def run_training(args: argparse.Namespace) -> Path:
     )
 
     log_path = output_dir / "dual_training.csv"
+    training_games_path = output_dir / "training_games.jsonl"
     with LegacyEngineOpponent(
         node_executable=args.node_executable,
         level="hard",
@@ -450,6 +503,7 @@ def run_training(args: argparse.Namespace) -> Path:
             draws = 0
 
             for game_index in range(args.self_play_games_per_round):
+                game_record: dict[str, object] = {}
                 samples = play_self_play_game(
                     model,
                     device,
@@ -457,7 +511,10 @@ def run_training(args: argparse.Namespace) -> Path:
                     rng,
                     temperature_moves=args.temperature_moves,
                     max_plies=args.max_plies,
+                    game_record=game_record,
+                    game_id=f"round-{round_index:04d}-selfplay-{game_index + 1:03d}",
                 )
+                append_jsonl(training_games_path, game_record)
                 self_play_replay.add_many(samples)
                 self_play_positions += len(samples)
                 print(
@@ -471,6 +528,7 @@ def run_training(args: argparse.Namespace) -> Path:
                     (round_index - 1) * args.champion_games_per_round + game_index
                 )
                 learner_player = BLACK if global_game_index % 2 == 0 else WHITE
+                game_record = {}
                 learner_samples, teacher_samples, outcome = play_champion_game(
                     model,
                     device,
@@ -480,7 +538,10 @@ def run_training(args: argparse.Namespace) -> Path:
                     rng,
                     temperature_moves=args.temperature_moves,
                     max_plies=args.max_plies,
+                    game_record=game_record,
+                    game_id=f"round-{round_index:04d}-champion-{game_index + 1:03d}",
                 )
+                append_jsonl(training_games_path, game_record)
                 sparring_replay.add_many(learner_samples)
                 teacher_replay.add_many(teacher_samples)
                 sparring_positions += len(learner_samples)
@@ -617,6 +678,7 @@ def run_training(args: argparse.Namespace) -> Path:
 
     print(f"Dual-learning checkpoint: {output_dir / 'latest.pt'}")
     print(f"Dual-learning log: {log_path}")
+    print(f"Training game diagnostics: {training_games_path}")
     return output_dir / "latest.pt"
 
 
@@ -631,12 +693,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume", default=None)
     parser.add_argument("--output-dir", default="checkpoints_dual")
 
-    parser.add_argument("--rounds", type=int, default=5)
-    parser.add_argument("--self-play-games-per-round", type=int, default=4)
-    parser.add_argument("--champion-games-per-round", type=int, default=4)
-    parser.add_argument("--simulations", type=int, default=24)
-    parser.add_argument("--updates-per-round", type=int, default=50)
-    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--rounds", type=int, default=30)
+    parser.add_argument("--self-play-games-per-round", type=int, default=8)
+    parser.add_argument("--champion-games-per-round", type=int, default=8)
+    parser.add_argument("--simulations", type=int, default=64)
+    parser.add_argument("--updates-per-round", type=int, default=100)
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--replay-capacity", type=int, default=50_000)
 
     parser.add_argument("--max-plies", type=int, default=225)
@@ -658,7 +720,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--gradient-clip", type=float, default=1.0)
-    parser.add_argument("--warmup-steps", type=int, default=10)
+    parser.add_argument("--warmup-steps", type=int, default=100)
     return parser
 
 
