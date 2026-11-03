@@ -108,6 +108,8 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   assert.match(css, /@keyframes diceRoll3d/);
   assert.match(pvpUi, /animateDiceFace/);
   assert.match(pvpUi, /switchToRematchRoom/);
+  assert.match(pvpUi, /initialPvpRoom/);
+  assert.match(pvpUi, /searchParams\.set\("pvpRoom"/);
   assert.match(pvpRoom, /rematchRoomId/);
   assert.match(pvpRoom, /internal\/init-rematch/);
 });
