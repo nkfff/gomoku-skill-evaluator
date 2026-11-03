@@ -75,7 +75,7 @@ def test_tactical_specialist_prioritizes_an_immediate_win():
 
 def test_tactical_specialist_prioritizes_a_forced_block():
     game = GomokuGame()
-    opponent_stones = [spot(7, col) for col in (3, 4, 5, 6)]
+    opponent_stones = [spot(7, col) for col in (0, 1, 2, 3)]
     game.board[opponent_stones] = WHITE
     game.current_player = BLACK
 
