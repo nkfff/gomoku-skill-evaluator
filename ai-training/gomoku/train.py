@@ -15,6 +15,7 @@ import torch
 
 from .encoding import encode_state
 from .game import BLACK, WHITE, GomokuGame, spot
+from .diagnostics import make_ply_record
 from .losses import (
     balanced_tactical_bce,
     compute_teba_loss,
@@ -338,6 +339,8 @@ def play_self_play_game(
     rng: np.random.Generator,
     temperature_moves: int = 12,
     max_plies: int = 225,
+    game_record: dict[str, object] | None = None,
+    game_id: str | None = None,
 ) -> list[tuple[np.ndarray, np.ndarray, np.float32, np.ndarray, np.ndarray]]:
     """
     Play one complete self-play game and label every position by its final
@@ -350,6 +353,7 @@ def play_self_play_game(
     evaluator = TorchEvaluator(model, device=str(device))
     search = PUCTSearch(evaluator, search_config)
     pending = []
+    move_records: list[dict[str, object]] = []
 
     for ply in range(max_plies):
         player = game.current_player
@@ -360,11 +364,13 @@ def play_self_play_game(
         )
         evidence = analyze_tactical_evidence(game.board, player)
 
+        started = time.perf_counter()
         result = search.search(
             game,
             add_root_noise=True,
             seed=int(rng.integers(0, 2**32 - 1)),
         )
+        search_ms = (time.perf_counter() - started) * 1000.0
         if result.best_move is None:
             break
 
@@ -381,6 +387,19 @@ def play_self_play_game(
         if move is None:
             break
 
+        move_records.append(
+            make_ply_record(
+                game.board.copy(),
+                ply,
+                player,
+                "TEBA_SELF_PLAY",
+                move,
+                evidence,
+                search_ms,
+                last_move=game.last_move,
+                search_result=result,
+            )
+        )
         game.play(move)
         if game.done:
             break
@@ -405,6 +424,20 @@ def play_self_play_game(
                 legal_mask.astype(np.bool_, copy=True),
             )
         )
+
+    if game_record is not None:
+        game_record.update({
+            "game_id": game_id,
+            "mode": "self_play",
+            "winner": game.winner,
+            "winner_name": (
+                "DRAW" if game.winner is None
+                else "BLACK" if game.winner == BLACK
+                else "WHITE"
+            ),
+            "plies": game.move_count,
+            "moves": move_records,
+        })
 
     return completed
 
