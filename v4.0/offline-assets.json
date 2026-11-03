@@ -4,7 +4,7 @@
   "onnxruntime": "1.31.1",
   "files": {
     "index.html": "cb89014b174eaa6dfccbdff864eb380e0af15b65dd1e2ade401be494b5cf8d37",
-    "config.js": "ca3a2f1d467505174e746fd4e5ba2fc37dc1fc04f4b89918186300173662eaba",
+    "config.js": "a912311267c2dac8e20aa8e21c8617e19964ac21404b9c1c607073f10ed53bda",
     "pvp-ui.js": "c7cf02d7e7210050796c7957b39054b7fefd3dda4aa448c6b458f93ca55aae0f",
     "special-modes-ui.js": "69e47e04a88705bf707b85c2ab1d0fee93f9a30cb3e30a871f127bef7bdbfcea",
     "models/model.json": "4640cd8a82143d055fe5881178b632b0330573d2ea368863f1a6f0f76562aa60",
