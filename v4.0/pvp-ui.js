@@ -808,8 +808,11 @@ async function restorePvpRoomOnLoad() {
     const saved = loadRoomSession();
     const resumeFromUrl = Boolean(initialPvpRoom && (!initialInvite || saved?.roomId === initialPvpRoom));
     let resumeId = resumeFromUrl ? initialPvpRoom : (!initialInvite ? saved?.roomId : "");
-    if (!resumeId && !initialInvite) {
-      const current = await api("/api/pvp/rooms/current");
+    if (!resumeId) {
+      const currentPath = initialInvite
+        ? "/api/pvp/rooms/current?invite=" + encodeURIComponent(initialInvite)
+        : "/api/pvp/rooms/current";
+      const current = await api(currentPath);
       if (current.room) resumeId = current.room.id;
     }
     if (!resumeId) return;
