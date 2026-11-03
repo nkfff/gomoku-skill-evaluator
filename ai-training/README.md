@@ -545,7 +545,9 @@ over the remaining global training steps. The scheduler metadata is stored
 in the checkpoint and reconstructed on resume.
 
 - Full resumable checkpoint: every 10 rounds and at every stage boundary.
-- Model-only snapshot: every 500 rounds and at each stage boundary.
+- Model-only snapshot: every 500 rounds and at each stage boundary; tournaments
+  load these compact snapshots rather than repeatedly loading the full replay
+  buffers from `latest.pt`.
 - The long-run launcher uses `caffeinate` when available.
 - If interrupted, rerun the same launcher; it resumes from
   `checkpoints_longrun/latest.pt`.
@@ -590,7 +592,9 @@ Important output paths:
 - `checkpoints_longrun/long_run_state.json`: controller progress and
   early-stopping state.
 
-**Status:** implementation is under CI validation on
-`feat/4.1.9-long-horizon-rl`. The M4 training process has not been started by
-GitHub; it must be launched on the local Mac. Do not describe the 30,000-round
-run as completed until the local checkpoint and logs confirm it.
+**Status:** PR #34 (V4.1.9) and PR #35 (tactical-opponent validation) are merged
+into `feat/4.1-teba-mcts`. The combined GitHub Actions suite reports
+**124 passed, 4 skipped**; the skipped tests require Apple MPS and are not
+available on the Ubuntu runner. The M4 training process has not been started
+by GitHub; it must be launched on the local Mac. Do not describe the
+30,000-round run as completed until the local checkpoint and logs confirm it.
