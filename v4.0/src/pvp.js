@@ -157,6 +157,7 @@ export function ratingTier(rating, ratedGames = 10) {
 export function requestPvpRematch(room, playerId) {
   if (!room || room.status !== "finished" || !room.match || room.match.status !== "finished" ||
       !room.hostPlayerId || !room.guestPlayerId) throw new Error("ROOM_NOT_FINISHED");
+  if (room.rematchRoomId || room.rematchStarting) throw new Error("REMATCH_ALREADY_STARTED");
   if (playerId !== room.hostPlayerId && playerId !== room.guestPlayerId) throw new Error("NOT_A_ROOM_MEMBER");
   const rematchByPlayer = {...(room.rematchByPlayer || {}), [playerId]: true};
   const acceptedByBoth = Boolean(rematchByPlayer[room.hostPlayerId] && rematchByPlayer[room.guestPlayerId]);
