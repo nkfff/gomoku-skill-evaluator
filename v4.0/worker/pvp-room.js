@@ -38,6 +38,7 @@ export class PvpRoom {
     const url = new URL(request.url);
     try {
       if (request.method === "POST" && url.pathname === "/internal/init") return await this.initialize(request);
+      if (request.method === "POST" && url.pathname === "/internal/init-rematch") return await this.initializeRematch(request);
       if (request.method === "POST" && url.pathname === "/internal/join") return await this.join(request);
       if (request.method === "POST" && url.pathname === "/internal/cancel") return await this.cancel(request);
       if (request.method === "GET" && url.pathname === "/internal/state") {
@@ -79,6 +80,35 @@ export class PvpRoom {
     await this.ctx.storage.put("room", this.room);
     await this.scheduleNextAlarm();
     return json({ok: true, roomId: this.room.roomId});
+  }
+
+  async initializeRematch(request) {
+    const data = await request.json();
+    if (this.room) return json({ok: true, roomId: this.room.roomId, status: this.room.status});
+    if (!data.roomId || !data.hostPlayerId || !data.guestPlayerId) {
+      return json({error: "Invalid rematch initialization"}, 400);
+    }
+    const now = nowMs();
+    this.room = {
+      roomId: data.roomId,
+      status: "ready",
+      hostPlayerId: data.hostPlayerId,
+      hostName: data.hostName || "棋手",
+      guestPlayerId: data.guestPlayerId,
+      guestName: data.guestName || "棋手",
+      timeControlMs: Number.isInteger(data.timeControlMs) && data.timeControlMs > 0 ? data.timeControlMs : DEFAULT_TIME_CONTROL_MS,
+      rated: true,
+      createdAt: now,
+      expiresAt: Number(data.expiresAt) || now + 24 * 60 * 60 * 1000,
+      readyByPlayer: {[data.hostPlayerId]: true, [data.guestPlayerId]: true},
+      rematchByPlayer: {},
+      connectedByPlayer: {},
+      disconnectedAt: {},
+      match: null
+    };
+    await this.ctx.storage.put("room", this.room);
+    await this.startMatch();
+    return json({ok: true, roomId: this.room.roomId, status: this.room.status});
   }
 
   async join(request) {
@@ -227,20 +257,64 @@ export class PvpRoom {
 
   async requestRematch(playerId) {
     if (this.room.settlementPending) throw new Error("SETTLEMENT_PENDING");
+    if (this.room.rematchRoomId) throw new Error("REMATCH_ALREADY_STARTED");
     const request = requestPvpRematch(this.room, playerId);
     if (!request.acceptedByBoth) {
       this.room = request.room;
       await this.ctx.storage.put("room", this.room);
-      this.broadcast({type: "rematch_requested", playerId, room: this.snapshot(playerId)});
+      if (this.room.status === "finished" && !this.room.rematchRoomId) {
+        this.broadcast({type: "rematch_requested", playerId, room: this.snapshot(playerId)});
+      }
       return;
     }
-    const updated = await this.env.DB.prepare(
-      "UPDATE pvp_rooms SET status='ready',started_at=NULL,ended_at=NULL WHERE id=? AND status='finished'"
-    ).bind(this.room.roomId).run();
-    if (updated.meta.changes !== 1) throw new Error("ROOM_NOT_FINISHED");
-    this.room = request.room;
+
+    // pvp_matches.room_id is UNIQUE, so every rematch gets a fresh room row.
+    const newRoomId = crypto.randomUUID();
+    const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+    const inviteCodeHash = [...randomBytes].map(byte => byte.toString(16).padStart(2, "0")).join("");
+    const expiresAt = nowMs() + 24 * 60 * 60 * 1000;
+    await this.env.DB.prepare(
+      "INSERT INTO pvp_rooms(id,host_player_id,guest_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,?,'ready',?,1,datetime('now','+24 hours'))"
+    ).bind(
+      newRoomId, this.room.hostPlayerId, this.room.guestPlayerId,
+      inviteCodeHash, this.room.timeControlMs
+    ).run();
+
+    let newRoomActive = false;
+    try {
+      const stub = this.env.PVP_ROOMS.get(this.env.PVP_ROOMS.idFromName(newRoomId));
+      const response = await stub.fetch(new Request("https://pvp-room/internal/init-rematch", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          roomId: newRoomId,
+          hostPlayerId: this.room.hostPlayerId,
+          hostName: this.room.hostName,
+          guestPlayerId: this.room.guestPlayerId,
+          guestName: this.room.guestName,
+          timeControlMs: this.room.timeControlMs,
+          expiresAt
+        })
+      }));
+      const data = await response.json().catch(() => ({}));
+      newRoomActive = response.ok && data.status === "active";
+    } catch {
+      newRoomActive = false;
+    }
+    if (!newRoomActive) {
+      const row = await this.env.DB.prepare("SELECT status FROM pvp_rooms WHERE id=?").bind(newRoomId).first();
+      if (row?.status !== "active") {
+        await this.env.DB.prepare(
+          "UPDATE pvp_rooms SET status='cancelled',ended_at=datetime('now') WHERE id=? AND status IN ('ready','active')"
+        ).bind(newRoomId).run();
+        throw new Error("REMATCH_START_FAILED");
+      }
+    }
+
+    this.room.rematchByPlayer = {};
+    this.room.rematchRoomId = newRoomId;
     await this.ctx.storage.put("room", this.room);
-    await this.startMatch();
+    this.broadcast({type: "rematch_started", newRoomId});
   }
 
   async startMatch() {
@@ -457,6 +531,7 @@ export class PvpRoom {
       expiresAt: this.room.expiresAt,
       readyByPlayer: this.room.readyByPlayer,
       rematchByPlayer: this.room.rematchByPlayer || {},
+      rematchRoomId: this.room.rematchRoomId || null,
       connectedByPlayer: this.room.connectedByPlayer,
       match
     };
@@ -488,6 +563,8 @@ export class PvpRoom {
       ROOM_NOT_READY: "房间尚未准备好",
       ROOM_NOT_FINISHED: "本局尚未结束，暂时不能再来一局",
       SETTLEMENT_PENDING: "本局结算尚未完成，请稍后再试",
+      REMATCH_START_FAILED: "新对局创建失败，请重试再来一局",
+      REMATCH_ALREADY_STARTED: "双方已确认再战，正在进入新对局",
       MATCH_NOT_ACTIVE: "当前没有进行中的对局",
       NOT_YOUR_TURN: "还没轮到你落子",
       INVALID_CELL: "落点无效",
