@@ -143,6 +143,9 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
   client=createClient(SUPABASE_URL,PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   const result=await client.auth.getSession();
   session=result.data?.session||null;
+  window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
+   detail:{signedIn:loggedIn(),userId:session?.user?.id||null}
+  }));
   let lastUserId=session?.user?.id||null;
   client.auth.onAuthStateChange((event,next)=>{
    const nextUserId=next?.user?.id||null;
@@ -154,20 +157,17 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
    if(!identityChanged)return;
    lastUserId=nextUserId;
    Promise.resolve().then(async()=>{
-    if(nextUserId)await refresh();
-    await onChange(!!nextUserId);
     window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
      detail:{signedIn:!!nextUserId,userId:nextUserId}
     }));
+    if(nextUserId)await refresh();
+    await onChange(!!nextUserId);
    }).catch(()=>{});
   });
   ready=true;
   setMessage(loggedIn()?"已恢复账号登录":"请选择注册或登录；游客对局不会进入云端排行榜。");
   await refresh();
   if(session)await onChange(true);
-  window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
-   detail:{signedIn:loggedIn(),userId:session?.user?.id||null}
-  }));
   if(authCallbackError){
    const message="邮箱验证失败："+authCallbackError;
    setMessage(message,true);setGlobalFeedback(message,true);
