@@ -9,6 +9,9 @@ const hasAuthCallback=!!(callbackHash.get("access_token")||callbackQuery.get("co
 const SUPABASE_URL=String(window.GOMOKU_SUPABASE_URL||"").replace(/\/$/,"");
 const PUBLISHABLE_KEY=String(window.GOMOKU_SUPABASE_PUBLISHABLE_KEY||"");
 let client=null,session=null,ready=false,onChange=()=>{},onProfileChange=()=>{};
+let resolveAuthReady;
+const authReadyPromise = new Promise(resolve => { resolveAuthReady = resolve; });
+export function waitForAuthReady() { return authReadyPromise; }
 export const cloudConfigured=()=>!!(SUPABASE_URL&&PUBLISHABLE_KEY&&apiBase());
 export const loggedIn=()=>!!session?.access_token;
 export async function bearer(){
@@ -129,11 +132,12 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
  onChange=onAuthChange||(()=>{});
  onProfileChange=onRemoteProfileChange||(()=>{});
  $("authForm").hidden=false;$("loggedPanel").hidden=true;
- if(!cloudConfigured()){
-  setMessage("账号系统尚未连接 Supabase / Cloudflare；可继续游客对弈。需要部署后才能注册和管理。");
-  $("authInputs").disabled=true;return;
- }
  try{
+  if(!cloudConfigured()){
+   setMessage("账号系统尚未连接 Supabase / Cloudflare；可继续游客对弈。需要部署后才能注册和管理。");
+   $("authInputs").disabled=true;
+   return false;
+  }
   // Dynamic load: the offline game continues even if the auth provider is unavailable.
   const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2");
   client=createClient(SUPABASE_URL,PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
@@ -152,12 +156,18 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
    Promise.resolve().then(async()=>{
     if(nextUserId)await refresh();
     await onChange(!!nextUserId);
+    window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
+     detail:{signedIn:!!nextUserId,userId:nextUserId}
+    }));
    }).catch(()=>{});
   });
   ready=true;
   setMessage(loggedIn()?"已恢复账号登录":"请选择注册或登录；游客对局不会进入云端排行榜。");
   await refresh();
   if(session)await onChange(true);
+  window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
+   detail:{signedIn:loggedIn(),userId:session?.user?.id||null}
+  }));
   if(authCallbackError){
    const message="邮箱验证失败："+authCallbackError;
    setMessage(message,true);setGlobalFeedback(message,true);
@@ -165,7 +175,13 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
    const message=loggedIn()?"邮箱验证成功！账号已激活并自动登录，现在可以开始下棋。":"邮箱验证链接已打开。请进入「账号 / 管理」查看状态；如果未自动登录，请使用注册邮箱登录。";
    setMessage(message,!loggedIn());setGlobalFeedback(message,!loggedIn());
   }
- }catch(e){setMessage("登录模块加载失败："+e.message,true);}
+  return true;
+ }catch(e){
+  setMessage("登录模块加载失败："+e.message,true);
+  return false;
+ }finally{
+  resolveAuthReady(true);
+ }
 }
 async function authTask(task){
  if(!client){setMessage("请先配置认证服务",true);return;}
