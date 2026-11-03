@@ -219,7 +219,8 @@ class PUCTSearch:
         # With multiple opponent winning cells no single move can block all
         # threats. Keep ordinary candidates so the search can choose the
         # least-bad move and report the forced-loss condition.
-        return game.get_candidates(radius=self.config.candidate_radius)
+        actions = game.get_candidates(radius=self.config.candidate_radius)
+        return actions if actions else game.legal_moves()
 
     def _make_priors(
         self,
