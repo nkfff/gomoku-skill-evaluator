@@ -1,6 +1,6 @@
 {
   "version": "4.0.1",
-  "cacheVersion": "3d9cf46d3f17baaa",
+  "cacheVersion": "ec4095fd146c582e",
   "onnxruntime": "1.31.1",
   "files": {
     "index.html": "a355241a884788dd2d65d024b4bb30a9781650ea81e3b0b89014d5310c9fa1d2",
@@ -22,7 +22,7 @@
     "src/offline-cache.js": "7b6966314b365da2ae4b32091d14e04f7a0e897c7ed02fef1eacf6b42a63d409",
     "src/pvp.js": "ca04f8b9cebdee29dc286935a88ba219de8a905dac0a40da7c55b3020060bbc7",
     "src/special-modes.js": "c7f1c0d7c25f620186bbf64c7bcb06bc357e62eeba38fb40ea5948ef15c0ed40",
-    "src/style.css": "3bd84d7c61a2411dd43de8ff4bc73f2899c47c464d1b833adacb0448fe3cabda",
+    "src/style.css": "ec4095fd146c582efe544de5f1c2329c31accc2c44dad68e5e559d6e95b081ba",
     "vendor/ort/ort.webgpu.min.mjs": "329cd956772397a1aedd668e911195d39afefb182f6fc14aafa4f08ac8d8f379",
     "vendor/ort/ort-wasm-simd-threaded.asyncify.mjs": "59cf781530e1a16df2a291d78798e3ec1152467edaec402d6f9599d85047c302",
     "vendor/ort/ort-wasm-simd-threaded.asyncify.wasm": "ca319e9539cd0f1e291cf56074760121eaf39650f5dbf84b6e52c07f4b2944ec",
