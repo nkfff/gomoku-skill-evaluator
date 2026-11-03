@@ -224,10 +224,20 @@ async function createTicket(env, roomId, playerId, headers) {
   return reply({ticket, expiresInSeconds: 45}, 200, headers);
 }
 
-async function currentRoom(env, playerId, headers) {
-  const room = await env.DB.prepare(
-    "SELECT id FROM pvp_rooms WHERE (host_player_id=? OR guest_player_id=?) AND status IN ('waiting','ready','active') AND (status='active' OR expires_at>datetime('now')) ORDER BY created_at DESC LIMIT 1"
-  ).bind(playerId, playerId).first();
+async function currentRoom(env, playerId, headers, inviteCode = "") {
+  const code = String(inviteCode || "").trim().toUpperCase();
+  let room;
+  if (code) {
+    if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) return reply({room: null}, 200, headers);
+    const inviteHash = await sha256(code);
+    room = await env.DB.prepare(
+      "SELECT id FROM pvp_rooms WHERE (host_player_id=? OR guest_player_id=?) AND invite_code_hash=? AND status IN ('waiting','ready','active') AND (status='active' OR expires_at>datetime('now')) LIMIT 1"
+    ).bind(playerId, playerId, inviteHash).first();
+  } else {
+    room = await env.DB.prepare(
+      "SELECT id FROM pvp_rooms WHERE (host_player_id=? OR guest_player_id=?) AND status IN ('waiting','ready','active') AND (status='active' OR expires_at>datetime('now')) ORDER BY created_at DESC LIMIT 1"
+    ).bind(playerId, playerId).first();
+  }
   if (!room) return reply({room: null}, 200, headers);
   const state = await callRoom(env, room.id, "/internal/state", {playerId});
   return reply({room: {id: room.id, ...state}}, 200, headers);
@@ -475,7 +485,7 @@ export default {
       }
       if (url.pathname === "/api/pvp/rooms/current" && request.method === "GET") {
         await ensurePlayer(env, user);
-        return await currentRoom(env, user.id, headers);
+        return await currentRoom(env, user.id, headers, url.searchParams.get("invite") || "");
       }
 
       const ticketMatch = url.pathname.match(/^\/api\/pvp\/rooms\/([0-9a-f-]+)\/ticket$/i);
