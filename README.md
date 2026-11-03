@@ -2,21 +2,21 @@
 
 > 📘 [开发规划与完整版本档案](docs/DEVELOPMENT_ROADMAP.md)：项目定位、V1–V4.1.7 版本演进、Bug 修复记录、当前验收状态与后续路线。
 
-**当前稳定版：V2.2 · 最新预览版：V4.0** | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
+**当前稳定版：V2.2 · 最新预览版：V4.0.1** | [🧠 V4.0.1 Gunuce](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/) | [🎮 V2.2 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.2/) | [🐱 V2.3 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v2.3/) | [🧠 V3.4 深层搜索 AI](https://nkfff.github.io/gomoku-skill-evaluator/v3.4/) | [🎯 V3.3 王者 AI 与战术模式版](https://nkfff.github.io/gomoku-skill-evaluator/v3.3/) | [🐾 V3.1 UI 优化版](https://nkfff.github.io/gomoku-skill-evaluator/v3.1/) | [V3.0 PVP 稳定版](https://nkfff.github.io/gomoku-skill-evaluator/v3.0/) | [V2.1 旧版主页](https://nkfff.github.io/gomoku-skill-evaluator/) | [V1 历史版](https://nkfff.github.io/gomoku-skill-evaluator/v1/)
 
-> **最近更新：2026-11-03** · V4.1.7 Checkpoint 直接对战评估器已合并至 AI 开发分支，GitHub Actions 112 项通过、4 项 MPS 测试跳过；M4 本地验收及 40 局模型对战待执行。线上游戏最新预览仍为 V4.0。
+> **最近更新：2026-11-03** · V4.1.7 Checkpoint 直接对战评估器已合并至 AI 开发分支，GitHub Actions 112 项通过、4 项 MPS 测试跳过；M4 本地验收及 40 局模型对战待执行。线上游戏最新预览为 V4.0.1。
 
-一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V4.0 是最新已部署预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 保留为历史预览入口。V4.1 是独立 AI 研究分支，不改变线上 V4.0。V4.0 前端 Pages 已部署，相关 Worker/D1 维护迁移与自动化检查通过；完整真实浏览器验收仍待完成。
+一个基于浏览器的五子棋 AI 对战与棋力复盘工具，15 × 15 棋盘、黑棋先手。**V2.2 仍是当前稳定版本，V4.0.1 是最新已部署预览版本**；各版本使用独立入口，V2.1 根路径继续保留兼容。V2.3 保留为历史预览入口。V4.1 是独立 AI 研究分支，不改变线上 V4.0。V4.0 前端 Pages 已部署，相关 Worker/D1 维护迁移与自动化检查通过；完整真实浏览器验收仍待完成。
 
-## V4.0.1 Gunuce（待发布）
+## V4.0.1 Gunuce（已部署预览）
 
-在原V4.0页面增加 **Gunuce** 浏览器本地神经网络难度，保留原三档AI。模型、战术保护与MCTS128均在用户设备运行，优先WebGPU、WASM后备；首次加载并缓存后可断网刷新继续游客对弈，无推理服务器或第三方CDN依赖。账号与PVP仍沿用原平台。当前为待发布代码，不能把服务器评测胜率当作浏览器棋力承诺。
+在原V4.0页面增加 **Gunuce** 浏览器本地神经网络难度，保留原三档AI。模型、战术保护与MCTS128均在用户设备运行，优先WebGPU、WASM后备；首次加载并缓存后可断网刷新继续游客对弈，无推理服务器或第三方CDN依赖。账号与PVP仍沿用原平台。2026-11-03已通过[PR #36](https://github.com/nkfff/gomoku-skill-evaluator/pull/36)合并，并由[GitHub Pages发布流程](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41602376540)成功部署。入口继续使用[v4.0/](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)，页面内版本为4.0.1，没有单独的v4.0.1/目录。真实设备验收仍需继续，不能把服务器评测胜率当作浏览器棋力承诺。
 
 部署、资源体积、模型来源、离线限制及自动化验证见 [Gunuce 4.0.1说明](v4.0/GUNUCE.md)。
 
 ## V4.1 AI 训练研究线（开发中，非线上游戏版本）
 
-V4.1 是独立的 AI 训练与棋力研究分支，不是新的网页游戏发布版本；当前线上最新预览仍为 V4.0。研究代码位于 `feat/4.1-teba-mcts`，不会覆盖 V4.0 的前端、Worker 或数据库。
+V4.1 是独立的 AI 训练与棋力研究分支，不是新的网页游戏发布版本；当前线上最新预览为 V4.0.1。研究代码位于 `feat/4.1-teba-mcts`，不会覆盖 V4.0 的前端、Worker 或数据库。
 
 - **V4.1.5：** 建立 TEBA-Net-S 与 Self-Play / Champion Sparring 双通道训练框架。
 - **V4.1.6：** 增加完整棋谱、逐步搜索诊断和战术漏步统计；将训练计划扩展为 30 轮、每步 64 次 PUCT 模拟。
@@ -36,7 +36,7 @@ V4.1 是独立的 AI 训练与棋力研究分支，不是新的网页游戏发�
 | **V2.2 稳定版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.2/ | 当前稳定入口；前端与 Worker 部署成功，自动化测试通过（2026-10-28） |
 | **V2.3 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v2.3/ | 已部署：本地即时对局、猫猫主题棋盘/棋子、落子音效与终局云端结算；仍需真实浏览器验收 |
 | **V3.1 UI 优化版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.1/ | 基于 V3.0；开始下棋按钮仅在对弈页显示，AI 棋盘仅在对弈/复盘页显示 |
-| **V4.0 视觉与竞技系统升级版** | https://nkfff.github.io/gomoku-skill-evaluator/v4.0/ | 已部署预览版（2026-10-30）：UI 重构、AI 自选先手、平局 5 倍奖励、PVP 服务端摇骰子与排行榜头衔；自动化检查及 Pages 部署通过，仍建议进行真实浏览器验收 |
+| **V4.0.1 Gunuce 离线 AI 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v4.0/ | 已部署（2026-11-03）：新增浏览器本地Gunuce神经网络难度及离线缓存，保留V4.0界面与原三档AI；检查及Pages部署通过，真实设备兼容性继续验收 |
 | **V3.4 深层搜索 AI 预览版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.4/ | 修复难度快照导致的奖励错发；王者迭代加深 Alpha-Beta、Zobrist 置换表与战术延伸；随机连珠 AI 延长思考并移入 Worker。数学意义上的必胜尚未证明，真实浏览器验收仍待完成 |
 | **V3.3 王者 AI 与战术模式版** | https://nkfff.github.io/gomoku-skill-evaluator/v3.3/ | 王者难度深层攻防搜索、随机 3–10 连珠自适应策略、多步唯一解残局与自动化回归测试；真实浏览器验收仍待完成 |
 | V3.2 特殊模式兼容入口 | https://nkfff.github.io/gomoku-skill-evaluator/v3.2/ | 保留原入口；功能以当前兼容代码为准，后续开发与测试以 V3.3 为主 |

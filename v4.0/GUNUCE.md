@@ -72,4 +72,4 @@ GUNUCE_BASE_URL=http://127.0.0.1:8043 npm test
 - 不量化、训练或在线更新模型。跨PyTorch/WASM/WebGPU浮点细节可能改变近似并列搜索路径，不保证棋谱完全一致。此前服务器批量评测的81.5%不能作为浏览器版本胜率宣传。
 - 还需真实移动设备、Safari/Firefox和长局续航验收；全局最优/超人水平没有证明。
 
-发布方式沿用原平台：合并本PR后由原作者的静态Pages流程发布v4.0，不更换账号/PVP服务。回滚时应整套回滚前端、模型manifest与离线清单；Service Worker更新默认等待旧页面关闭，避免在进行中的棋局替换资源。
+发布方式沿用原平台：本功能已于2026-11-03通过[PR #36](https://github.com/nkfff/gomoku-skill-evaluator/pull/36)合并，并由[Pages流程](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41602376540)成功发布。线上入口为https://nkfff.github.io/gomoku-skill-evaluator/v4.0/，页面版本4.0.1，不另建v4.0.1目录；账号/PVP服务不变。回滚时应整套回滚前端、模型manifest与离线清单；Service Worker更新默认等待旧页面关闭，避免在进行中的棋局替换资源。
