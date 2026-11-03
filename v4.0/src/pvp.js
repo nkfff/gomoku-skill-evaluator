@@ -113,6 +113,39 @@ export function finishByResign(state, playerId, now = Date.now()) {
   };
 }
 
+
+export function offerPvpDraw(state, playerId) {
+  if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
+  if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");
+  if (state.pendingDrawBy === playerId) throw new Error("DRAW_ALREADY_OFFERED");
+  if (state.pendingDrawBy) throw new Error("DRAW_ALREADY_PENDING");
+  return {...state, pendingDrawBy: playerId};
+}
+
+export function acceptPvpDraw(state, playerId, now = Date.now()) {
+  if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
+  if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");
+  if (!state.pendingDrawBy || state.pendingDrawBy === playerId) throw new Error("NO_OPPONENT_DRAW_OFFER");
+  return {
+    ...state,
+    status: "finished",
+    result: "draw",
+    winnerPlayerId: null,
+    endReason: "draw_agreement",
+    endedAt: now,
+    turnPlayerId: null,
+    turnColor: null,
+    pendingDrawBy: null
+  };
+}
+
+export function declinePvpDraw(state, playerId) {
+  if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
+  if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");
+  if (!state.pendingDrawBy || state.pendingDrawBy === playerId) throw new Error("NO_OPPONENT_DRAW_OFFER");
+  return {...state, pendingDrawBy: null};
+}
+
 export function finishByTimeout(state, timedOutPlayerId, now = Date.now()) {
   if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
   const timedOutColor = state.colorByPlayer[timedOutPlayerId];
