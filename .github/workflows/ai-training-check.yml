@@ -5,6 +5,7 @@ on:
     branches:
       - feat/4.1-teba-mcts
       - feat/4.1.5-dual-learning
+      - feat/4.1.9-long-horizon-rl
     paths:
       - "ai-training/**"
       - ".github/workflows/ai-training-check.yml"

@@ -14,6 +14,7 @@ from .encoding import encode_state
 from .game import BLACK, WHITE, GomokuGame
 from .diagnostics import append_jsonl, make_ply_record
 from .legacy_opponent import LegacyEngineOpponent
+from .league import load_opponent_league
 from .losses import compute_teba_loss, policy_cross_entropy
 from .mcts import PUCTConfig, PUCTSearch, TorchEvaluator
 from .network import build_model
@@ -52,7 +53,7 @@ def play_champion_game(
     model: torch.nn.Module,
     device: torch.device,
     search_config: PUCTConfig,
-    champion: LegacyEngineOpponent,
+    champion,
     learner_player: int,
     rng: np.random.Generator,
     temperature_moves: int = 12,
@@ -61,7 +62,7 @@ def play_champion_game(
     game_id: str | None = None,
 ) -> tuple[list, list, int]:
     """
-    Play the current TEBA model against the frozen V4.0 hard AI.
+    Play the current TEBA model against V4.0 or a frozen historical TEBA opponent.
 
     Returns:
       learner_samples: learner-turn PUCT targets with terminal outcomes.
@@ -69,7 +70,8 @@ def play_champion_game(
                        champion wins or draws (successful demonstrations).
       learner_outcome: +1 learner win, 0 draw, -1 learner loss.
 
-    The V4.0 engine is not updated. It remains a fixed champion opponent.
+    Opponents are frozen for the whole game; neither opponent weights nor the learner
+    are updated while a game is in progress.
     """
     if learner_player not in (BLACK, WHITE):
         raise ValueError("learner_player must be BLACK or WHITE")
@@ -82,6 +84,7 @@ def play_champion_game(
     pending_learner = []
     pending_teacher = []
     move_records: list[dict[str, object]] = []
+    opponent_name = getattr(champion, "name", "V4.0_CHAMPION")
 
     for ply in range(max_plies):
         player = game.current_player
@@ -133,13 +136,19 @@ def play_champion_game(
             )
         else:
             started = time.perf_counter()
-            move, champion_diagnostics = champion.choose_move(game.board, player)
+            if hasattr(champion, "choose_game_move"):
+                move, champion_diagnostics = champion.choose_game_move(game)
+                opponent_name = getattr(champion, "name", "TEBA_LEAGUE")
+            else:
+                move, champion_diagnostics = champion.choose_move(game.board, player)
+                opponent_name = "V4.0_CHAMPION"
+            move = int(move)
             search_ms = (time.perf_counter() - started) * 1000.0
             actions = game.get_candidates(radius=2)
             legal_mask = _candidate_mask(actions)
             if not legal_mask[move]:
                 raise RuntimeError(
-                    f"V4.0 champion selected a move outside the candidate set: {move}"
+                    f"{opponent_name} selected a move outside the candidate set: {move}"
                 )
 
             teacher_policy = np.zeros(225, dtype=np.float32)
@@ -152,7 +161,7 @@ def play_champion_game(
                     board_before,
                     ply,
                     player,
-                    "V4.0_CHAMPION",
+                    opponent_name,
                     move,
                     evidence,
                     search_ms,
@@ -193,7 +202,8 @@ def play_champion_game(
     if game_record is not None:
         game_record.update({
             "game_id": game_id,
-            "mode": "champion_sparring",
+            "mode": "opponent_league_sparring",
+            "opponent": opponent_name,
             "learner_player": "BLACK" if learner_player == BLACK else "WHITE",
             "outcome": int(learner_outcome),
             "winner": game.winner,
@@ -207,6 +217,55 @@ def play_champion_game(
         })
 
     return learner_samples, teacher_samples, learner_outcome
+
+
+
+def _apply_d4_transform(
+    array: np.ndarray,
+    rotations: int,
+    reflect: bool,
+) -> np.ndarray:
+    """Apply one of the eight square-board rotations/reflections."""
+    transformed = np.rot90(np.asarray(array), k=int(rotations) % 4, axes=(-2, -1))
+    if reflect:
+        transformed = np.flip(transformed, axis=-1)
+    return np.ascontiguousarray(transformed)
+
+
+def _augment_batch_d4(
+    batch: dict[str, np.ndarray],
+    rng: np.random.Generator,
+) -> dict[str, np.ndarray]:
+    """Transform board, policy, tactical targets and legal masks consistently."""
+    augmented = {key: np.asarray(value).copy() for key, value in batch.items()}
+    states = augmented["states"]
+    policies = augmented["policies"]
+    tactical = augmented["tactical"]
+    legal_masks = augmented["legal_masks"]
+
+    if states.ndim != 4 or states.shape[1:] != (3, 15, 15):
+        raise ValueError("D4 states must have shape [B, 3, 15, 15]")
+    if policies.shape != (len(states), 225):
+        raise ValueError("D4 policies must have shape [B, 225]")
+    if tactical.shape != (len(states), 3, 15, 15):
+        raise ValueError("D4 tactical targets must have shape [B, 3, 15, 15]")
+    if legal_masks.shape != (len(states), 225):
+        raise ValueError("D4 legal masks must have shape [B, 225]")
+
+    for index in range(len(states)):
+        rotations = int(rng.integers(0, 4))
+        reflect = bool(rng.integers(0, 2))
+        states[index] = _apply_d4_transform(states[index], rotations, reflect)
+        tactical[index] = _apply_d4_transform(tactical[index], rotations, reflect)
+        policies[index] = _apply_d4_transform(
+            policies[index].reshape(15, 15), rotations, reflect
+        ).reshape(225)
+        legal_masks[index] = _apply_d4_transform(
+            legal_masks[index].reshape(15, 15), rotations, reflect
+        ).reshape(225)
+
+    return augmented
+
 
 
 def _to_tensors(batch: dict[str, np.ndarray], device: torch.device):
@@ -231,6 +290,7 @@ def dual_train_step(
     teacher_policy_weight: float = 0.15,
     tactical_weight: float = TACTICAL_WEIGHT,
     gradient_clip: float = 1.0,
+    augmentation_rng: np.random.Generator | None = None,
 ) -> dict[str, float]:
     """
     Joint update from three complementary data sources.
@@ -249,6 +309,11 @@ def dual_train_step(
 
     self_play_weight /= weight_sum
     sparring_weight /= weight_sum
+    if augmentation_rng is not None:
+        self_play_batch = _augment_batch_d4(self_play_batch, augmentation_rng)
+        sparring_batch = _augment_batch_d4(sparring_batch, augmentation_rng)
+        if teacher_batch is not None:
+            teacher_batch = _augment_batch_d4(teacher_batch, augmentation_rng)
     model.train()
     optimizer.zero_grad(set_to_none=True)
 
@@ -499,20 +564,25 @@ def _build_dual_scheduler(
                     f"round ({start_round})"
                 )
             schedule_start_round = int(start_round)
-            schedule_base_lr = float(optimizer.param_groups[0]["lr"])
-            schedule_warmup_steps = 0
+            if getattr(args, "rebase_learning_rate", None) is not None:
+                schedule_base_lr = float(args.rebase_learning_rate)
+                schedule_warmup_steps = int(args.warmup_steps)
+                schedule_mode = "rebase_phase"
+            else:
+                schedule_base_lr = float(optimizer.param_groups[0]["lr"])
+                schedule_warmup_steps = 0
+                schedule_mode = "extended_phase"
             total_steps = max(
                 1,
                 (int(args.rounds) - int(start_round))
                 * int(args.updates_per_round),
             )
-            schedule_mode = "extended_phase"
             restore_scheduler_state = False
 
     current_lrs = [float(group["lr"]) for group in optimizer.param_groups]
     for group in optimizer.param_groups:
         group["initial_lr"] = schedule_base_lr
-        if schedule_mode == "extended_phase":
+        if schedule_mode in ("extended_phase", "rebase_phase"):
             group["lr"] = schedule_base_lr
 
     scheduler = _make_scheduler(
@@ -640,6 +710,22 @@ def run_training(args: argparse.Namespace) -> Path:
         dirichlet_alpha=args.dirichlet_alpha,
         root_noise_fraction=args.root_noise_fraction,
     )
+    league_opponents = load_opponent_league(
+        output_dir / "opponent_league",
+        device,
+        search_config,
+        max_opponents=args.league_max_opponents,
+    )
+    print(f"Loaded historical TEBA opponents: {len(league_opponents)}")
+
+    run_rounds = args.run_rounds if args.run_rounds is not None else args.rounds - start_round
+    if run_rounds < 1:
+        raise ValueError("--run-rounds must be positive")
+    run_end_round = min(args.rounds, start_round + run_rounds)
+    if args.checkpoint_interval < 1 or args.snapshot_interval < 0:
+        raise ValueError("checkpoint interval must be positive and snapshot interval non-negative")
+    if not 0.0 <= args.league_fraction <= 1.0:
+        raise ValueError("--league-fraction must be in [0, 1]")
 
     log_path = output_dir / "dual_training.csv"
     training_games_path = output_dir / "training_games.jsonl"
@@ -650,7 +736,7 @@ def run_training(args: argparse.Namespace) -> Path:
         time_ms=args.champion_time_ms,
         max_depth=args.champion_max_depth,
     ) as champion:
-        for round_index in range(start_round + 1, args.rounds + 1):
+        for round_index in range(start_round + 1, run_end_round + 1):
             started = time.perf_counter()
             model.eval()
             self_play_positions = 0
@@ -687,11 +773,14 @@ def run_training(args: argparse.Namespace) -> Path:
                 )
                 learner_player = BLACK if global_game_index % 2 == 0 else WHITE
                 game_record = {}
+                opponent = champion
+                if league_opponents and rng.random() < args.league_fraction:
+                    opponent = league_opponents[int(rng.integers(0, len(league_opponents)))]
                 learner_samples, teacher_samples, outcome = play_champion_game(
                     model,
                     device,
                     search_config,
-                    champion,
+                    opponent,
                     learner_player,
                     rng,
                     temperature_moves=args.temperature_moves,
@@ -714,7 +803,8 @@ def run_training(args: argparse.Namespace) -> Path:
 
                 print(
                     f"Round {round_index}/{args.rounds} | "
-                    f"champion game {game_index + 1}/{args.champion_games_per_round} | "
+                    f"sparring game {game_index + 1}/{args.champion_games_per_round} | "
+                    f"opponent={getattr(opponent, 'name', 'V4.0_CHAMPION')} | "
                     f"learner={'BLACK' if learner_player == BLACK else 'WHITE'} | "
                     f"outcome={outcome:+d} | learner_positions={len(learner_samples)} | "
                     f"teacher_positions={len(teacher_samples)}"
@@ -746,6 +836,7 @@ def run_training(args: argparse.Namespace) -> Path:
                         teacher_policy_weight=args.teacher_policy_weight,
                         tactical_weight=args.tactical_weight,
                         gradient_clip=args.gradient_clip,
+                        augmentation_rng=rng if args.d4_augmentation else None,
                     )
                 )
                 scheduler.step()
@@ -810,29 +901,34 @@ def run_training(args: argparse.Namespace) -> Path:
                 f"time={elapsed / 60:.1f} min"
             )
 
-            save_dual_checkpoint(
-                output_dir / "latest.pt",
-                model,
-                optimizer,
-                scheduler,
-                self_play_replay,
-                sparring_replay,
-                teacher_replay,
-                round_index,
-                global_step,
-                rng,
-                run_config,
-            )
-            torch.save(
-                {
-                    "format_version": DUAL_CHECKPOINT_VERSION,
-                    "round_index": round_index,
-                    "global_step": global_step,
-                    "model_state_dict": model.state_dict(),
-                    "run_config": run_config,
-                },
-                output_dir / f"round_{round_index:04d}_model.pt",
-            )
+            if round_index % args.checkpoint_interval == 0 or round_index == run_end_round:
+                save_dual_checkpoint(
+                    output_dir / "latest.pt",
+                    model,
+                    optimizer,
+                    scheduler,
+                    self_play_replay,
+                    sparring_replay,
+                    teacher_replay,
+                    round_index,
+                    global_step,
+                    rng,
+                    run_config,
+                )
+            if args.snapshot_interval > 0 and (
+                round_index % args.snapshot_interval == 0
+                or round_index == run_end_round
+            ):
+                torch.save(
+                    {
+                        "format_version": DUAL_CHECKPOINT_VERSION,
+                        "round_index": round_index,
+                        "global_step": global_step,
+                        "model_state_dict": model.state_dict(),
+                        "run_config": run_config,
+                    },
+                    output_dir / f"round_{round_index:04d}_model.pt",
+                )
 
     print(f"Dual-learning checkpoint: {output_dir / 'latest.pt'}")
     print(f"Dual-learning log: {log_path}")
@@ -851,7 +947,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume", default=None)
     parser.add_argument("--output-dir", default="checkpoints_dual")
 
-    parser.add_argument("--rounds", type=int, default=30)
+    parser.add_argument("--rounds", type=int, default=30, help="target total round count")
+    parser.add_argument("--run-rounds", type=int, default=None, help="maximum rounds to execute in this process")
+    parser.add_argument("--checkpoint-interval", type=int, default=1)
+    parser.add_argument("--snapshot-interval", type=int, default=1, help="0 disables model-only snapshots")
     parser.add_argument("--self-play-games-per-round", type=int, default=8)
     parser.add_argument("--champion-games-per-round", type=int, default=8)
     parser.add_argument("--simulations", type=int, default=64)
@@ -874,8 +973,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sparring-weight", type=float, default=0.4)
     parser.add_argument("--teacher-policy-weight", type=float, default=0.15)
     parser.add_argument("--tactical-weight", type=float, default=0.2)
+    parser.add_argument("--league-fraction", type=float, default=0.0)
+    parser.add_argument("--league-max-opponents", type=int, default=8)
+    parser.add_argument("--d4-augmentation", action="store_true")
 
     parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--rebase-learning-rate", type=float, default=None)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--gradient-clip", type=float, default=1.0)
     parser.add_argument("--warmup-steps", type=int, default=100)
@@ -890,6 +993,14 @@ def main() -> None:
         raise SystemExit("both game counts per round must be positive")
     if args.simulations < 1 or args.batch_size < 2:
         raise SystemExit("simulations must be positive and batch-size at least 2")
+    if args.run_rounds is not None and args.run_rounds < 1:
+        raise SystemExit("--run-rounds must be positive")
+    if args.checkpoint_interval < 1 or args.snapshot_interval < 0:
+        raise SystemExit("checkpoint interval must be positive and snapshot interval non-negative")
+    if args.league_max_opponents < 1 or not 0.0 <= args.league_fraction <= 1.0:
+        raise SystemExit("invalid opponent league settings")
+    if args.rebase_learning_rate is not None and args.rebase_learning_rate <= 0:
+        raise SystemExit("--rebase-learning-rate must be positive")
     if args.champion_width < 1 or args.champion_time_ms < 0 or args.champion_max_depth < 1:
         raise SystemExit("invalid champion search budget")
     run_training(args)

@@ -489,3 +489,106 @@ python -m gomoku.compare_checkpoints \
 Do not promote Round 60 based on loss alone. Compare its match score, paired
 opening outcomes, color-specific results, tactical opportunity-conditioned
 miss rates and performance against the frozen V4.0 champion.
+
+
+## V4.1.9 — Long-horizon reinforcement learning (2026-11-03)
+
+V4.1.9 turns the one-shot dual trainer into a resumable long-horizon training
+controller. The target is **30,000 total rounds**, starting from the user's
+Round 60 full checkpoint. The original `checkpoints_dual/` directory is not
+modified: the new run copies its initial checkpoint into
+`checkpoints_longrun/latest.pt` and writes all new artifacts separately.
+
+### Training loop
+
+- **Learner:** existing TEBA-Net-S (32-channel residual CNN, four residual
+  blocks, policy/value/tactical heads; 77,477 trainable parameters).
+- **Search:** PUCT / MCTS, 64 simulations per learner move.
+- **RL data:** 8 self-play games and 8 sparring games per round, 100 optimizer
+  updates per round, batch size 64, replay capacity 50,000 per channel.
+- **Opponent League:** 25% of sparring games are sampled from up to eight
+  frozen historical TEBA checkpoints; the remaining games use the fixed V4.0
+  hard engine. Promoted snapshots are registered between 500-round stages.
+- **D4 augmentation:** each training sample receives a random one of the eight
+  rotations/reflections. Board planes, policy targets, tactical labels and
+  legal masks are transformed together; values remain unchanged.
+- **Dropout:** not enabled by default. The current network is small and uses
+  GroupNorm; Dropout remains a separate ablation rather than an unverified
+  architecture change.
+
+### Evaluation and model promotion
+
+Training runs in 500-round stages while preserving one global 30,000-round
+cosine schedule. Each stage runs a 40-game color-swapped screening tournament
+against the best promoted checkpoint. Candidates that pass the screen receive
+a 100-game confirmation tournament.
+
+A candidate is promoted only when the confirmation has:
+- paired-opening score at least 0.55;
+- the lower bound of a 95% bootstrap interval over paired openings above 0.50;
+- score at least 0.50 as both BLACK and WHITE.
+
+The current learner checkpoint and the best promoted checkpoint are separate.
+A failed promotion does not destroy the best model. After eight consecutive
+non-promoting stages, early stopping is allowed only after Round 5,000.
+Every 2,000 rounds, the current learner is also evaluated against the frozen
+V4.0 champion.
+
+### Learning-rate continuation and recovery
+
+Round 60 ended at approximately `1.16e-6`, which is too small to reuse as
+the initial learning rate for a new 30,000-round phase. V4.1.9 explicitly
+rebases to `5e-5`, uses 500 warmup updates, then follows a cosine schedule
+over the remaining global training steps. The scheduler metadata is stored
+in the checkpoint and reconstructed on resume.
+
+- Full resumable checkpoint: every 10 rounds and at every stage boundary.
+- Model-only snapshot: every 500 rounds and at each stage boundary.
+- The long-run launcher uses `caffeinate` when available.
+- If interrupted, rerun the same launcher; it resumes from
+  `checkpoints_longrun/latest.pt`.
+- Checkpoint and replay writes remain local; no training artifacts are committed
+  to Git.
+
+### Start on the M4 Mac
+
+From the repository root or `ai-training/`, with the project's virtual
+environment activated and Node.js available:
+
+```bash
+bash ai-training/scripts/run_m4_long_training.sh
+```
+
+From inside `ai-training/`:
+
+```bash
+bash scripts/run_m4_long_training.sh
+```
+
+Optional environment overrides:
+
+```bash
+TARGET_ROUNDS=30000 \
+SOURCE_CHECKPOINT=checkpoints_dual/latest.pt \
+OUTPUT_DIR=checkpoints_longrun \
+bash scripts/run_m4_long_training.sh
+```
+
+Important output paths:
+
+- `checkpoints_longrun/latest.pt`: latest learner with optimizer, scheduler,
+  replay buffers and RNG state.
+- `checkpoints_longrun/best.pt`: best promoted model-only checkpoint.
+- `checkpoints_longrun/opponent_league/`: frozen historical opponents and
+  manifest.
+- `checkpoints_longrun/evaluation/long_run_evaluations.jsonl`: paired
+  tournament results and promotion decisions.
+- `checkpoints_longrun/evaluation/round_*_vs_v40.csv`: periodic V4.0
+  champion evaluations.
+- `checkpoints_longrun/long_run_state.json`: controller progress and
+  early-stopping state.
+
+**Status:** implementation is under CI validation on
+`feat/4.1.9-long-horizon-rl`. The M4 training process has not been started by
+GitHub; it must be launched on the local Mac. Do not describe the 30,000-round
+run as completed until the local checkpoint and logs confirm it.
