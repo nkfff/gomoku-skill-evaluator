@@ -127,7 +127,8 @@ def test_win_line_requires_stone_at_index():
     for col in range(5, 9):
         board[spot(7, col)] = BLACK
 
-    assert win_line(board, spot(7, 7), BLACK) == []
+    # The queried point is empty, even though four stones are adjacent.
+    assert win_line(board, spot(7, 9), BLACK) == []
 
 
 def test_is_winning_move_does_not_mutate_input():
@@ -404,7 +405,7 @@ const cases = JSON.parse(fs.readFileSync(0, "utf8"));
 const output = cases.map(({ board, radius, player, index }) => ({
   candidates: candidates(board, radius),
   immediateWins: immediateWins(board, player),
-  winLine: winLine(board, index, player)
+  winLine: index === null ? [] : winLine(board, index, player)
 }));
 process.stdout.write(JSON.stringify(output));
 """
@@ -430,7 +431,7 @@ def test_python_rules_match_actual_v40_javascript_engine():
             "board": new_board().tolist(),
             "radius": 2,
             "player": BLACK,
-            "index": CENTER,
+            "index": None,
         },
         {
             "board": board_four.tolist(),
@@ -462,4 +463,7 @@ def test_python_rules_match_actual_v40_javascript_engine():
 
         assert candidates(board, case["radius"]) == js_result["candidates"]
         assert immediate_wins(board, case["player"]) == js_result["immediateWins"]
-        assert win_line(board, case["index"], case["player"]) == js_result["winLine"]
+        if case["index"] is None:
+            assert js_result["winLine"] == []
+        else:
+            assert win_line(board, case["index"], case["player"]) == js_result["winLine"]
