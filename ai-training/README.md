@@ -113,3 +113,53 @@ machine before starting self-play.
 
 Training artifacts, datasets, virtual environments, and checkpoints should
 remain local and should not be committed to Git.
+
+
+## Training TEBA-Net-S on Apple Silicon
+
+Install the Python dependencies from the repository root:
+
+```bash
+cd ai-training
+python -m pip install -r requirements.txt
+```
+
+Run the conservative M4 pilot (tactical bootstrap followed by PUCT self-play):
+
+```bash
+python -m gomoku.train --device mps
+```
+
+The default pilot uses:
+- 8 random bootstrap games, capped at 1,200 tactical positions.
+- 100 policy/tactical pretraining updates. The value head is intentionally not
+  trained from synthetic bootstrap labels.
+- 3 self-play rounds, 4 games per round, 16 PUCT simulations per move.
+- 50 multi-task optimizer updates per self-play round, batch size 32.
+- AdamW, float32, gradient clipping, warmup and cosine learning-rate decay.
+
+The bootstrap teacher is generated from exact one-ply rule evidence
+(WIN_NOW, MUST_BLOCK and the defined two-threat FORK). It is a tactical
+initialization dataset, not expert play and not a claim of optimal strategy.
+The value head begins learning from final self-play outcomes only.
+
+Training outputs are local and ignored by Git:
+- `checkpoints/latest.pt`: full resumable checkpoint, including optimizer,
+  scheduler and replay buffer.
+- `checkpoints/round_NNNN_model.pt`: compact model-only snapshot.
+- `checkpoints/training.csv`: per-phase and per-round loss/throughput log.
+
+Resume an interrupted run:
+
+```bash
+python -m gomoku.train --device mps --resume checkpoints/latest.pt
+```
+
+For the first run, do not immediately scale to the YAML's former large
+self-play settings. Confirm MPS stability, elapsed time per game, replay
+growth, and all three losses first. Increase simulations and games per round
+only after measuring the M4 throughput.
+
+A small pilot is an engineering validation, not evidence of playing strength.
+Strength evaluation against fixed baselines and held-out tactical positions
+must be added before claiming a trained model is stronger.
