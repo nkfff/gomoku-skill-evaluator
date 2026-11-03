@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import math
 import os
 import random
@@ -518,8 +517,6 @@ def run_training(args: argparse.Namespace) -> Path:
     random.seed(args.seed)
     np_rng = np.random.default_rng(args.seed)
     torch.manual_seed(args.seed)
-    if device.type == "mps":
-        torch.mps.manual_seed(args.seed)
 
     model = build_model().to(device)
     optimizer = torch.optim.AdamW(
