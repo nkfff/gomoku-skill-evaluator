@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { calculateCompetitiveStats } from "../worker/index.js";
+import { calculateCompetitiveStats, validateAdminTargetAction } from "../worker/index.js";
 
 const worker = readFileSync(new URL("../worker/index.js", import.meta.url), "utf8");
 const account = readFileSync(new URL("../src/account.js", import.meta.url), "utf8");
@@ -46,4 +46,27 @@ test("管理员页面提供战绩保存、清空反馈和排行榜刷新", () =>
   assert.match(account,/管理操作失败：/);
   assert.match(account,/gomokuRefreshLeaderboard/);
   assert.match(account,/已取消清空操作/);
+});
+
+test("管理员可管理自己的 AI 战绩和清空数据，但不能封禁自己",()=>{
+  const id="9e0c6fa4-0000-4000-8000-000000000001";
+  assert.equal(validateAdminTargetAction("adjust-stats",id,id),undefined);
+  assert.equal(validateAdminTargetAction("reset",id,id),undefined);
+  assert.throws(()=>validateAdminTargetAction("ban",id,id),
+    error=>error?.error==="为避免管理员锁定自己，不能封禁自己的账号");
+});
+test("管理员写入必须校验 D1 战绩和审计结果",()=>{
+  assert.match(worker,/result\.length!==2\|\|Number\(result\[0\]\?\.meta\?\.changes\|\|0\)!==1\|\|Number\(result\[1\]\?\.meta\?\.changes\|\|0\)!==1/);
+  assert.match(worker,/result\.length!==3\|\|Number\(result\[1\]\?\.meta\?\.changes\|\|0\)!==1\|\|Number\(result\[2\]\?\.meta\?\.changes\|\|0\)!==1/);
+  assert.match(worker,/UPDATE players SET wins=\?,losses=\?,draws=\?,earned_points=\? WHERE id=\?/);
+  assert.match(worker,/DELETE FROM games WHERE player_id=\?/);
+});
+test("管理员操作失败或成功都会在后台内显示状态，空原因有默认审计说明",()=>{
+  assert.match(account,/id="adminFeedback"/);
+  assert.match(account,/setAdminMessage\("管理操作失败："/);
+  assert.match(account,/管理员后台调整战绩/);
+  assert.match(account,/管理员后台清空AI游戏数据/);
+  assert.match(account,/window\.confirm\(/);
+  assert.doesNotMatch(account,/prompt\("将清空/);
+  assert.match(account,/gomokuRefreshLeaderboard/);
 });
