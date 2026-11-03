@@ -188,15 +188,22 @@ to policy loss; they do not directly train value or tactical heads.
 
 The champion is the real V4.0 hard engine (iterative-deepening alpha-beta,
 transposition table, tactical move ordering and tactical extension). Its
-per-move budget is capped at 180 ms for practical local training throughput;
-this is not the original 2.4-second full hard-mode budget. Both learner colors
+per-move budget is capped at 500 ms for practical local training throughput;
+this is not the original 2.4-second full hard-mode budget. For a full-budget champion, pass --champion-time-ms 2400 --champion-width 14 --champion-max-depth 14. Both learner colors
 are evaluated to reduce first-player bias.
 
 Node.js is required because the champion bridge calls the actual V4.0
 JavaScript engine rather than a separately reimplemented approximation.
 
 Run from `ai-training/` after the V4.1.4 pilot has created
-`checkpoints/latest.pt`:
+`checkpoints/latest.pt`. First record a baseline match before changing the
+model:
+
+```bash
+python -m gomoku.evaluate --checkpoint checkpoints/latest.pt --device mps --games 10 --simulations 24
+```
+
+Then start dual-channel learning:
 
 ```bash
 python -m gomoku.dual_train --device mps
@@ -210,7 +217,7 @@ Default dual-learning pilot:
 - 60% self-play RL objective and 40% champion-sparring RL objective.
 - Additional champion policy-distillation coefficient: 0.15.
 - AdamW at 1e-4, float32, gradient clipping.
-- V4.0 champion: hard level, width 12, 180 ms and maximum depth 7.
+- V4.0 champion: hard level, width 14, 500 ms and maximum depth 10.
 
 Outputs are local:
 - `checkpoints_dual/latest.pt`: full model/optimizer/scheduler and all three
