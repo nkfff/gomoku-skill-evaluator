@@ -1,7 +1,9 @@
 import {
-  DEFAULT_TIME_CONTROL_MS, UNDO_REQUEST_TIMEOUT_MS, acceptPvpDraw, acceptPvpUndo, applyPvpMove, calculateElo, createMatchState,
-  cancelPvpDraw, cancelPvpUndo, declinePvpDraw, declinePvpRematch, declinePvpUndo, expirePvpUndo,
-  offerPvpDraw, offerPvpUndo, requestPvpRematch, finishByResign, finishByTimeout, publicMatchState
+  DEFAULT_TIME_CONTROL_MS, UNDO_REQUEST_TIMEOUT_MS, IDLE_REMINDER_MS, IDLE_CONFIRM_MS,
+  acceptPvpDraw, acceptPvpUndo, applyPvpMove, calculateElo, createMatchState,
+  cancelPvpDraw, cancelPvpUndo, createPvpIdlePrompt, declinePvpDraw, declinePvpRematch, declinePvpUndo, expirePvpUndo,
+  isPvpIdlePromptExpired, offerPvpDraw, offerPvpUndo, pvpIdleReminderDeadline, requestPvpRematch,
+  finishByResign, finishByTimeout, publicMatchState, resolvePvpDisconnectState
 } from "../src/pvp.js";
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), {
@@ -11,8 +13,10 @@ const json = (value, status = 200) => new Response(JSON.stringify(value), {
 const parse = value => { try { return JSON.parse(value); } catch { return null; } };
 const nowMs = () => Date.now();
 const DISCONNECT_GRACE_MS = 60_000;
+const WAITING_ROOM_IDLE_MS = 30 * 60_000;
+const FINISHED_ROOM_RETENTION_MS = 10 * 60_000;
+const CANCELLED_ROOM_RETENTION_MS = 60_000;
 const MAX_SPECTATORS = 24;
-const PERMANENT_ROOM_EXPIRY_MS = Date.parse("9999-12-31T23:59:59.000Z");
 
 function secureDie(){
   const limit=Math.floor(0x100000000/6)*6,value=new Uint32Array(1);
@@ -62,7 +66,29 @@ export class PvpRoom {
     this.ctx = ctx;
     this.env = env;
     this.undoPersistenceInFlight = false;
-    this.ready = this.ctx.storage.get("room").then(room => { this.room = room || null; });
+    this.ready = this.ctx.storage.get("room").then(async room => {
+      this.room = room || null;
+      if (!this.room) return;
+      const now = nowMs();
+      if (["waiting", "ready"].includes(this.room.status) &&
+          (!Number.isFinite(Number(this.room.expiresAt)) || Number(this.room.expiresAt) > now + 365 * 24 * 60 * 60_000)) {
+        this.room.expiresAt = now + WAITING_ROOM_IDLE_MS;
+      }
+      if (this.room.status === "finished" &&
+          (!Number.isFinite(Number(this.room.expiresAt)) || Number(this.room.expiresAt) > now + 365 * 24 * 60 * 60_000)) {
+        this.room.expiresAt = now + FINISHED_ROOM_RETENTION_MS;
+        if (!this.room.resultSeenByPlayer) {
+          this.room.resultSeenByPlayer = {
+            [this.room.hostPlayerId]: true,
+            [this.room.guestPlayerId]: true
+          };
+        }
+      }
+      if (this.room.status === "active" && !Object.prototype.hasOwnProperty.call(this.room, "idleAcknowledgedAt")) {
+        this.room.idleAcknowledgedAt = now;
+      }
+      await this.ctx.storage.put("room", this.room);
+    });
   }
 
   async fetch(request) {
@@ -73,6 +99,7 @@ export class PvpRoom {
       if (request.method === "POST" && url.pathname === "/internal/init-rematch") return await this.initializeRematch(request);
       if (request.method === "POST" && url.pathname === "/internal/join") return await this.join(request);
       if (request.method === "POST" && url.pathname === "/internal/cancel") return await this.cancel(request);
+      if (request.method === "POST" && url.pathname === "/internal/ack-result") return await this.acknowledgeResult(request);
       if (request.method === "GET" && url.pathname === "/internal/state") {
         const playerId = request.headers.get("x-player-id") || "";
         this.requireMember(playerId);
@@ -102,11 +129,16 @@ export class PvpRoom {
       timeControlMs: Number.isInteger(data.timeControlMs) && data.timeControlMs > 0 ? data.timeControlMs : DEFAULT_TIME_CONTROL_MS,
       rated: true,
       createdAt: now,
-      expiresAt: Number(data.expiresAt) || PERMANENT_ROOM_EXPIRY_MS,
+      expiresAt: Number(data.expiresAt) || now + WAITING_ROOM_IDLE_MS,
+      lastActivityAt: now,
       readyByPlayer: {},
       rematchByPlayer: {},
       connectedByPlayer: {},
       disconnectedAt: {},
+      idlePrompt: null,
+      idleAcknowledgedAt: null,
+      resultSeenByPlayer: {},
+      leftByPlayer: {},
       match: null
     };
     await this.ctx.storage.put("room", this.room);
@@ -131,11 +163,16 @@ export class PvpRoom {
       timeControlMs: Number.isInteger(data.timeControlMs) && data.timeControlMs > 0 ? data.timeControlMs : DEFAULT_TIME_CONTROL_MS,
       rated: true,
       createdAt: now,
-      expiresAt: Number(data.expiresAt) || PERMANENT_ROOM_EXPIRY_MS,
+      expiresAt: Number(data.expiresAt) || now + WAITING_ROOM_IDLE_MS,
+      lastActivityAt: now,
       readyByPlayer: {[data.hostPlayerId]: true, [data.guestPlayerId]: true},
       rematchByPlayer: {},
       connectedByPlayer: {},
       disconnectedAt: {},
+      idlePrompt: null,
+      idleAcknowledgedAt: null,
+      resultSeenByPlayer: {},
+      leftByPlayer: {},
       match: null
     };
     await this.ctx.storage.put("room", this.room);
@@ -152,7 +189,11 @@ export class PvpRoom {
     this.room.guestName = data.playerName || "棋手";
     this.room.status = "ready";
     this.room.readyByPlayer = {};
+    this.room.lastActivityAt = nowMs();
+    this.room.expiresAt = this.room.lastActivityAt + WAITING_ROOM_IDLE_MS;
     await this.ctx.storage.put("room", this.room);
+    await this.env.DB.prepare("UPDATE pvp_rooms SET expires_at=datetime('now','+30 minutes') WHERE id=? AND status='ready'")
+      .bind(this.room.roomId).run();
     await this.scheduleNextAlarm();
     this.broadcast({type: "room_state", room: this.snapshot(this.room.hostPlayerId)});
     return json({ok: true, roomId: this.room.roomId, status: this.room.status});
@@ -164,9 +205,11 @@ export class PvpRoom {
     if (playerId !== this.room.hostPlayerId) return json({error: "只有房主可以取消房间"}, 403);
     if (!["waiting", "ready"].includes(this.room.status)) return json({error: "对局已开始，不能取消房间"}, 409);
     this.room.status = "cancelled";
+    this.room.expiresAt = nowMs() + CANCELLED_ROOM_RETENTION_MS;
     await this.ctx.storage.put("room", this.room);
-    await this.env.DB.prepare("UPDATE pvp_rooms SET status='cancelled', ended_at=datetime('now') WHERE id=? AND status IN ('waiting','ready')").bind(this.room.roomId).run();
+    await this.env.DB.prepare("UPDATE pvp_rooms SET status='cancelled', expires_at=datetime('now','+60 seconds'), ended_at=datetime('now') WHERE id=? AND status IN ('waiting','ready')").bind(this.room.roomId).run();
     this.broadcast({type: "room_state", room: this.snapshot(playerId)});
+    await this.scheduleNextAlarm();
     return json({ok: true, status: "cancelled"});
   }
 
@@ -199,6 +242,15 @@ export class PvpRoom {
     if (role === "player") {
       this.room.connectedByPlayer[playerId] = true;
       delete this.room.disconnectedAt[playerId];
+      if (this.room.status === "active") {
+        this.room.idlePrompt = null;
+        this.room.idleAcknowledgedAt = nowMs();
+      } else if (["waiting", "ready"].includes(this.room.status)) {
+        this.room.lastActivityAt = nowMs();
+        this.room.expiresAt = this.room.lastActivityAt + WAITING_ROOM_IDLE_MS;
+        await this.env.DB.prepare("UPDATE pvp_rooms SET expires_at=datetime('now','+30 minutes') WHERE id=? AND status IN ('waiting','ready')")
+          .bind(this.room.roomId).run();
+      }
       await this.ctx.storage.put("room", this.room);
     }
 
