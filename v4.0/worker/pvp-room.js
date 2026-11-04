@@ -293,6 +293,9 @@ export class PvpRoom {
       this.requireMember(playerId);
       if (this.undoPersistenceInFlight) throw new Error("MATCH_ACTION_IN_PROGRESS");
       if (message.type === "ready") return await this.markReady(playerId);
+      if (message.type === "continue_idle") return await this.continueIdle(playerId);
+      if (message.type === "ack_result") return await this.acknowledgeResultForPlayer(playerId);
+      if (message.type === "leave_room") return await this.leaveRoom(playerId);
       if (message.type === "rematch") return await this.requestRematch(playerId);
       if (message.type === "decline_rematch") return await this.declineRematch(playerId);
       if (message.type === "move") return await this.move(playerId, message);
@@ -334,6 +337,8 @@ export class PvpRoom {
       delete this.room.disconnectedAt[playerId];
     } else {
       this.room.disconnectedAt[playerId] = nowMs();
+      this.room.idlePrompt = null;
+      this.room.idleAcknowledgedAt = nowMs();
     }
     await this.ctx.storage.put("room", this.room);
     if (!stillConnected) {
@@ -354,8 +359,18 @@ export class PvpRoom {
       return;
     }
     const now = nowMs();
+    if (this.room.status === "expired" && this.room.expirationPending) {
+      await this.expireRoom(this.room.expiredReason || "expired");
+      return;
+    }
     if (this.room.status === "finished" && this.room.settlementPending && this.room.match) {
-      await this.finishMatch(this.room.match.endReason || "five_in_row");
+      if (this.room.unratedAbortPending) await this.finishAbandonedMatch();
+      else await this.finishMatch(this.room.match.endReason || "five_in_row");
+      return;
+    }
+    if (["waiting", "ready", "finished", "cancelled"].includes(this.room.status) &&
+        Number.isFinite(Number(this.room.expiresAt)) && now >= Number(this.room.expiresAt)) {
+      await this.expireRoom(this.room.status === "finished" ? "finished_retention" : "room_idle");
       return;
     }
     if (this.room.status === "active" && this.room.match) {
@@ -373,15 +388,44 @@ export class PvpRoom {
       if (match.pendingUndo && now >= match.pendingUndo.requestedAt + UNDO_REQUEST_TIMEOUT_MS) {
         const requesterPlayerId = match.pendingUndo.requesterPlayerId;
         this.room.match = expirePvpUndo(match, now);
+        this.room.idlePrompt = null;
+        this.room.idleAcknowledgedAt = now;
         await this.ctx.storage.put("room", this.room);
         this.broadcast({type: "undo_expired", requesterPlayerId, room: true});
       }
-      for (const [playerId, disconnectedAt] of Object.entries(this.room.disconnectedAt)) {
-        if (disconnectedAt && now - disconnectedAt >= DISCONNECT_GRACE_MS) {
-          this.room.match = finishByTimeout(match, playerId, now);
-          this.room.match.endReason = "disconnect_timeout";
-          await this.finishMatch("disconnect_timeout");
+
+      const disconnectState = resolvePvpDisconnectState(
+        [this.room.hostPlayerId, this.room.guestPlayerId],
+        this.room.disconnectedAt || {},
+        now,
+        DISCONNECT_GRACE_MS
+      );
+      if (disconnectState.type === "forfeit") {
+        this.room.match = finishByTimeout(match, disconnectState.playerId, now);
+        this.room.match.endReason = "disconnect_timeout";
+        await this.finishMatch("disconnect_timeout");
+        return;
+      }
+      if (disconnectState.type === "abandon") {
+        await this.finishAbandonedMatch();
+        return;
+      }
+
+      const hasDisconnectedPlayer = disconnectState.type === "wait";
+      if (!hasDisconnectedPlayer && !match.pendingUndo && !match.pendingDrawBy) {
+        if (this.room.idlePrompt && isPvpIdlePromptExpired(this.room.idlePrompt, now)) {
+          const idlePlayerId = this.room.idlePrompt.playerId;
+          this.room.match = finishByTimeout(match, idlePlayerId, now);
+          await this.finishMatch("idle_timeout");
           return;
+        }
+        if (!this.room.idlePrompt) {
+          const reminderAt = pvpIdleReminderDeadline(match, this.room.idleAcknowledgedAt);
+          if (reminderAt !== null && now >= reminderAt) {
+            this.room.idlePrompt = createPvpIdlePrompt(match.turnPlayerId, now);
+            await this.ctx.storage.put("room", this.room);
+            this.broadcast({type: "idle_prompt", playerId: match.turnPlayerId, room: this.snapshot(match.turnPlayerId)});
+          }
         }
       }
     }
@@ -391,11 +435,16 @@ export class PvpRoom {
   async markReady(playerId) {
     if (this.room.status !== "ready") throw new Error("ROOM_NOT_READY");
     this.room.readyByPlayer[playerId] = true;
+    this.room.lastActivityAt = nowMs();
+    this.room.expiresAt = this.room.lastActivityAt + WAITING_ROOM_IDLE_MS;
     if (this.room.readyByPlayer[this.room.hostPlayerId] && this.room.readyByPlayer[this.room.guestPlayerId]) {
       await this.startMatch();
       return;
     }
     await this.ctx.storage.put("room", this.room);
+    await this.env.DB.prepare("UPDATE pvp_rooms SET expires_at=datetime('now','+30 minutes') WHERE id=? AND status='ready'")
+      .bind(this.room.roomId).run();
+    await this.scheduleNextAlarm();
     this.broadcast({type: "room_state", room: this.snapshot(playerId)});
   }
 
@@ -564,6 +613,8 @@ export class PvpRoom {
       throw error;
     }
     this.room.match = result.state;
+    this.room.idlePrompt = null;
+    this.room.idleAcknowledgedAt = null;
     await this.ctx.storage.put("room", this.room);
     try {
       await this.env.DB.batch([
