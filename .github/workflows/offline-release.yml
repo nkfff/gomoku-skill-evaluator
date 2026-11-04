@@ -3,6 +3,13 @@ on:
   push:
     tags:
       - 'offline-v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag, for example offline-v0.1.0-beta.1"
+        required: true
+        type: string
+        default: "offline-v0.1.0-beta.1"
 permissions:
   contents: read
 jobs:
@@ -246,8 +253,9 @@ jobs:
       - name: Create GitHub prerelease and attach all installers
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: 猫猫棋局离线版 ${{ github.ref_name }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: 猫猫棋局离线版 ${{ inputs.release_tag || github.ref_name }}
           body_path: release-notes.md
           draft: false
           prerelease: true
