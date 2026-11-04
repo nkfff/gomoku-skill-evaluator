@@ -461,3 +461,24 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
  .layout.review-mode>.board-panel,.layout.review-mode>.side-panel{min-height:0;height:auto}
  .layout.review-mode>.board-panel>.board-note{margin-top:12px;padding-top:0}
 }
+
+/* V4.0.12 — pair the coach with the chessboard at the top of review. */
+#panel-replay>.review-ai-card{order:-1}
+.review-ai-card{
+ gap:11px;
+ border:1px solid rgba(112,149,123,.26);
+ background:linear-gradient(155deg,rgba(173,207,181,.12),transparent 72%);
+}
+.review-ai-card .review-card-heading{align-items:flex-start}
+.review-ai-card .review-card-heading h3{margin:4px 0}
+.review-ai-step{display:block;margin-top:4px;font-size:11px;color:var(--v4-muted,#9a857a);letter-spacing:.02em}
+.review-ai-quota{display:grid;gap:8px;padding:12px 14px;border:1px solid rgba(133,151,129,.2);border-radius:13px;background:rgba(179,188,161,.07)}
+.review-ai-quota-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;font-weight:650}
+.review-quota-number{font-size:18px;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.03em;color:var(--v4-accent,#50896c)}
+.review-quota-number.quota-empty{color:#c97561}
+.review-ai-quota-track{height:6px;border-radius:99px;overflow:hidden;background:rgba(134,126,113,.19)}
+.review-ai-quota-fill{height:100%;width:0;border-radius:inherit;background:#82ad8c;transition:width .28s ease}
+.review-ai-quota-note{margin:0;color:var(--v4-muted,#9a857a);font-size:11px;line-height:1.6}
+.review-ai-quota-note.quota-warning{color:#ba7259}
+.review-ai-card .review-ai-result:not(:empty){max-height:300px;overflow-y:auto;scrollbar-width:thin}
+@media(max-width:950px){.review-ai-card .review-ai-result:not(:empty){max-height:none;overflow-y:visible}}
