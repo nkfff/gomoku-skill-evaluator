@@ -13,6 +13,46 @@ const path=require("node:path");
  page.on("request",r=>{const host=new URL(r.url()).hostname;if(!["127.0.0.1","localhost"].includes(host))remote.push(r.url());});
  await context.route("**/*",route=>["127.0.0.1","localhost"].includes(new URL(route.request().url()).hostname)?route.continue():route.abort());
  await page.goto(base);
+ await page.waitForFunction(()=>document.documentElement.dataset.edition==="hybrid"&&document.body.dataset.boardTheme);
+ // The native shell stays light; board/piece skins must never reintroduce light text on light cards.
+ const contrastAudit=await page.evaluate(()=>{
+  const boards=["classic","jade","night","cherry","catcafe","gold"];
+  const pieces=["classic","crystal","ink","neon","pearl","cat"];
+  const rgb=value=>{
+   const m=value.match(/rgba?\(([^)]+)\)/);if(!m)return null;
+   const p=m[1].split(",").map(x=>Number.parseFloat(x.trim()));
+   return [p[0],p[1],p[2],p.length>3?p[3]:1];
+  };
+  const luminance=c=>c.slice(0,3).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((a,v,i)=>a+v*[.2126,.7152,.0722][i],0);
+  const ratio=(fg,bg)=>{const a=luminance(fg),b=luminance(bg);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);};
+  const background=el=>{
+   for(let n=el;n;n=n.parentElement){const c=rgb(getComputedStyle(n).backgroundColor);if(c&&c[3]>.98)return c;}
+   return [255,253,250,1];
+  };
+  const check=(name,el,bgEl=el)=>{
+   const fg=rgb(getComputedStyle(el).color),bg=background(bgEl);
+   return {name,ratio:Number(ratio(fg,bg).toFixed(2)),foreground:getComputedStyle(el).color,background:getComputedStyle(bgEl).backgroundColor};
+  };
+  const failures=[];
+  for(const board of boards)for(const piece of pieces){
+   document.body.dataset.boardTheme=board;document.body.dataset.pieceTheme=piece;
+   document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("active"));
+   document.querySelector("#tab-game")?.classList.add("active");
+   const panel=document.querySelector(".board-panel"),stat=document.querySelector(".stat"),reviewCard=document.querySelector(".review-card");
+   const checks=[
+    check("heading",document.querySelector(".board-heading h2"),panel),
+    check("note",document.querySelector(".board-note"),panel),
+    check("stat label",document.querySelector(".stat small"),stat),
+    check("primary button",document.querySelector("#startGame")),
+    check("active navigation",document.querySelector("#tab-game")),
+    check("AI coach chip",document.querySelector(".review-ai-chip")),
+    check("online review button",document.querySelector("#reviewOnlineSearch"),reviewCard)
+   ];
+   for(const item of checks)if(!Number.isFinite(item.ratio)||item.ratio<4.5)failures.push({board,piece,...item});
+  }
+  return {tested:boards.length*pieces.length,failures};
+ });
+ assert.equal(contrastAudit.failures.length,0,"Hybrid text contrast below WCAG AA: "+JSON.stringify(contrastAudit.failures));
  for(const width of [320,390,768]){
   await page.setViewportSize({width,height:844});
   const state=await page.evaluate(()=>({

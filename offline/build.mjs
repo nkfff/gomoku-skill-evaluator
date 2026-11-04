@@ -7,7 +7,7 @@ import path from "node:path";
 const here=fileURLToPath(new URL(".",import.meta.url));
 const source=path.resolve(here,"../v4.0");
 const out=path.join(here,"dist");
-const version="0.1.0-beta.3";
+const version="0.1.0-beta.4";
 if(!existsSync(path.join(source,"src/review.js")))throw Error("Expected V4 review implementation is missing; please update the source snapshot.");
 rmSync(out,{recursive:true,force:true});
 mkdirSync(out,{recursive:true});
