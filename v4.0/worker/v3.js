@@ -479,8 +479,7 @@ export default {
     const headers = corsHeaders(request, env);
     if (request.method === "OPTIONS") return new Response(null, {status: 204, headers});
     const origin = request.headers.get("Origin") || "";
-    const allowed = (env.FRONTEND_ORIGIN || "https://nkfff.github.io").replace(/\/$/, "");
-    if (origin && origin !== allowed && origin !== (env.DEV_ORIGIN || "")) return reply({error: "Origin 不允许"}, 403);
+    if (origin && !headers["Access-Control-Allow-Origin"]) return reply({error: "Origin 不允许"}, 403);
     const url = new URL(request.url);
 
     try {
