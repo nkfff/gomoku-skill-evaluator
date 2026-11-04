@@ -51,7 +51,7 @@ git tag offline-v0.1.0-beta.1
 git push origin offline-v0.1.0-beta.1
 ```
 
-工作流成功后，下载入口为 [GitHub Releases](https://github.com/nkfff/gomoku-skill-evaluator/releases)。当前尚未推送发布标签，因此**目前没有正式 GitHub Release**；README 首页列出的链接是暂时的 Actions 测试产物，不是永久下载链接。
+也可以在 PR 合并到 `main` 后，进入 [Offline Beta Release 工作流](https://github.com/nkfff/gomoku-skill-evaluator/actions/workflows/offline-release.yml)，选择 **Run workflow** 并填写 `release_tag`，手动启动同一套构建与发布流程。工作流成功后，下载入口为 [GitHub Releases](https://github.com/nkfff/gomoku-skill-evaluator/releases)。当前尚未推送发布标签或手动运行，因此**目前没有正式 GitHub Release**；README 首页列出的链接是暂时的 Actions 测试产物，不是永久下载链接。
 
 ## 尚未满足的正式发布门槛
 
