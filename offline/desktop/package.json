@@ -1,16 +1,18 @@
 {
   "name": "cat-gomoku-offline-desktop",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "private": true,
   "description": "Cat Gomoku Offline desktop installers",
   "main": "main.cjs",
   "scripts": {
     "icons": "node generate-icons.mjs",
     "start": "electron .",
-    "pack:mac": "electron-builder --mac dmg --publish never",
+    "pack:mac": "npm run pack:mac:arm64",
     "pack:win": "electron-builder --win nsis --publish never",
     "pack:linux": "electron-builder --linux AppImage --publish never",
-    "check": "node --check main.cjs && node --check generate-icons.mjs"
+    "check": "node --check main.cjs && node --check generate-icons.mjs",
+    "pack:mac:arm64": "electron-builder --mac dmg --arm64 --publish never",
+    "pack:mac:intel": "electron-builder --mac dmg --x64 --publish never"
   },
   "devDependencies": {
     "@resvg/resvg-js": "2.6.2",
@@ -59,6 +61,7 @@
       "category": "Game"
     },
     "artifactName": "cat-gomoku-offline-${version}-${os}-${arch}.${ext}",
-    "publish": null
+    "publish": null,
+    "afterSign": "scripts/after-sign.cjs"
   }
 }

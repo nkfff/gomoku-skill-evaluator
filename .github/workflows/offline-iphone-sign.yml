@@ -1,0 +1,88 @@
+name: Offline iPhone device & Ad Hoc IPA
+on:
+  pull_request:
+    paths:
+      - 'offline/ios-sign/**'
+      - '.github/workflows/offline-iphone-sign.yml'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Version label for registered-device IPA'
+        required: true
+        default: 'offline-v0.1.0-beta.2'
+        type: string
+permissions:
+  contents: read
+jobs:
+  ios-device-unsigned:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Cairo
+        run: |
+          brew install cairo
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix cairo)/lib:/opt/homebrew/lib" >> "$GITHUB_ENV"
+      - run: python3 -m pip install -r offline/requirements.txt
+      - name: Install native build dependencies
+        working-directory: offline
+        run: npm install --no-audit --no-fund
+      - name: Generate iPhone native project
+        working-directory: offline
+        run: npm run native:ios
+      - name: Validate unsigned iOS device archive
+        working-directory: offline
+        run: |
+          xcodebuild archive -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/GomokuUnsigned.xcarchive" CODE_SIGNING_ALLOWED=NO archive
+          BIN="$RUNNER_TEMP/GomokuUnsigned.xcarchive/Products/Applications/App.app/App"
+          test -f "$BIN"
+          lipo -archs "$BIN" | grep -qw arm64
+  ios-adhoc-signed:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: ios-device-unsigned
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+      IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+      IOS_ADHOC_MOBILEPROVISION_BASE64: ${{ secrets.IOS_ADHOC_MOBILEPROVISION_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Ensure Apple developer secrets exist
+        run: |
+          test -n "$APPLE_TEAM_ID" || { echo "::error::Missing APPLE_TEAM_ID secret"; exit 1; }
+          test -n "$IOS_DISTRIBUTION_P12_BASE64" || { echo "::error::Missing IOS_DISTRIBUTION_P12_BASE64 secret"; exit 1; }
+          test -n "$IOS_DISTRIBUTION_P12_PASSWORD" || { echo "::error::Missing IOS_DISTRIBUTION_P12_PASSWORD secret"; exit 1; }
+          test -n "$IOS_ADHOC_MOBILEPROVISION_BASE64" || { echo "::error::Missing IOS_ADHOC_MOBILEPROVISION_BASE64 secret"; exit 1; }
+      - name: Install Cairo
+        run: |
+          brew install cairo
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix cairo)/lib:/opt/homebrew/lib" >> "$GITHUB_ENV"
+      - run: python3 -m pip install -r offline/requirements.txt
+      - name: Install native build dependencies
+        working-directory: offline
+        run: npm install --no-audit --no-fund
+      - name: Sign archive and export real-device IPA
+        run: bash offline/ios-sign/build-signed-ipa.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gomoku-offline-signed-iphone-adhoc
+          path: |
+            release-assets/*.ipa
+            release-assets/SHA256-iPhone.txt
+          retention-days: 7
+          if-no-files-found: error

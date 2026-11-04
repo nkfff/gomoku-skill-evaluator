@@ -1,0 +1,53 @@
+name: Offline macOS DMG signature and architecture
+on:
+  pull_request:
+    paths:
+      - 'offline/desktop/**'
+      - 'offline/build.mjs'
+      - '.github/workflows/offline-macos-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos-dmg:
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            command: pack:mac:arm64
+            expected: arm64
+          - arch: x64
+            command: pack:mac:intel
+            expected: x86_64
+    env:
+      GOMOKU_ICON_RENDERER: resvg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install packaging dependencies
+        working-directory: offline/desktop
+        run: npm install --no-audit --no-fund
+      - name: Prepare offline application and app icon
+        run: node offline/build.mjs
+      - name: Build platform-specific DMG
+        working-directory: offline/desktop
+        run: npm run ${{ matrix.command }}
+      - name: Verify DMG, CodeResources signature and binary architecture
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(offline/desktop/dist-installers/*mac-${{ matrix.arch }}.dmg)
+          test "${#files[@]}" -eq 1
+          bash offline/desktop/scripts/verify-dmg.sh "${files[0]}" "${{ matrix.expected }}"
+          shasum -a 256 "${files[0]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gomoku-offline-macos-${{ matrix.arch }}-verified
+          path: offline/desktop/dist-installers/*mac-${{ matrix.arch }}.dmg
+          if-no-files-found: error

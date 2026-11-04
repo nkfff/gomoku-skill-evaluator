@@ -10,17 +10,17 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag, for example offline-v0.1.0-beta.1"
+        description: "Release tag, for example offline-v0.1.0-beta.2"
         required: true
         type: string
-        default: "offline-v0.1.0-beta.1"
+        default: "offline-v0.1.0-beta.2"
 permissions:
   contents: read
 env:
-  RELEASE_TAG: ${{ inputs.release_tag || (github.ref_type == 'tag' && github.ref_name) || 'offline-v0.1.0-beta.1' }}
+  RELEASE_TAG: ${{ inputs.release_tag || (github.ref_type == 'tag' && github.ref_name) || 'offline-v0.1.0-beta.2' }}
 jobs:
   web-pwa:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.2')) }}
     name: Build offline PWA archive
     runs-on: ubuntu-latest
     steps:
@@ -46,7 +46,7 @@ jobs:
           retention-days: 7
 
   android:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.2')) }}
     name: Build Android debug APK
     runs-on: ubuntu-latest
     steps:
@@ -89,7 +89,7 @@ jobs:
           retention-days: 7
 
   ios-simulator:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.2')) }}
     name: Build iOS Simulator app (not IPA)
     runs-on: macos-15
     steps:
@@ -128,7 +128,7 @@ jobs:
           retention-days: 7
 
   desktop-linux:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.2')) }}
     name: Build Linux AppImage
     runs-on: ubuntu-latest
     env:
@@ -159,7 +159,7 @@ jobs:
           retention-days: 7
 
   desktop-windows:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.2')) }}
     name: Build Windows installer
     runs-on: windows-latest
     env:
@@ -191,7 +191,7 @@ jobs:
           retention-days: 7
 
   desktop-macos:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.2')) }}
     name: Build macOS DMG
     runs-on: macos-15
     env:
@@ -221,8 +221,45 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  desktop-macos-intel:
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.2')) }}
+    name: Build and verify Intel x64 macOS DMG
+    runs-on: macos-15
+    env:
+      GOMOKU_ICON_RENDERER: resvg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install desktop dependencies
+        working-directory: offline/desktop
+        run: npm install --no-audit --no-fund
+      - name: Build offline game resources
+        run: node offline/build.mjs
+      - name: Package Intel x86_64 DMG
+        working-directory: offline/desktop
+        run: npm run pack:mac:intel
+      - name: Validate DMG, signature and Intel architecture
+        run: |
+          shopt -s nullglob
+          files=(offline/desktop/dist-installers/*mac-x64.dmg)
+          test "${#files[@]}" -eq 1
+          bash offline/desktop/scripts/verify-dmg.sh "${files[0]}" x86_64
+      - name: Stage installer
+        run: |
+          mkdir -p release-assets
+          cp offline/desktop/dist-installers/*mac-x64.dmg release-assets/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-desktop-macos-intel
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
   publish-release:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.2')) }}
     name: Publish GitHub prerelease
     runs-on: ubuntu-latest
     needs:
@@ -232,6 +269,7 @@ jobs:
       - desktop-linux
       - desktop-windows
       - desktop-macos
+      - desktop-macos-intel
     permissions:
       contents: write
     steps:
@@ -243,7 +281,7 @@ jobs:
       - name: List release assets
         run: |
           find release-assets -maxdepth 1 -type f -printf '%f (%s bytes)\n' | sort
-          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -ge 6
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -ge 7
       - name: Write beta release notes
         run: |
           cat > release-notes.md <<'EOF'
@@ -254,7 +292,8 @@ jobs:
           ### 下载说明
           - Android：Debug APK，仅供测试安装，尚非 Play Store 签名发布包。
           - iOS：当前附件为 iOS Simulator App 压缩包，不是 iPhone 可安装 IPA。真机包需 Apple 签名和设备验收。
-          - macOS / Windows / Linux：未签名测试安装包，系统可能提示开发者身份或安全警告。
+          - macOS：同时提供 Apple Silicon (arm64) 和 Intel (x64) DMG；ad-hoc 签名封装已验证，但尚未经 Apple 公证。
+          - Windows/Linux：未签名测试安装包。
           - PWA：静态离线网页包；首次加载/缓存完成后可断网使用。
 
           ### 功能范围

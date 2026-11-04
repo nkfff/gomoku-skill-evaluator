@@ -1,0 +1,89 @@
+name: Offline macOS Developer ID signed and notarized DMG
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Version tag for notarized DMG (registered release only)'
+        default: 'offline-v0.1.0-beta.2'
+        required: true
+        type: string
+      attach_to_release:
+        description: 'Attach verified notarized DMGs to this GitHub release'
+        default: false
+        type: boolean
+permissions:
+  contents: write
+jobs:
+  notarized-macos:
+    runs-on: macos-15
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            command: pack:mac:arm64
+            verify: arm64
+          - arch: x64
+            command: pack:mac:intel
+            verify: x86_64
+    env:
+      GOMOKU_ICON_RENDERER: resvg
+      CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify Apple Developer ID credentials exist
+        run: |
+          test -n "$CSC_LINK" || { echo "::error::Missing MAC_CSC_LINK (Developer ID Application P12)"; exit 1; }
+          test -n "$CSC_KEY_PASSWORD" || { echo "::error::Missing MAC_CSC_KEY_PASSWORD"; exit 1; }
+          test -n "$APPLE_ID" || { echo "::error::Missing APPLE_ID"; exit 1; }
+          test -n "$APPLE_APP_SPECIFIC_PASSWORD" || { echo "::error::Missing APPLE_APP_SPECIFIC_PASSWORD"; exit 1; }
+          test -n "$APPLE_TEAM_ID" || { echo "::error::Missing APPLE_TEAM_ID"; exit 1; }
+      - name: Install dependencies
+        working-directory: offline/desktop
+        run: npm install --no-audit --no-fund
+      - name: Bundle offline game
+        run: node offline/build.mjs
+      - name: Enable hardened runtime and Apple notarization
+        working-directory: offline/desktop
+        run: |
+          node -e 'const fs=require("fs");const f="package.json";const p=JSON.parse(fs.readFileSync(f,"utf8"));p.build.mac.hardenedRuntime=true;p.build.mac.notarize=true;p.build.mac.forceCodeSigning=true;fs.writeFileSync(f,JSON.stringify(p,null,2)+"\n");'
+      - name: Build signed and notarized DMG
+        working-directory: offline/desktop
+        run: npm run ${{ matrix.command }}
+      - name: Validate notarized Developer ID app and DMG
+        run: |
+          shopt -s nullglob
+          files=(offline/desktop/dist-installers/*mac-${{ matrix.arch }}.dmg)
+          test "${#files[@]}" -eq 1
+          bash offline/desktop/scripts/verify-dmg.sh "${files[0]}" "${{ matrix.verify }}"
+          MOUNT="$(mktemp -d)"
+          trap 'hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1 || true; rmdir "$MOUNT" >/dev/null 2>&1 || true' EXIT
+          hdiutil attach "${files[0]}" -readonly -nobrowse -mountpoint "$MOUNT" -quiet
+          APP="$(find "$MOUNT" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          codesign -dv --verbose=4 "$APP" 2>&1 | grep -q "Authority=Developer ID Application"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute --verbose=2 "$APP"
+          shasum -a 256 "${files[0]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gomoku-notarized-macos-${{ matrix.arch }}
+          path: offline/desktop/dist-installers/*mac-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+          retention-days: 14
+      - name: Attach validated notarized DMG to existing release
+        if: ${{ inputs.attach_to_release }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          files: offline/desktop/dist-installers/*mac-${{ matrix.arch }}.dmg
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
