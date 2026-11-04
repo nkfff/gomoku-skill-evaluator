@@ -3,6 +3,7 @@
 > 一个集 AI 对弈、棋力评估、残局训练、随机连珠与好友真人 PVP 于一体的浏览器五子棋项目。
 
 **当前稳定版本：** [V4.0.11](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)  
+**离线单机版（Beta）：** [GitHub Release · Android / iOS 模拟器 / macOS / Windows / Linux / PWA](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.1)  
 **项目档案：** [完整开发规划与历史记录](docs/DEVELOPMENT_ROADMAP.md)
 
 ## V4.0.10 · 复盘隔离与棋局 AI 教练（2026-11-04）
