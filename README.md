@@ -2,8 +2,15 @@
 
 > 一个集 AI 对弈、棋力评估、残局训练、随机连珠与好友真人 PVP 于一体的浏览器五子棋项目。
 
-**当前稳定版本：** [V4.0.9](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)  
+**当前稳定版本：** [V4.0.11](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)  
 **项目档案：** [完整开发规划与历史记录](docs/DEVELOPMENT_ROADMAP.md)
+
+## V4.0.10 · 复盘隔离与棋局 AI 教练（2026-11-04）
+
+- 修复复盘报告泄漏至残局、随机、好友对战、排行榜、皮肤馆和个人中心的显示错误；补强 hidden 样式优先级及切换检查。
+- 在线 AI 从跳转搜索引擎改为针对当前棋谱及所选步数进行 Cloudflare Workers AI 中文讲解；先本地校验棋谱与基础战术，再由模型解释。
+- 免费层保护：登录后主动点击、每位用户每天最多 8 次、全站每天最多 120 次；超时、离线或配额不足自动保留离线复盘，不上传完整账户资料。
+- 新增在线棋局分析接口、云端每日限额迁移与回归测试；原有积分、PVP 逻辑保持不变。
 
 ## 项目功能
 
@@ -14,15 +21,11 @@
 
 技术架构：前端使用 HTML/CSS/JavaScript，部署于 GitHub Pages；账号认证使用 Supabase；云端业务使用 Cloudflare Workers、D1 与 Durable Objects。
 
-## 离线多端版（独立开发预览）
-
-离线单机发行线位于 [`offline/`](offline/README.md)，版本独立命名为 `offline-v0.1.0-beta.1`，计划覆盖 **Android、iOS、macOS、Windows、Linux**；基于现有本地 AI/Gunuce 引擎，云端账号与 PVP 不包含在单机版中。Android 调试 APK、iOS 模拟器应用以及桌面安装包已接入 CI 构建，但**尚未真机验收或正式创建 Release**。此发行线与 V4.1 神经网络训练研究分支无关。
-
 ## 离线多端版 · Offline Edition
 
 <sub>当前开发版本：<strong>offline-v0.1.0-beta.1</strong> · Android / iOS / macOS / Windows / Linux / PWA</sub>
 
-**测试构建已完成，正式 GitHub Release 尚未发布。** 先提供当前 CI 测试包；完成 Android/iPhone 真机验收后，再发布带永久下载资产的 Beta Release。
+**六个平台的 CI 测试构建已完成；正式 GitHub Release 尚未发布。** 先提供当前测试包下载入口。完成 Android/iPhone 真机验收并合并离线版 PR 后，再发布带长期下载资产的 Beta Release。
 
 | 平台 | 当前测试包 / 下载入口 | 说明 |
 |---|---|---|
@@ -35,15 +38,18 @@
 
 - **正式版本入口：** [GitHub Releases](https://github.com/nkfff/gomoku-skill-evaluator/releases)（当前尚无离线版 Release）
 - **构建记录：** [Web/PWA](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819656) · [Android/iOS](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) · [桌面三平台](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761)
-- **开发与安装说明：** [offline/README.md](offline/README.md) · [离线版 PR #56](https://github.com/nkfff/gomoku-skill-evaluator/pull/56)
+- **开发进度：** [离线版 PR #56](https://github.com/nkfff/gomoku-skill-evaluator/pull/56)
 
-> Actions 测试产物有保留期限，不能替代正式 Release。离线单机版不包含云端登录、在线 PVP、观战或服务器排行榜；本地积分与在线账号独立。当前离线版与线上 V4.0.x、V4.1 AI 训练研究分支相互独立。
+> Actions 测试产物有保留期限，不能替代正式 Release。离线单机版不包含云端登录、在线 PVP、观战或服务器排行榜；本地积分与在线账号独立。离线发行线与线上 V4.0.x、V4.1 AI 训练研究分支相互独立。
 
 ## 版本更新记录
 
 按发布日期倒序排列；每个版本仅保留核心变化，完整功能、技术细节和测试记录请查看对应文档。
 
 ### 2026-11-04
+
+- **V4.0.11｜AI 流式棋局讲解与复盘双栏对齐**：关闭 GLM 默认深度思考并改为逐字流式输出，等待时间扩至 60 秒；失败自动退还次数。桌面复盘左右面板等高对齐，手机端保持单栏。
+  [在线体验](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/) · [版本详情](v4.0/README.md)
 
 - **V4.0.9｜PVP 和棋确认弹窗**：提出和棋后双方实时显示弹窗；申请方可撤回，对手明确选择同意或拒绝。支持断线恢复、观战只读及原有 Elo 和棋结算。
   [在线体验](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/) · [版本详情](v4.0/README.md)
