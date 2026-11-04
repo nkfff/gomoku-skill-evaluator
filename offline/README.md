@@ -1,6 +1,6 @@
 # 猫猫棋局 · Offline Edition
 
-> 本目录是独立于在线 V4 的单机发行工程。**[offline-v0.1.0-beta.1 已发布 GitHub Beta 预发布版](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.1)**，含六个平台的下载附件。维护者已确认本次 Beta 验收通过。在线 Pages、PVP、Supabase、Cloudflare 的服务逻辑保持独立。
+> 本目录是独立于在线 V4 的单机发行工程。**[offline-v0.1.0-beta.2 已发布 GitHub Beta 预发布版](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2)**，含六个平台的下载附件。维护者已确认本次 Beta 验收通过。在线 Pages、PVP、Supabase、Cloudflare 的服务逻辑保持独立。
 
 ## macOS DMG 修复和 Intel 适配（beta.2）
 
@@ -16,7 +16,7 @@ macOS 现在提供两个独立 DMG 构建：Apple Silicon arm64 和 Intel x86_64
 
 - Web/PWA：AI 三档、Gunuce 本地 ONNX+WASM/WebGPU、残局、随机连珠、复盘、皮肤与本地积分，均复用 V4 引擎。
 - Android/iOS：采用 Capacitor 8，将静态资源随 App 内置，首次启动不需要网络。已完成原生 CI 编译。**当前公开 iOS 附件仅为 Simulator 应用，并非可供普通 iPhone 安装的签名 IPA**。
-- macOS/Windows/Linux：Electron 的独立打包流程已接入，CI 已构建并上传未签名安装包，目前 macOS 附件只提供 Apple Silicon (arm64)，暂未提供 Intel 安装包。
+- macOS/Windows/Linux：Electron 的独立打包流程已接入，CI 已构建并上传未签名安装包，当前同时提供 Apple Silicon arm64 和 Intel x64 DMG，均已通过完整 CodeResources 资源签名与架构验证；尚未经过 Apple Developer ID 公证。
 - 不提供在线登录、PVP、观战、云端积分或服务器排行榜。本地积分独立；卸载或清理数据可能丢失。
 - PWA 第一次打开需联网下载包括 Gunuce 模型与 WASM 的离线资源，直到显示“可断网使用”。原生 Android/iOS 将资源打入安装包。
 
@@ -50,7 +50,7 @@ Capacitor 依赖固定在 8.6.0；生成目录暂不纳入 Git，避免改动在
 
 ## GitHub Release 下载与发布流程
 
-**当前 Beta Release：** [offline-v0.1.0-beta.1](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.1)，包含 Android Debug APK、iOS Simulator ZIP、macOS arm64 DMG、Windows x64 EXE、Linux x86_64 AppImage、Web/PWA ZIP。永久附件链接见仓库首页 [README](../README.md#离线多端版--offline-edition)。
+**当前 Beta Release：** [offline-v0.1.0-beta.2](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2)，包含 Android Debug APK、iOS Simulator ZIP、macOS arm64 DMG、**macOS Intel x64 DMG**、Windows x64 EXE、Linux x86_64 AppImage、Web/PWA ZIP。永久附件链接见仓库首页 [README](../README.md#离线多端版--offline-edition)。
 
 自动发布工作流为 [Offline Beta Release](../.github/workflows/offline-release.yml)。在未来发布新版本时，修改版本号并推送新 `offline-v*` 标签，或使用 GitHub Actions 的 `workflow_dispatch` 指定新标签；所有平台构建成功才创建新的 Pre-release。**不要重复发布已有标签，避免覆盖已经分发的安装包。**
 
@@ -77,4 +77,4 @@ Capacitor 依赖固定在 8.6.0；生成目录暂不纳入 Git，避免改动在
 
 独立 Electron 安装包构建已在 `offline/desktop/` 中提供。使用 `gomoku://app` 安全源加载本地 Worker 与 WASM，复用 Android/iOS 同一套单机逻辑。参见 [desktop/README.md](desktop/README.md)。当前为未签名 Beta 预发布，CI 构建已经成功；正式签名及广泛兼容性支持尚待完善。
 
-**版本命名**：离线版独立从 `offline-v0.1.0-beta.1` 起步；线上版本继续为 V4.0.x，训练研究分支 V4.1.x 保持独立。已在 GitHub 发布 Beta，安装包仍为测试版本。
+**版本命名**：离线版从 `offline-v0.1.0-beta.1` 起步，目前发行 `offline-v0.1.0-beta.2`；线上版本继续为 V4.0.x，训练研究分支 V4.1.x 保持独立。已在 GitHub 发布 Beta，安装包仍为测试版本。
