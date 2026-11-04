@@ -40,10 +40,10 @@ swap('<meta name="viewport" content="width=device-width,initial-scale=1">','<met
 swap('<link rel="stylesheet" href="./src/style.css">','<link rel="stylesheet" href="./src/style.css">\n<link rel="stylesheet" href="./offline.css">');
 swap('</head>','<link rel="manifest" href="./manifest.webmanifest">\n<link rel="icon" type="image/svg+xml" href="./icons/cat-gomoku.svg">\n<link rel="apple-touch-icon" href="./icons/icon-192.png">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-status-bar-style" content="default">\n</head>');
 swap('</body>','<script type="module" src="./experience.js"></script>\n</body>');
-html=html.replace(/<title>[^<]*<\/title>/,'<title>猫猫棋局 · 离线版</title>');
+html=html.replace(/<title>[^<]*<\/title>/,'<title>猫猫棋局 · 联网与离线版</title>');
 html=html.replace(/<meta name="theme-color" content="[^"]*">/,'<meta name="theme-color" content="#fff7ed">');
-html=html.replace(/<meta name="description" content="[^"]*">/,'<meta name="description" content="猫猫棋局离线版：本地AI、Gunuce神经网络、残局挑战、随机连珠与逐手复盘。">');
-html=html.replaceAll("V4.0.2","离线版").replace("GOMOKU CLUB · V4.0.8","GOMOKU CLUB · OFFLINE");
+html=html.replace(/<meta name="description" content="[^"]*">/,'<meta name="description" content="猫猫棋局：本地 AI、联网账号、好友对战、AI 复盘与离线单机。">');
+html=html.replaceAll("V4.0.2","离线版").replace("GOMOKU CLUB · V4.0.8","GOMOKU CLUB · HYBRID");
 html=html.replace(/<p class="note board-note">[^<]*<\/p>/,'<p class="note board-note">本地 AI 与 Gunuce 可断网运行；联网后可登录账号、使用在线 AI 复盘、好友 PVP 与云端排行榜。</p>');
 html=html.replace(/<p id="puzzleRewardStatus" class="note">[^<]*<\/p>/,'<p id="puzzleRewardStatus" class="note">完成挑战后自动获得本地积分；与在线账号积分独立。</p>');
 writeFileSync(path.join(out,"index.html"),html);
