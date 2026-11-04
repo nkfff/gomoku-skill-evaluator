@@ -4,6 +4,7 @@ const LEVELS={...BASE_LEVELS,gunuce:{label:"Gunuce",reward:0}};
 import {SIZE,CELLS,LEVELS as BASE_LEVELS,coord,inside,spot,winLine,chooseAI,advice,replay,rankedMoves} from "./engine.js";
 import {initAccount,bearer,loggedIn,cloudConfigured} from "./account.js";
 import {summarizeQuality} from "./assessment.js";
+import {buildMoveInsight,analyzeCurrentPosition,collectReviewHighlights,buildTrainingAdvice} from "./review.js";
 const $=id=>document.getElementById(id);
 const skins=[
 {id:"classic",name:"经典榉木",cost:0,bg:"#dcb77b",grid:"#815830",black:"#18191e",white:"#fffdf4"},
@@ -40,6 +41,7 @@ function applyRemoteProfile(p){if(!p)return;
 const freshProfile=()=>({id:crypto.randomUUID(),name:"匿名棋手",points:0,earnedPoints:0,owned:["classic","board:classic","piece:classic"],skin:"classic",boardSkin:"classic",pieceSkin:"classic",wins:0,losses:0,draws:0,claimed:[]});
 function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&&typeof s.id==="string"&&Array.isArray(s.owned))return {...freshProfile(),...s,boardSkin:s.boardSkin||s.skin||"classic",pieceSkin:s.pieceSkin||"classic"};}catch{}return freshProfile();}
 let profile=loadProfile(),game,task=null,turnToken=0,activeTab="game",endedAt=0,replayStep=0,lastResult=null,cloudEnabled=false;
+let reviewCandidates=[],currentReviewTopic="五子棋实战棋形";
 let hints=[],hintVisible=false,hintRequest=0,previewBoard="classic",previewPiece="classic";
 
 const aiWorker = typeof Worker !== "undefined" ? new Worker(new URL("./ai.worker.js", import.meta.url), {type:"module"}) : null;
@@ -156,6 +158,8 @@ async function submitFinishedGame(g){
  await syncPendingSubmissions();
 }
 async function newGame(){
+ if(activeTab==="replay")return;
+ reviewCandidates=[];
  cancelGunuce();clearTimeout(task);task=null;turnToken++;
  const humanColor=Number($("firstMoveChoice")?.value||1)===2?2:1;
  game={id:crypto.randomUUID(),b:Array(CELLS).fill(0),moves:[],events:[],level:$("difficulty").value,turn:1,humanColor,aiColor:3-humanColor,started:0,turnStart:0,ended:0,result:0,undo:0,startedGame:false,cloudSession:false,playerId:null,syncState:"idle",drawReward:0};
@@ -167,7 +171,7 @@ async function newGame(){
  activate("game");render();formatTime();
 }
 function startGame(){
- if(!game||game.startedGame||game.result)return;
+ if(activeTab!=="game"||!game||game.startedGame||game.result)return;
  const selectedLevel=$("difficulty").value;game.level=LEVELS[selectedLevel]?selectedLevel:"normal";
  game.humanColor=Number($("firstMoveChoice").value)===2?2:1;game.aiColor=3-game.humanColor;
  const now=performance.now();game.cloudSession=game.level!=="gunuce"&&cloudMode();game.playerId=game.cloudSession?profile.id:null;game.syncState="idle";
@@ -235,7 +239,7 @@ async function human(i){
  if(!game.result){game.turn=game.aiColor;scheduleAI();}render();
 }
 async function undo(){
- if(!game.startedGame||game.moves.length<2||game.result||game.turn!==game.humanColor||remoteBusy||!game.moves.some(m=>m.p===game.humanColor))return;
+ if(activeTab!=="game"||!game.startedGame||game.moves.length<2||game.result||game.turn!==game.humanColor||remoteBusy||!game.moves.some(m=>m.p===game.humanColor))return;
  const paid=game.undo>=3,spendable=profile.points-(game.cloudSession?Math.max(0,game.undo-3)*10:0);
  if(paid&&spendable<10){alert("免费悔棋已用尽；再悔棋需要 10 积分。当前可用积分不足。");return;}
  if(paid&&!confirm("免费悔棋已用完，本次扣除 10 积分，确定吗？"))return;
@@ -267,10 +271,12 @@ async function hintMove(){
  finally{render();}
 }
 function activate(tab){
+ if(tab==="replay"&&(!game||!game.moves.length))tab="game";
  if(tab!=="game"&&activeTab==="game"){
   hintRequest++;hintVisible=false;hints=[];$("hintPanel").hidden=true;
  }
  activeTab=tab;
+ if(tab!=="replay")reviewCandidates=[];
  for(const name of ["game","replay","store","leaderboard","account","pvp","puzzle","random"]){
   const button=$("tab-"+name),panel=$("panel-"+name);
   if(button)button.classList.toggle("active",name===tab);
@@ -279,6 +285,7 @@ function activate(tab){
  const layout=document.querySelector(".layout");
  if(layout){
   layout.classList.toggle("pvp-mode",tab==="pvp");
+   layout.classList.toggle("review-mode",tab==="replay");
   layout.classList.toggle("mode-full",tab!=="game"&&tab!=="replay");
  }
  const gamePanel=layout?.querySelector(":scope > section.panel");
@@ -356,10 +363,19 @@ function draw(b,last=-1){
    ctx.fillStyle="#172436";ctx.font="bold 17px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(j+1),x,y);
   });
  }
+  if(activeTab==="replay"&&reviewCandidates.length){
+   reviewCandidates.forEach((i,j)=>{if(b[i])return;const x=offset+i%15*cell,y=offset+Math.floor(i/15)*cell;
+    ctx.beginPath();ctx.arc(x,y,14,0,Math.PI*2);ctx.fillStyle=["#3aa987cc","#5b8fdacc","#d59a48cc"][j%3];ctx.fill();
+    ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();ctx.fillStyle="#fff";ctx.font="bold 14px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(j+1),x,y);
+   });
+  }
 }
 function render(){
  if(!game)return;
- $("aiRuntime").textContent=game.level==="gunuce"?"Gunuce":"本地即时对弈";
+ const reviewing=activeTab==="replay";
+ $("aiRuntime").textContent=reviewing?"复盘 · 本地只读分析":game.level==="gunuce"?"Gunuce":"本地即时对弈";
+ $("boardTitle").textContent=reviewing?"棋局复盘":"AI 对弈";
+ $("boardSubtitle").textContent=reviewing?"逐手回放 · 当前棋盘只读，分析与建议均可离线查看":"选择你的先手，剩下的交给棋局。";
  $("identity").textContent=profile.name+" · "+profile.id.slice(0,8);
  $("points").textContent=profile.points;
  $("scoreboard").textContent="胜 "+profile.wins+" / 负 "+profile.losses+" / 平 "+profile.draws;
@@ -373,16 +389,20 @@ function render(){
  if(game.level==="gunuce"&&game.result)$("status").textContent=({1:"你赢了",2:"Gunuce获胜",3:"棋盘下满，平局"}[game.result])+" · Gunuce";
  if(game.aiProgress&&!game.result)$("status").textContent=game.aiProgress;
  if(game.aiError&&!game.result)$("status").textContent="Gunuce暂未落子："+game.aiError;
+ if(reviewing){const selected=game.moves[replayStep-1];$("status").textContent=selected?"第 "+replayStep+" 手 · "+(selected.p===1?"黑棋":"白棋")+" · "+(selected.p===game.humanColor?"你":"AI")+" 落子 "+selected.coord:"开局前 · 黑棋先手";}
+ $("gameControls").hidden=reviewing;$("actionRow").hidden=reviewing;$("reviewToolbar").hidden=!reviewing;$("reviewTimeline").hidden=!reviewing;
  $("retryAI").hidden=!(game.level==="gunuce"&&game.aiError&&!game.result);
- $("startGame").disabled=!!game.result||game.startedGame;
+ $("startGame").disabled=reviewing||!!game.result||game.startedGame;
  $("startGame").textContent=game.result?"本局已结束":game.startedGame?"计时已开始":"开始下棋";
- $("firstMoveChoice").disabled=game.startedGame&&!game.result;
- $("undo").disabled=!game.startedGame||!!game.result||!game.moves.some(m=>m.p===game.humanColor)||game.turn!==game.humanColor||remoteBusy;
+ $("firstMoveChoice").disabled=reviewing||game.startedGame&&!game.result;
+ $("undo").disabled=reviewing||!game.startedGame||!!game.result||!game.moves.some(m=>m.p===game.humanColor)||game.turn!==game.humanColor||remoteBusy;
  const left=Math.max(0,3-game.undo);
  $("undo").textContent=left?"悔棋（剩 "+left+" 次免费）":"悔棋（10 积分/次）";
- $("hint").disabled=!game.startedGame||!!game.result||game.turn!==game.humanColor||remoteBusy;
- $("review").disabled=!game.moves.length;
- const display=activeTab==="replay"?replay(game.moves)[replayStep]:game.b;
+ $("hint").disabled=reviewing||!game.startedGame||!!game.result||game.turn!==game.humanColor||remoteBusy;
+ $("review").disabled=!game.moves.length;$("tab-replay").disabled=!game.moves.length;
+ const stats=summarizeQuality(game.moves,game.humanColor);
+ const frames=reviewing?replay(game.moves):null;if(reviewing)renderReviewPanel(frames,stats);
+ const display=reviewing?frames[replayStep]:game.b;
  draw(display,activeTab==="replay"?(replayStep?game.moves[replayStep-1].i:-1):game.moves.at(-1)?.i??-1);
  $("history").innerHTML=game.moves.map((m,j)=>"<button class='move "+(activeTab==="replay"&&replayStep===j+1?"selected":"")+"' data-step='"+(j+1)+"'>"+(j+1)+". "+(m.p===1?"●":"○")+" "+m.coord+" · "+m.seconds.toFixed(1)+"s</button>").join("");
  $("history").querySelectorAll("[data-step]").forEach(x=>x.onclick=()=>{replayStep=Number(x.dataset.step);activate("replay");});
@@ -403,7 +423,7 @@ function render(){
   "。推荐："+q.alternatives.map(coord).join("、")+
   "。搜索深度 "+q.depth+" 层；非职业引擎结论。";
  } else $("analysis").textContent=m.analysisError||"正在后台搜索评估这一步……";
- const stats=summarizeQuality(game.moves,game.humanColor),completed=stats.ready===stats.total&&stats.total>0;
+ const completed=stats.ready===stats.total&&stats.total>0;
  const formatRatio=x=>x===null?"未测得":(x*100).toFixed(1)+"%";
  $("qualityScore").textContent=stats.score===null?"—":stats.score+" / 100"+(game.result&&completed?"":" · 临时");
  $("top1Rate").textContent=stats.scored?formatRatio(stats.top1):"—";
@@ -429,6 +449,29 @@ function render(){
   "最近玩家着 "+latest.coord+"：正在后台计算搜索建议。"):"第一手请落子，系统随后分析。";
  renderShop();
 }
+function renderReviewPanel(frames,stats){
+ const playerMoves=game.moves.filter(move=>move.p===game.humanColor);
+ $("reviewScore").textContent=stats.score===null?"—":stats.score+" / 100";$("reviewCoverage").textContent=stats.ready+" / "+stats.total;
+ const mistakes=playerMoves.filter(move=>move.quality&&(move.quality.severe||String(move.quality.category||"").includes("漏杀")||String(move.quality.category||"").includes("漏防"))).length;
+ $("reviewMistakes").textContent=String(mistakes);$("reviewTactical").textContent=stats.tacticalRate===null?"暂无":(stats.tacticalRate*100).toFixed(0)+"%";$("reviewSummary").textContent=storyForGame(stats);
+ const selectedIndex=replayStep-1,insight=selectedIndex>=0?buildMoveInsight(game.moves,selectedIndex,game.humanColor):null;
+ if(insight){$("reviewMoveTitle").textContent="第 "+replayStep+" 手 · "+insight.role+" · "+insight.coord;$("reviewMoveVerdict").textContent=insight.verdict;$("reviewMoveVerdict").className="review-verdict "+insight.kind;$("reviewMoveBody").textContent=insight.explanation;$("reviewMoveAdvice").textContent=insight.recommendation;$("reviewMoveMetrics").textContent=insight.metrics||"当前着法尚无完整搜索指标。";currentReviewTopic=insight.topic;}
+ else{$("reviewMoveTitle").textContent="开局位置";$("reviewMoveVerdict").textContent="请选择棋谱中的一步";$("reviewMoveVerdict").className="review-verdict neutral";$("reviewMoveBody").textContent="从下方时间轴选择任意一步，查看落子方、棋形变化、搜索评估和可替代落点。";$("reviewMoveAdvice").textContent="复盘时先观察双方直接胜点，再判断进攻是否建立在安全的局面上。";$("reviewMoveMetrics").textContent="尚未选择具体着法。";currentReviewTopic="五子棋开局布局与中心控制";}
+ const finished=!!game.result&&replayStep>=game.moves.length,sideToMove=replayStep===0?1:3-game.moves[replayStep-1].p;
+ const position=finished?{type:"finished",reason:"已经到达终局。可以回看最后几手，确认胜负是由哪一次强制攻防决定的。",moves:[]}:analyzeCurrentPosition(frames[replayStep],sideToMove);
+ reviewCandidates=position.moves.map(item=>item.index);$("reviewPositionReason").textContent=position.reason;
+ $("reviewPositionCandidates").innerHTML=position.moves.length?position.moves.map((item,i)=>"<span class='review-candidate'><b>"+(i+1)+". "+item.coord+"</b><small>"+item.shape+"</small></span>").join(""):"<span class='review-candidate empty'>终局位置 · 无后续落点</span>";
+ const moments=collectReviewHighlights(game.moves,game.humanColor);
+ $("reviewKeyMoments").innerHTML=moments.length?moments.map(item=>"<button class='review-moment "+item.kind+"' data-review-moment='"+(item.index+1)+"'><span>第 "+(item.index+1)+" 手 · "+item.coord+"</span><strong>"+escapeText(item.label)+"</strong><small>"+escapeText(item.reason)+"</small></button>").join(""):"<p class='note'>目前没有检测到明确的关键失误或强制攻防。随着后台分析完成，这里会自动补充关键节点。</p>";
+ $("reviewKeyMoments").querySelectorAll("[data-review-moment]").forEach(button=>button.onclick=()=>{replayStep=Number(button.dataset.reviewMoment);render();});
+ const plan=buildTrainingAdvice(game.moves,game.humanColor);$("reviewTrainingIntro").textContent=plan.headline;$("reviewTraining").innerHTML=plan.items.map(item=>"<article class='review-training-item'><strong>"+escapeText(item.title)+"</strong><p>"+escapeText(item.body)+"</p></article>").join("");
+ $("reviewSeek").max=String(game.moves.length);$("reviewSeek").value=String(replayStep);$("reviewProgress").textContent="第 "+replayStep+" / "+game.moves.length+" 手";$("stepLabel").textContent=replayStep+" / "+game.moves.length;
+ $("start").disabled=replayStep===0;$("prev").disabled=replayStep===0;$("next").disabled=replayStep===game.moves.length;$("end").disabled=replayStep===game.moves.length;
+ $("reviewTimeline").innerHTML=game.moves.map((move,j)=>{const q=move.quality,cat=String(q?.category||""),marker=q&&(q.severe||cat.includes("漏杀")||cat.includes("漏防"))?"is-error":q?.top1?"is-good":"";return "<button class='review-tick "+marker+" "+(replayStep===j+1?"selected":"")+"' data-review-step='"+(j+1)+"' title='第 "+(j+1)+" 手 · "+move.coord+"'><strong>"+(j+1)+"</strong><small>"+move.coord+"</small></button>";}).join("");
+ $("reviewTimeline").querySelectorAll("[data-review-step]").forEach(button=>button.onclick=()=>{replayStep=Number(button.dataset.reviewStep);render();});
+ if(!insight&&position.type==="win")currentReviewTopic="五子棋直接成五必胜点";else if(!insight&&position.type==="defense")currentReviewTopic="五子棋强制防守与封堵";else if(!insight&&position.type==="double-threat")currentReviewTopic="五子棋双重威胁防守";
+}
+
 function drawSkinPreview(){
  const board=skins.find(x=>x.id===previewBoard)||skins[0];
  const piece=pieceSkins.find(x=>x.id===previewPiece)||pieceSkins[0];
@@ -511,7 +554,7 @@ function renderShop(){
  drawSkinPreview();
 }
 function formatTime(){if(!game)return;if(!game.startedGame){$("totalTime").textContent="00:00";$("thinkTime").textContent="未开始";return;}const now=game.ended||performance.now(),total=Math.max(0,Math.floor((now-game.started)/1000));$("totalTime").textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");$("thinkTime").textContent=game.result?"已停止":game.turn===game.humanColor?((performance.now()-game.turnStart)/1000).toFixed(1)+"s":"AI 行棋";}
-function download(){const payload={version:"4.0.2",identity:profile.id,level:game.level,playerColor:game.humanColor,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves,game.humanColor)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v4.0.2-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
+function download(){const payload={version:"4.0.8",identity:profile.id,level:game.level,playerColor:game.humanColor,moves:game.moves,events:game.events,undoCount:game.undo,result:game.result,qualitySummary:summarizeQuality(game.moves,game.humanColor)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="gomoku-v4.0.8-game.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
 async function localRank(){
  const rankPoints=(earned,wins,losses,draws)=>{const games=wins+losses+draws,adjusted=games?100*(wins+2.5)/(games+5):0;return Math.max(0,Math.round(Number(earned||0)+(adjusted-50)*Math.min(games,20)/10));};
  const titles=["棋圣","棋王","棋宗"];
@@ -531,7 +574,7 @@ async function localRank(){
 window.gomokuRefreshLeaderboard=localRank;
 function escapeText(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function setName(){const name=$("nickname").value.trim().slice(0,24);if(name.length<2||name.length>24||/[<>]/.test(name)){alert("显示名称需为 2–24 个字符，且不能包含 < 或 >");return;}if(cloudMode()){try{const v=await api("name",{name});applyRemoteProfile(v.profile);}catch(e){alert("保存失败："+e.message);return;}}else{profile.name=name;save();}if($("accountDisplayName"))$("accountDisplayName").value=profile.name;render();localRank();}
-for(const name of ["game","replay","store","leaderboard","account","puzzle","random"])$("tab-"+name).onclick=()=>activate(name);
+for(const name of ["game","replay","store","leaderboard","account","puzzle","random"])$("tab-"+name).onclick=()=>{if(name==="replay"){if(!game?.moves.length)return;replayStep=game.moves.length;}activate(name);};
 $("board").addEventListener("click",e=>{
  if(activeTab!=="game")return;
  const rect=$("board").getBoundingClientRect(),x=(e.clientX-rect.left)*640/rect.width,y=(e.clientY-rect.top)*640/rect.height;
@@ -548,11 +591,15 @@ $("retrySync").onclick=()=>syncPendingSubmissions();
 window.addEventListener("online",()=>syncPendingSubmissions());
 $("undo").onclick=undo;
 $("hint").onclick=hintMove;
-$("review").onclick=()=>{replayStep=game.moves.length;activate("replay");};
+$("review").onclick=()=>{if(!game?.moves.length)return;replayStep=game.moves.length;activate("replay");};
 $("prev").onclick=()=>{replayStep=Math.max(0,replayStep-1);render();};
 $("next").onclick=()=>{replayStep=Math.min(game.moves.length,replayStep+1);render();};
 $("start").onclick=()=>{replayStep=0;render();};
 $("end").onclick=()=>{replayStep=game.moves.length;render();};
+$("reviewSeek").oninput=event=>{replayStep=Number(event.target.value);render();};
+$("reviewExit").onclick=()=>activate("game");
+$("reviewExport").onclick=download;
+$("reviewOnlineSearch").onclick=()=>{const query="五子棋 "+currentReviewTopic+" 实战教学";window.open("https://www.google.com/search?q="+encodeURIComponent(query),"_blank","noopener,noreferrer");};
 $("export").onclick=download;
 $("firstMoveChoice").onchange=()=>{if(game&&!game.startedGame){game.humanColor=Number($("firstMoveChoice").value)===2?2:1;game.aiColor=3-game.humanColor;render();}};
 $("drawEggClose").onclick=()=>{$("drawEasterEgg").hidden=true;};

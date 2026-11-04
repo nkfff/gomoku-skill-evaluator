@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f5eee8">
-<meta name="description" content="五子棋 V4.0.2：精致猫猫棋局，王者 AI、先手选择、幸运平局奖励、残局挑战与好友真人竞技。">
-<title>五子棋 V4.0.2 · 猫猫棋局</title>
+<meta name="description" content="五子棋 V4.0.8：精致猫猫棋局，王者 AI、先手选择、幸运平局奖励、残局挑战与好友真人竞技。">
+<title>五子棋 V4.0.8 · 猫猫棋局</title>
 <link rel="stylesheet" href="./src/style.css">
 </head>
 <body>
 <main class="app-shell">
 <header class="topbar">
- <div class="brand-lockup"><div class="brand-mark" aria-hidden="true">棋</div><div><span class="eyebrow">GOMOKU CLUB</span><h1>猫猫棋局 <sup>V4.0.2</sup></h1><p>一盘好棋，从容落子。</p></div></div>
+ <div class="brand-lockup"><div class="brand-mark" aria-hidden="true">棋</div><div><span class="eyebrow">GOMOKU CLUB</span><h1>猫猫棋局 <sup>V4.0.8</sup></h1><p>一盘好棋，从容落子。</p></div></div>
  <div class="profile-strip"><div class="cloud-status"><span class="status-dot"></span><small id="offlineStatus">Gunuce首次使用需联网加载</small><small id="cloudBanner">读取连接状态中</small><button id="retrySync" hidden>重试上传</button></div><div class="profile-summary"><b id="identity">匿名棋手</b><span class="point-pill">✦ <strong id="points">0</strong> 积分</span></div><p id="scoreboard">胜 0 / 负 0 / 平 0</p></div>
 </header>
 <div id="authFeedback" class="auth-feedback" hidden role="status" aria-live="polite"></div>
@@ -20,21 +20,37 @@
 </nav>
 <div class="layout">
  <section class="panel board-panel">
-  <div class="board-heading"><div><span class="eyebrow">THE MATCH</span><h2>AI 对弈</h2><p>选择你的先手，剩下的交给棋局。</p></div><span id="aiRuntime" class="live-pill">本地即时对弈</span></div>
+  <div class="board-heading"><div><span class="eyebrow">THE MATCH</span><h2 id="boardTitle">AI 对弈</h2><p id="boardSubtitle">选择你的先手，剩下的交给棋局。</p></div><span id="aiRuntime" class="live-pill">本地即时对弈</span></div>
+  <div id="reviewToolbar" class="review-toolbar" hidden>
+   <div class="review-toolbar-heading"><span class="eyebrow">MATCH REVIEW</span><strong>棋局复盘</strong><small id="reviewProgress">第 0 / 0 手</small></div>
+   <div class="review-toolbar-actions"><button id="start">首手前</button><button id="prev">上一步</button><button id="next">下一步</button><button id="end">终局</button><button id="reviewExport">导出棋谱</button><button id="reviewExit" class="secondary-button">返回对弈</button></div>
+   <label class="review-range"><span>复盘进度</span><input id="reviewSeek" type="range" min="0" max="0" value="0" step="1"><span id="stepLabel">0 / 0</span></label>
+  </div>
   <canvas id="board" class="board" width="640" height="640" aria-label="15乘15五子棋棋盘"></canvas>
-  <div class="game-controls">
+  <div id="reviewTimeline" class="review-timeline" aria-label="棋谱时间轴" hidden></div>
+  <div id="gameControls" class="game-controls">
    <label class="control-field">AI 难度<select id="difficulty" aria-label="难度"><option value="easy">新手 · 胜 +10</option><option value="normal" selected>进阶 · 胜 +30</option><option value="hard">王者 · 胜 +80</option><option value="gunuce">Gunuce</option></select></label>
    <label class="control-field">先手选择<select id="firstMoveChoice" aria-label="选择先手"><option value="1">我先手 · 执黑棋</option><option value="2">AI 先手 · 我执白棋</option></select></label>
    <button id="retryAI" hidden>重试 Gunuce</button><button id="startGame" class="primary start-button">开始下棋</button>
   </div>
-  <div class="action-row"><button id="newGame" class="secondary-button">新开一局</button><button id="undo" disabled>悔棋（免费 3 次）</button><button id="hint" disabled>落子提示</button><button id="soundToggle" type="button">落子音效：开</button><button id="review" disabled>逐手复盘</button><button id="export">导出棋谱</button></div>
+  <div id="actionRow" class="action-row"><button id="newGame" class="secondary-button">新开一局</button><button id="undo" disabled>悔棋（免费 3 次）</button><button id="hint" disabled>落子提示</button><button id="soundToggle" type="button">落子音效：开</button><button id="review" disabled>逐手复盘</button><button id="export">导出棋谱</button></div>
   <div class="board-caption"><span class="turn-indicator"></span><strong id="status">准备</strong><span class="caption-note">标准 15 × 15 · 无禁手</span></div>
   <div class="hint" id="hintPanel" hidden>点击提示后显示搜索推荐落点。提示的是候选优先级，不是经过校准的获胜概率。</div>
   <p class="note board-note">登录账号的终局棋谱由服务器验证并结算云端积分；游客成绩仅保存在当前浏览器。平局彩蛋只在标准 AI 对弈中触发。</p>
  </section>
  <aside class="panel side-panel">
   <section id="panel-game"><div class="stats"><div class="stat"><small>模式</small><strong>AI 对弈</strong></div><div class="stat"><small>对局计时</small><strong id="totalTime">00:00</strong></div><div class="stat"><small>本手思考</small><strong id="thinkTime">0.0s</strong></div><div class="stat"><small>悔棋次数</small><strong id="undoCount">0</strong></div></div><h2>单局棋力评估（搜索估计）</h2><div class="stats"><div class="stat"><small>综合分</small><strong id="qualityScore">—</strong></div><div class="stat"><small>Top-1 比例</small><strong id="top1Rate">—</strong></div><div class="stat"><small>Top-3 比例</small><strong id="top3Rate">—</strong></div><div class="stat"><small>严重失误率</small><strong id="severeRate">—</strong></div></div><div class="stats"><div class="stat"><small>加权落子准确度</small><strong id="weightedAccuracy">—</strong></div><div class="stat"><small>关键攻防成功率</small><strong id="tacticalRate">未测得</strong></div><div class="stat"><small>进攻把握</small><strong id="attackRate">未测得</strong></div><div class="stat"><small>防守正确</small><strong id="defenseRate">未测得</strong></div><div class="stat"><small>评分可信度</small><strong id="confidence">样本不足</strong></div><div class="stat"><small>有效样本量</small><strong id="effectiveSamples">0</strong></div></div><p class="note" id="complexity"></p><p class="note" id="qualityNotice">分析尚未开始。</p><h2>本局小结</h2><p id="report"></p><p class="hint" id="recommend"></p><h2>落子记录</h2><div class="history" id="history"></div></section>
-  <section id="panel-replay" hidden><h2>逐手复盘</h2><p>可点击任意一步回到历史棋面，查看双方落点及建议。</p><div class="controls"><button id="start">首手前</button><button id="prev">上一步</button><button id="next">下一步</button><button id="end">终局</button><span id="stepLabel"></span></div><div class="hint" id="analysis"></div><h2>历史落子</h2><div class="history" id="replayList"></div></section>
+    <section id="panel-replay" class="review-sidebar" hidden>
+   <div class="review-report-head"><span class="eyebrow">GAME REPORT</span><h2>本局复盘报告</h2><p id="reviewSummary">完成对局后，这里会总结你的攻防表现、关键转折和训练方向。</p></div>
+   <div class="review-stat-grid"><div class="review-stat"><small>综合评分</small><strong id="reviewScore">—</strong></div><div class="review-stat"><small>分析覆盖</small><strong id="reviewCoverage">0 / 0</strong></div><div class="review-stat"><small>关键失误</small><strong id="reviewMistakes">0</strong></div><div class="review-stat"><small>关键攻防成功率</small><strong id="reviewTactical">暂无</strong></div></div>
+   <article class="review-card"><div class="review-card-heading"><h3 id="reviewMoveTitle">开局位置</h3><span id="reviewMoveVerdict" class="review-verdict neutral">请选择棋谱中的一步</span></div><p id="reviewMoveBody">从下方时间轴选择任意一步，查看落子方、棋形变化、搜索评估和可替代落点。</p><h4>更优选择与行动建议</h4><p id="reviewMoveAdvice">复盘时先观察双方直接胜点，再判断进攻是否建立在安全的局面上。</p><p id="reviewMoveMetrics" class="note">尚未选择具体着法。</p></article>
+   <article class="review-card"><h3>当前局面的下一手</h3><p id="reviewPositionReason">本地启发式分析会给出下一手候选，不需要联网。</p><div id="reviewPositionCandidates" class="review-candidates"></div><p class="note">棋盘上以 1–3 标记候选点。它们是离线启发式优先级，不是经过校准的胜率，也不等同于职业引擎结论。</p></article>
+   <article class="review-card"><h3>关键转折点</h3><div id="reviewKeyMoments" class="review-moments"><p class="note">后台分析完成后自动筛选关键节点。</p></div></article>
+   <article class="review-card"><h3>针对性训练建议</h3><p id="reviewTrainingIntro" class="note"></p><div id="reviewTraining" class="review-training"></div></article>
+   <button id="reviewOnlineSearch" class="review-online-button" type="button">联网学习同类战术 ↗</button>
+   <p class="note">仅在点击时打开外部搜索页，只搜索战术主题，不发送完整棋谱；离线复盘不受影响。</p>
+   <div id="analysis" hidden></div><div id="replayList" hidden></div>
+  </section>
   <section id="panel-puzzle" hidden>
 <h2>残局挑战</h2>
 <p class="note">每道残局都经过程序验证，只有唯一制胜点。每道残局都要求多步组合：先找到唯一正确的起手点，制造双路威胁；对手封堵一路后，再完成最后一手。不同难度通过干扰棋子数量区分，同难度棋形随机变化。</p>
