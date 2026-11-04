@@ -23,7 +23,11 @@ for(const item of ["offline-config.js","experience.js","offline.css"]){
 mkdirSync(path.join(out,"icons"),{recursive:true});
 copyFileSync(path.join(here,"icons/cat-gomoku.svg"),path.join(out,"icons/cat-gomoku.svg"));
 copyFileSync(path.join(here,"offline-cache.js"),path.join(out,"src/offline-cache.js"));
-execFileSync("python3",[path.join(here,"render-icons.py")],{stdio:"inherit"});
+if(process.env.GOMOKU_ICON_RENDERER==="resvg"){
+ execFileSync(process.execPath,[path.join(here,"desktop/generate-icons.mjs")],{stdio:"inherit"});
+}else{
+ execFileSync(process.platform==="win32"?"python":"python3",[path.join(here,"render-icons.py")],{stdio:"inherit"});
+}
 
 let html=readFileSync(path.join(out,"index.html"),"utf8");
 function swap(original,replacement){
