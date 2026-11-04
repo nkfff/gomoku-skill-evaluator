@@ -6,7 +6,7 @@ import { chooseAI, CELLS } from "../src/engine.js";
 import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
 import {
   UNDO_REQUEST_TIMEOUT_MS, acceptPvpDraw, acceptPvpUndo, applyPvpMove, applySpectatorMovePatch,
-  cancelPvpUndo, createMatchState, declinePvpDraw, declinePvpUndo, expirePvpUndo,
+  cancelPvpDraw, cancelPvpUndo, createMatchState, declinePvpDraw, declinePvpUndo, expirePvpUndo,
   finishByResign, finishByTimeout, offerPvpDraw, offerPvpUndo,
   declinePvpRematch, getIncomingPvpRematchInvite, publicMatchState,
   requestPvpRematch, shouldAnimatePvpDice
@@ -155,6 +155,12 @@ test("PVP draw offer is visible to the opponent and requires explicit acceptance
   const offered = offerPvpDraw(state, "host-id");
   assert.equal(offered.pendingDrawBy, "host-id");
   assert.equal(publicMatchState(offered, "guest-id").pendingDrawBy, "host-id");
+  assert.equal(publicMatchState(offered, "spectator-id", {spectator:true}).pendingDrawBy, "host-id");
+  assert.equal(cancelPvpDraw(offered, "host-id").pendingDrawBy, null);
+  assert.equal(offered.pendingDrawBy, "host-id", "cancelling must not mutate the previous snapshot");
+  assert.throws(() => cancelPvpDraw(offered, "guest-id"), /NOT_DRAW_REQUESTER/);
+  assert.throws(() => cancelPvpDraw(offered, "spectator-id"), /NOT_A_MATCH_PLAYER/);
+  assert.throws(() => cancelPvpDraw(state, "host-id"), /NO_PENDING_DRAW_REQUEST/);
   assert.throws(() => offerPvpDraw(offered, "host-id"), /DRAW_ALREADY_OFFERED/);
   assert.throws(() => offerPvpDraw(offered, "guest-id"), /DRAW_ALREADY_PENDING/);
   assert.throws(() => acceptPvpDraw(offered, "host-id", 2000), /NO_OPPONENT_DRAW_OFFER/);
@@ -168,6 +174,29 @@ test("PVP draw offer is visible to the opponent and requires explicit acceptance
   assert.equal(accepted.endedAt, 3000);
   assert.equal(accepted.pendingDrawBy, null);
   assert.throws(() => declinePvpDraw(offered, "stranger"), /NOT_A_MATCH_PLAYER/);
+});
+
+test("PVP draw popup is driven by live room state, with cancellation and reconnect support", () => {
+  const roomSource = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
+  const uiSource = readFileSync(fileURLToPath(new URL("../pvp-ui.js", import.meta.url)), "utf8");
+  const html = readFileSync(fileURLToPath(new URL("../index.html", import.meta.url)), "utf8");
+  const css = readFileSync(fileURLToPath(new URL("../src/style.css", import.meta.url)), "utf8");
+
+  assert.match(roomSource, /message\.type === "cancel_draw"/);
+  assert.match(roomSource, /type: "draw_cancelled"/);
+  assert.match(uiSource, /function syncDrawModal\(room\)/);
+  assert.match(uiSource, /syncDrawModal\(room\);/);
+  assert.match(uiSource, /pendingBy = room\?\.match\?\.pendingDrawBy/);
+  assert.match(uiSource, /spectatorMode \|\| room\?\.status !== "active"/);
+  for (const id of ["pvpDrawModal","pvpDrawTitle","pvpDrawMessage","pvpDrawAccept","pvpDrawDecline","pvpDrawCancel"]) {
+    assert.equal((html.match(new RegExp('id="' + id + '"', "g")) || []).length, 1, id);
+  }
+  for (const action of ['type: "accept_draw"','type: "decline_draw"','type: "cancel_draw"']) {
+    assert.ok(uiSource.includes(action), action);
+  }
+  assert.match(css, /#pvpDrawCancel\[hidden\]/);
+  assert.match(html, /id="pvpDrawModal"[^>]+aria-modal="true"/);
+  assert.doesNotMatch(html, /id="pvpAcceptDraw"/, "old inline response buttons must not duplicate popup actions");
 });
 
 test("PVP undo request requires opponent consent and blocks conflicting actions", () => {
@@ -481,7 +510,7 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   const css = readFileSync(fileURLToPath(new URL("../src/style.css", import.meta.url)), "utf8");
   const pvpUi = readFileSync(fileURLToPath(new URL("../pvp-ui.js", import.meta.url)), "utf8");
   const pvpRoom = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
-  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","pvpResultModal","pvpResultClose","pvpResultTitle","pvpResultMessage","pvpResultRating","pvpResultContinue","pvpRematchInviteModal","pvpRematchInviteTitle","pvpRematchInviteMessage","pvpRematchInviteFrom","pvpRematchInviteAccept","pvpRematchInviteDecline","pvpUndoModal","pvpUndoTitle","pvpUndoMessage","pvpUndoAccept","pvpUndoDecline","pvpUndoCancel","pvpOfferUndo","aiPodium","pvpPodium"]) {
+  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","pvpResultModal","pvpResultClose","pvpResultTitle","pvpResultMessage","pvpResultRating","pvpResultContinue","pvpRematchInviteModal","pvpRematchInviteTitle","pvpRematchInviteMessage","pvpRematchInviteFrom","pvpRematchInviteAccept","pvpRematchInviteDecline","pvpUndoModal","pvpUndoTitle","pvpUndoMessage","pvpUndoAccept","pvpUndoDecline","pvpUndoCancel","pvpOfferUndo","pvpDrawModal","pvpDrawTitle","pvpDrawMessage","pvpDrawAccept","pvpDrawDecline","pvpDrawCancel","aiPodium","pvpPodium"]) {
     assert.equal((html.match(new RegExp('id="' + id + '"' , "g")) || []).length, 1, id);
   }
   assert.match(html, /class="dice-cube show-5"/);

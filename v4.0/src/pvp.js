@@ -152,6 +152,14 @@ export function declinePvpDraw(state, playerId) {
   return {...state, pendingDrawBy: null};
 }
 
+export function cancelPvpDraw(state, playerId) {
+  if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
+  if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");
+  if (!state.pendingDrawBy) throw new Error("NO_PENDING_DRAW_REQUEST");
+  if (state.pendingDrawBy !== playerId) throw new Error("NOT_DRAW_REQUESTER");
+  return {...state, pendingDrawBy: null};
+}
+
 export function offerPvpUndo(state, playerId, now = Date.now()) {
   if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
   if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");

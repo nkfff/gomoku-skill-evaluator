@@ -1,6 +1,6 @@
 import {
   DEFAULT_TIME_CONTROL_MS, UNDO_REQUEST_TIMEOUT_MS, acceptPvpDraw, acceptPvpUndo, applyPvpMove, calculateElo, createMatchState,
-  cancelPvpUndo, declinePvpDraw, declinePvpRematch, declinePvpUndo, expirePvpUndo,
+  cancelPvpDraw, cancelPvpUndo, declinePvpDraw, declinePvpRematch, declinePvpUndo, expirePvpUndo,
   offerPvpDraw, offerPvpUndo, requestPvpRematch, finishByResign, finishByTimeout, publicMatchState
 } from "../src/pvp.js";
 
@@ -248,6 +248,7 @@ export class PvpRoom {
       if (message.type === "offer_draw") return await this.offerDraw(playerId);
       if (message.type === "accept_draw") return await this.acceptDraw(playerId);
       if (message.type === "decline_draw") return await this.declineDraw(playerId);
+      if (message.type === "cancel_draw") return await this.cancelDraw(playerId);
       if (message.type === "offer_undo") return await this.offerUndo(playerId);
       if (message.type === "accept_undo") return await this.acceptUndo(playerId);
       if (message.type === "decline_undo") return await this.declineUndo(playerId);
@@ -555,6 +556,13 @@ export class PvpRoom {
     this.broadcast({type: "draw_declined", playerId, room: this.snapshot(playerId)});
   }
 
+  async cancelDraw(playerId) {
+    if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
+    this.room.match = cancelPvpDraw(this.room.match, playerId);
+    await this.ctx.storage.put("room", this.room);
+    this.broadcast({type: "draw_cancelled", playerId, room: this.snapshot(playerId)});
+  }
+
   async offerUndo(playerId) {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
     this.room.match = offerPvpUndo(this.room.match, playerId, nowMs());
@@ -802,6 +810,8 @@ export class PvpRoom {
       DRAW_ALREADY_OFFERED: "你已经提出和棋，请等待对手回应",
       DRAW_ALREADY_PENDING: "对手已经提出和棋，请选择接受或拒绝",
       NO_OPPONENT_DRAW_OFFER: "当前没有对手提出的和棋请求",
+      NO_PENDING_DRAW_REQUEST: "当前没有待处理的和棋申请",
+      NOT_DRAW_REQUESTER: "只有申请方可以撤回和棋请求",
       NO_MOVE_TO_UNDO: "当前还没有可以撤回的落子",
       UNDO_ALREADY_PENDING: "已有悔棋申请，请先处理",
       NO_PENDING_UNDO_REQUEST: "当前没有待处理的悔棋申请",
