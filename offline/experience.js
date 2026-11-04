@@ -49,27 +49,7 @@ if(randomPanel){
  randomPanel.querySelector("h2")?.after(bar);
 }
 const playerPanel=$("panel-leaderboard");
-if(playerPanel){
- const h2=playerPanel.querySelector("h2");
- if(h2)h2.textContent="在线排行榜";
- const install=document.createElement("section");install.className="offline-install";
- const heading=document.createElement("strong");heading.textContent="🐱 把猫猫棋局装进口袋";
- const message=document.createElement("p");message.textContent="联网时登录账号、与好友对战；断网时继续本地 AI、残局和复盘。";
- const button=document.createElement("button");button.type="button";button.textContent="安装到设备";
- install.append(heading,message,button);playerPanel.append(install);
- let installPrompt=null;
- window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();installPrompt=event;button.disabled=false;});
- button.addEventListener("click",async()=>{
-  if(globalThis.Capacitor?.isNativePlatform?.())return;
-  if(installPrompt){
-   const prompt=installPrompt;installPrompt=null;
-   await prompt.prompt();await prompt.userChoice;return;
-  }
-  const apple=/iPad|iPhone|iPod/.test(navigator.userAgent);
-  message.textContent=apple?"iPhone/iPad：使用 Safari 打开离线版，点分享 → 添加到主屏幕。":"使用浏览器菜单中的「安装应用」或「添加到主屏幕」。";
- });
- if(globalThis.Capacitor?.isNativePlatform?.()){button.hidden=true;message.textContent="已安装猫猫棋局 App。联网与离线玩法共用同一套游戏界面。";}
-}
+if(playerPanel){const h2=playerPanel.querySelector("h2");if(h2)h2.textContent="在线排行榜";}
 const accountPanel=$("panel-account");
 if(accountPanel){
  const shortcuts=document.createElement("div");shortcuts.className="hybrid-shortcuts";
@@ -101,7 +81,7 @@ if(gameStats){
  });
 }
 window.addEventListener("gomoku:tab-change",event=>{
- const tab=event.detail?.tab,selected=tab==="random"?"puzzle":tab==="replay"?"game":tab;
+ const tab=event.detail?.tab,selected=tab==="random"?"puzzle":tab;
  if(matchMedia("(max-width:720px)").matches&&selected){
   for(const [id] of links)$("tab-"+id)?.classList.toggle("active",id===selected);
  }
