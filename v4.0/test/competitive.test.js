@@ -438,6 +438,14 @@ test("PVP frontend restores each signed-in player's room and does not replay rev
   assert.match(pvpUi, /spectatorMode/);
   assert.match(pvpUi, /pvpSpectatorPanel/);
   assert.match(pvpUi, /pvpThinkClock/);
+  assert.match(pvpUi, /function syncIdleModal/);
+  assert.match(pvpUi, /pvpIdleCountdown/);
+  assert.match(pvpUi, /type: "continue_idle"/);
+  assert.match(pvpUi, /type: "ping"/);
+  assert.match(pvpUi, /lastPongAt/);
+  assert.match(pvpUi, /ack-result/);
+  assert.match(pvpUi, /resultSeenByPlayer/);
+  assert.match(pvpUi, /type: "leave_room"/);
   assert.match(pvpUi, /applySpectatorMovePatch/);
   assert.match(pvpUi, /if \(spectatorMode\) return;/);
   assert.match(pvpUi, /if \(!spectatorMode && roomState && roomState\.match/);
@@ -565,7 +573,7 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   const css = readFileSync(fileURLToPath(new URL("../src/style.css", import.meta.url)), "utf8");
   const pvpUi = readFileSync(fileURLToPath(new URL("../pvp-ui.js", import.meta.url)), "utf8");
   const pvpRoom = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
-  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","pvpResultModal","pvpResultClose","pvpResultTitle","pvpResultMessage","pvpResultRating","pvpResultContinue","pvpRematchInviteModal","pvpRematchInviteTitle","pvpRematchInviteMessage","pvpRematchInviteFrom","pvpRematchInviteAccept","pvpRematchInviteDecline","pvpUndoModal","pvpUndoTitle","pvpUndoMessage","pvpUndoAccept","pvpUndoDecline","pvpUndoCancel","pvpOfferUndo","pvpDrawModal","pvpDrawTitle","pvpDrawMessage","pvpDrawAccept","pvpDrawDecline","pvpDrawCancel","aiPodium","pvpPodium"]) {
+  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","pvpIdleModal","pvpIdleTitle","pvpIdleMessage","pvpIdleCountdown","pvpIdleContinue","pvpIdleExit","pvpResultModal","pvpResultClose","pvpResultTitle","pvpResultMessage","pvpResultRating","pvpResultContinue","pvpRematchInviteModal","pvpRematchInviteTitle","pvpRematchInviteMessage","pvpRematchInviteFrom","pvpRematchInviteAccept","pvpRematchInviteDecline","pvpUndoModal","pvpUndoTitle","pvpUndoMessage","pvpUndoAccept","pvpUndoDecline","pvpUndoCancel","pvpOfferUndo","pvpDrawModal","pvpDrawTitle","pvpDrawMessage","pvpDrawAccept","pvpDrawDecline","pvpDrawCancel","aiPodium","pvpPodium"]) {
     assert.equal((html.match(new RegExp('id="' + id + '"' , "g")) || []).length, 1, id);
   }
   assert.match(html, /class="dice-cube show-5"/);
