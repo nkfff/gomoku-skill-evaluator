@@ -123,6 +123,7 @@
 </div>
 <div class="controls">
 <button id="pvpOfferDraw">提出和棋</button>
+<button id="pvpOfferUndo" hidden>申请悔棋</button>
 <button id="pvpAcceptDraw" hidden>接受和棋</button>
 <button id="pvpDeclineDraw" hidden>拒绝和棋</button>
 <button id="pvpResign">认输</button><button id="pvpRematch" class="primary" hidden>再来一局</button><button id="pvpNewMatch" hidden>重新匹配</button>
@@ -156,6 +157,20 @@
   <div class="pvp-rematch-invite-actions">
    <button id="pvpRematchInviteDecline" type="button">暂不继续</button>
    <button id="pvpRematchInviteAccept" class="primary" type="button">接受邀请</button>
+  </div>
+ </div>
+</div>
+<div id="pvpUndoModal" class="pvp-undo-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pvpUndoTitle" aria-describedby="pvpUndoMessage">
+ <div class="pvp-undo-backdrop"></div>
+ <div class="pvp-undo-card">
+  <div class="pvp-undo-mark" aria-hidden="true">↶</div>
+  <span class="eyebrow">UNDO REQUEST</span>
+  <h2 id="pvpUndoTitle">收到悔棋申请</h2>
+  <p id="pvpUndoMessage">对手申请撤回上一手，是否同意？</p>
+  <div class="pvp-undo-actions">
+   <button id="pvpUndoCancel" type="button" hidden>撤回申请</button>
+   <button id="pvpUndoDecline" type="button">拒绝悔棋</button>
+   <button id="pvpUndoAccept" class="primary" type="button">同意悔棋</button>
   </div>
  </div>
 </div>

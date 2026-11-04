@@ -8,7 +8,7 @@ export function buildMoveInsight(moves,index,playerColor){
  let verdict="待分析",explanation="",recommendation="",kind="neutral";
  if(category.includes("不可避免")){verdict="局面已难以挽回";explanation="在这一步之前，对手已经形成无法通过单手全部化解的直接成五威胁。本手不应被简单归类为主要失误，真正需要回看的是更早出现的防守窗口。";recommendation="向前回看 1–3 手，寻找对手形成连续威胁之前的封堵点；遇到双重威胁时，优先阻止威胁形成。";}
  else if(category.includes("漏杀")){verdict="错过直接胜点";kind="error";explanation="落子前己方已经存在直接成五的机会，但本手没有完成终结。能够立即获胜的着法优先级高于继续扩张棋形。";recommendation="候选落点："+alt+"。复盘时先枚举自己下一手能否成五，再考虑制造活三、冲四或扩大势力。";}
- else if(category.includes("漏防")){verdict="漏掉强制防守";kind="error";explanation="落子前对手已经拥有直接成五点，本手没有有效封堵。此时继续进攻通常没有意义，因为对手下一手即可结束对局。";recommendation="优先检查："+alt+"。每次对手落子后，先扫描其是否出现一步成五点，再决定自己的进攻计划。";}
+ else if(category.includes("漏防")){verdict="漏掉强制防守";kind="error";explanation="落子前对手已经拥有直接成五点，本手没有有效封堵。此时继续进攻通常没有意义，因为对手下一手即可结束对局。";recommendation="优先检查候选落点："+alt+"。每次对手落子后，先扫描其是否出现一步成五点，再决定自己的进攻计划。";}
  else if(category.includes("抓住直接胜点")){verdict="抓住必胜机会";kind="good";explanation="这一步识别并兑现了直接成五机会，是明确的强制着法。关键是及时发现可以结束对局的落点。";recommendation="保持这个检查顺序：先看自己能否直接获胜，再看对手是否有直接胜点，最后才比较普通攻防候选。";}
  else if(category.includes("成功化解")){verdict="完成关键防守";kind="good";explanation="这一步优先处理了对手的直接成五威胁，避免了立即失利。面对强制威胁时，先保住局面再寻找反击，是正确的决策顺序。";recommendation="防守后继续检查是否留下反击点，以及对手是否仍有连续冲四或双重威胁。";}
  else if(category.includes("严重失误")){verdict="严重偏离搜索首选";kind="error";explanation="有限深度的本地搜索认为，本手与当前候选中的较优着法存在明显差距。它不等于职业引擎的绝对判决，但值得重点复盘。";recommendation="搜索给出的优先候选为："+alt+"。比较这些点分别回应了什么威胁、能否形成连续攻势，以及对手最强应手是什么。";}
