@@ -1,0 +1,64 @@
+{
+  "name": "cat-gomoku-offline-desktop",
+  "version": "0.1.0-beta.1",
+  "private": true,
+  "description": "Cat Gomoku Offline desktop installers",
+  "main": "main.cjs",
+  "scripts": {
+    "icons": "node generate-icons.mjs",
+    "start": "electron .",
+    "pack:mac": "electron-builder --mac dmg --publish never",
+    "pack:win": "electron-builder --win nsis --publish never",
+    "pack:linux": "electron-builder --linux AppImage --publish never",
+    "check": "node --check main.cjs && node --check generate-icons.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "electron": "45.2.2",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "io.github.nkfff.gomoku.offline",
+    "productName": "猫猫棋局",
+    "asar": true,
+    "files": [
+      "main.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "web",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "dist-installers"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "../assets/icon.icns",
+      "category": "public.app-category.games"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "../assets/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "../assets/icon.png",
+      "category": "Game"
+    },
+    "artifactName": "cat-gomoku-offline-${version}-${os}-${arch}.${ext}",
+    "publish": null
+  }
+}
