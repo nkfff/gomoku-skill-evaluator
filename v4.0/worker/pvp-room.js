@@ -84,6 +84,10 @@ export class PvpRoom {
           };
         }
       }
+      if (this.room.status === "cancelled" &&
+          (!Number.isFinite(Number(this.room.expiresAt)) || Number(this.room.expiresAt) > now + 365 * 24 * 60 * 60_000)) {
+        this.room.expiresAt = now + CANCELLED_ROOM_RETENTION_MS;
+      }
       if (this.room.status === "active" && !Object.prototype.hasOwnProperty.call(this.room, "idleAcknowledgedAt")) {
         this.room.idleAcknowledgedAt = now;
       }
@@ -915,9 +919,10 @@ export class PvpRoom {
     this.room.settlementPending = true;
     this.room.unratedAbortPending = false;
     this.room.expiresAt = nowMs() + FINISHED_ROOM_RETENTION_MS;
-    this.room.resultSeenByPlayer = this.room.resultSeenByPlayer || {
-      [this.room.hostPlayerId]: false,
-      [this.room.guestPlayerId]: false
+    this.room.resultSeenByPlayer = {
+      ...(this.room.resultSeenByPlayer || {}),
+      [this.room.hostPlayerId]: this.room.resultSeenByPlayer?.[this.room.hostPlayerId] ?? false,
+      [this.room.guestPlayerId]: this.room.resultSeenByPlayer?.[this.room.guestPlayerId] ?? false
     };
     await this.ctx.storage.put("room", this.room);
     try {
