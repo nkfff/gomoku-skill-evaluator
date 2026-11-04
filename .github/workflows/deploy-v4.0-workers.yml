@@ -6,6 +6,8 @@ on:
     paths:
       - ".github/workflows/deploy-v4.0-workers.yml"
       - "v4.0/worker/index.js"
+      - "v4.0/src/rewards.js"
+      - "v4.0/src/gunuce-search.js"
       - "v4.0/worker/review-coach.js"
       - "v4.0/wrangler.v2.toml"
       - "v4.0/worker/v3.js"
@@ -49,7 +51,7 @@ jobs:
       - name: Install V4.0 dependencies
         working-directory: v4.0
         run: npm install
-      - name: Run V4.0 worker and regression tests
+      - name: Run V4.0 Worker regression tests
         working-directory: v4.0
         run: npm test
       - name: Inject D1 database ID
