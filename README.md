@@ -2,9 +2,17 @@
 
 > 一个集 AI 对弈、棋力评估、残局训练、随机连珠与好友真人 PVP 于一体的浏览器五子棋项目。
 
-**当前稳定版本：** [V4.0.11](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)  
+**当前稳定版本：** [V4.0.12](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)  
 **离线单机版（Beta）：** [GitHub Release · Android / iOS 模拟器 / macOS / Windows / Linux / PWA](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.1)  
 **项目档案：** [完整开发规划与历史记录](docs/DEVELOPMENT_ROADMAP.md)
+
+## V4.0.12 · PVP 对局生命周期（2026-11-04）
+
+- 60 秒未落子弹窗提醒，30 秒内确认继续；棋钟不会因确认而重置。
+- 单方断线 60 秒内允许重连，超时判负；双方断线则自动中止，不计算 Elo。
+- 等待房间 30 分钟闲置过期，对局结束后保留 10 分钟供双方查看结果与发起再战；双方主动离开则提前关闭房间。
+- 连接心跳、结果已读记录、对局历史中的具体结束原因均已加入；退出通知通过 HTTP 确认，避免网络关闭时丢失。
+  [在线体验](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/) · [版本详情](v4.0/README.md)
 
 ## V4.0.10 · 复盘隔离与棋局 AI 教练（2026-11-04）
 
