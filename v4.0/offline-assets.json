@@ -1,11 +1,11 @@
 {
   "version": "4.0.12",
-  "cacheVersion": "4046eb6595ea66ca-hybrid-1",
+  "cacheVersion": "4046eb6595ea66ca-hybrid-2",
   "onnxruntime": "1.31.1",
   "files": {
     "index.html": "c2bbd77d6a1ed9f4452c92e3cc2f5f841f78ec51d22dfd4ff9c0ebb01fecf7db",
     "config.js": "a912311267c2dac8e20aa8e21c8617e19964ac21404b9c1c607073f10ed53bda",
-    "pvp-ui.js": "c5a7efaa6df0cf54b75bad716e38b4133e1a8a2e536c7ecbd13f005705b0093d",
+    "pvp-ui.js": "b57afa14d75c1abef9281be4215b2fc86035ea033e8185f7da722d240a336e72",
     "special-modes-ui.js": "af6aa67d341e75b886b45d03efdeaf971a715feb8d28a128f7fc183049da1a9c",
     "models/model.json": "f087d97051cd4f62d2404a37ed98927d7a86cf59cc54881e436e37315dfa1893",
     "models/gunuce.onnx": "23d38cef34cb63ebd537a3b34be3f5042f05a24688c98a840b55c4e1a9ee0602",
