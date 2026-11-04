@@ -150,7 +150,7 @@ jobs:
       - name: Stage installer
         run: |
           mkdir -p release-assets
-          cp offline/desktop/dist-installers/* release-assets/
+          cp offline/desktop/dist-installers/*.AppImage release-assets/
       - uses: actions/upload-artifact@v4
         with:
           name: release-desktop-linux
@@ -182,7 +182,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets
-          cp offline/desktop/dist-installers/* release-assets/
+          cp offline/desktop/dist-installers/*.exe release-assets/
       - uses: actions/upload-artifact@v4
         with:
           name: release-desktop-windows
@@ -213,7 +213,7 @@ jobs:
       - name: Stage installer
         run: |
           mkdir -p release-assets
-          cp offline/desktop/dist-installers/* release-assets/
+          cp offline/desktop/dist-installers/*.dmg release-assets/
       - uses: actions/upload-artifact@v4
         with:
           name: release-desktop-macos
