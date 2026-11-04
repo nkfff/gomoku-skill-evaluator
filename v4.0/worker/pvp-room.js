@@ -432,6 +432,122 @@ export class PvpRoom {
     await this.scheduleNextAlarm();
   }
 
+  async continueIdle(playerId) {
+    if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
+    const prompt = this.room.idlePrompt;
+    if (!prompt || prompt.playerId !== playerId) throw new Error("NO_IDLE_PROMPT_FOR_PLAYER");
+    const now = nowMs();
+    if (isPvpIdlePromptExpired(prompt, now)) {
+      this.room.match = finishByTimeout(this.room.match, playerId, now);
+      await this.finishMatch("idle_timeout");
+      return;
+    }
+    this.room.idlePrompt = null;
+    this.room.idleAcknowledgedAt = now;
+    await this.ctx.storage.put("room", this.room);
+    await this.scheduleNextAlarm();
+    this.broadcast({type: "idle_dismissed", playerId, room: true});
+  }
+
+  async acknowledgeResultForPlayer(playerId) {
+    this.requireMember(playerId);
+    if (this.room.status !== "finished" || !this.room.match) throw new Error("MATCH_NOT_FINISHED");
+    this.room.resultSeenByPlayer = {
+      ...(this.room.resultSeenByPlayer || {}),
+      [playerId]: true
+    };
+    await this.ctx.storage.put("room", this.room);
+    this.broadcast({type: "result_acknowledged", playerId, room: true});
+  }
+
+  async acknowledgeResult(request) {
+    const playerId = request.headers.get("x-player-id") || "";
+    await this.acknowledgeResultForPlayer(playerId);
+    return json({ok: true});
+  }
+
+  async leaveRoom(playerId) {
+    this.requireMember(playerId);
+    if (this.room.status !== "finished") throw new Error("MATCH_NOT_FINISHED");
+    this.room.leftByPlayer = {...(this.room.leftByPlayer || {}), [playerId]: true};
+    await this.ctx.storage.put("room", this.room);
+    if (this.room.leftByPlayer[this.room.hostPlayerId] && this.room.leftByPlayer[this.room.guestPlayerId]) {
+      await this.expireRoom("both_players_left");
+      return;
+    }
+    await this.scheduleNextAlarm();
+    this.broadcast({type: "player_left_room", playerId, room: true});
+  }
+
+  async finishAbandonedMatch() {
+    const match = this.room && this.room.match;
+    if (!match || (!this.room.unratedAbortPending && match.status !== "active")) return;
+    if (!this.room.unratedAbortPending) {
+      const now = nowMs();
+      match.status = "finished";
+      match.result = null;
+      match.winnerPlayerId = null;
+      match.endReason = "both_disconnected";
+      match.endedAt = now;
+      match.turnPlayerId = null;
+      match.turnColor = null;
+      match.pendingDrawBy = null;
+      match.pendingUndo = null;
+      match.finalRatings = null;
+      this.room.status = "finished";
+      this.room.idlePrompt = null;
+      this.room.rematchByPlayer = {};
+      this.room.settlementPending = true;
+      this.room.unratedAbortPending = true;
+      this.room.expiresAt = now + FINISHED_ROOM_RETENTION_MS;
+      this.room.resultSeenByPlayer = {
+        [this.room.hostPlayerId]: false,
+        [this.room.guestPlayerId]: false
+      };
+      await this.ctx.storage.put("room", this.room);
+    }
+    try {
+      await this.env.DB.batch([
+        this.env.DB.prepare("UPDATE pvp_matches SET status='finished',result=NULL,end_reason='disconnect_timeout',end_reason_detail='both_disconnected',ended_at=datetime('now') WHERE id=? AND status='active'")
+          .bind(match.matchId),
+        this.env.DB.prepare("DELETE FROM pvp_active_players WHERE match_id=?").bind(match.matchId),
+        this.env.DB.prepare("UPDATE pvp_rooms SET status='finished',expires_at=datetime('now','+10 minutes'),ended_at=datetime('now') WHERE id=?")
+          .bind(this.room.roomId)
+      ]);
+      this.room.settlementPending = false;
+      this.room.unratedAbortPending = false;
+      await this.ctx.storage.put("room", this.room);
+      await this.scheduleNextAlarm();
+    } catch {
+      await this.ctx.storage.setAlarm(nowMs() + 5000);
+      throw new Error("SETTLEMENT_PENDING");
+    }
+    this.broadcast({type: "game_abandoned", room: this.snapshot(match.blackPlayerId)});
+  }
+
+  async expireRoom(reason = "expired") {
+    if (!this.room) return;
+    this.room.status = "expired";
+    this.room.expirationPending = true;
+    this.room.expiredReason = reason;
+    await this.ctx.storage.put("room", this.room);
+    try {
+      await this.env.DB.prepare(
+        "UPDATE pvp_rooms SET status='expired',expires_at=datetime('now'),ended_at=COALESCE(ended_at,datetime('now')) WHERE id=? AND status IN ('waiting','ready','finished','cancelled','expired')"
+      ).bind(this.room.roomId).run();
+      this.broadcast({type: "room_state", room: this.snapshot(this.room.hostPlayerId)});
+      for (const socket of this.ctx.getWebSockets()) {
+        try { socket.close(1000, "PVP room expired"); } catch {}
+      }
+      await this.ctx.storage.delete("room");
+      await this.ctx.storage.deleteAlarm();
+      this.room = null;
+    } catch {
+      await this.ctx.storage.setAlarm(nowMs() + 5000);
+      throw new Error("ROOM_EXPIRY_PENDING");
+    }
+  }
+
   async markReady(playerId) {
     if (this.room.status !== "ready") throw new Error("ROOM_NOT_READY");
     this.room.readyByPlayer[playerId] = true;
