@@ -1,12 +1,12 @@
 # 猫猫棋局 · 全平台离线版（开发预览）
 
-> 本目录是独立于在线 V4 的单机发行工程。**尚未发布 APK、IPA、桌面安装包或正式 Release。** 不修改在线 Pages、PVP、Supabase、Cloudflare 的服务配置。
+> 本目录是独立于在线 V4 的单机发行工程。**目前已在 CI 生成调试用 APK、iOS 模拟器应用与未签名桌面安装包，**仍未创建正式 Release**。** 不修改在线 Pages、PVP、Supabase、Cloudflare 的服务配置。
 
 ## 支持范围与当前边界
 
 - Web/PWA：AI 三档、Gunuce 本地 ONNX+WASM/WebGPU、残局、随机连珠、复盘、皮肤与本地积分，均复用 V4 引擎。
 - Android/iOS：采用 Capacitor 8，将静态资源随 App 内置，首次启动不需要网络。当前仅有项目生成和打包脚本，**仍需真实设备验证**。
-- macOS/Windows/Linux：下一阶段做独立打包，当前尚无桌面安装包。
+- macOS/Windows/Linux：Electron 的独立打包流程已接入，CI 可生成未签名安装包，仍需目标设备验收。
 - 不提供在线登录、PVP、观战、云端积分或服务器排行榜。本地积分独立；卸载或清理数据可能丢失。
 - PWA 第一次打开需联网下载包括 Gunuce 模型与 WASM 的离线资源，直到显示“可断网使用”。原生 Android/iOS 将资源打入安装包。
 
@@ -55,3 +55,5 @@ Capacitor 依赖固定在 8.6.0；生成目录暂不纳入 Git，避免改动在
 ## macOS / Windows / Linux 桌面版
 
 独立 Electron 安装包构建已在 `offline/desktop/` 中提供。使用 `gomoku://app` 安全源加载本地 Worker 与 WASM，复用 Android/iOS 同一套单机逻辑。参见 [desktop/README.md](desktop/README.md)。当前未签名，正式 Release 前仍需 CI 和目标机器验收。
+
+**版本命名**：离线版独立从 `offline-v0.1.0-beta.1` 起步；线上版本继续为 V4.0.x，训练研究分支 V4.1.x 保持独立。原生安装包仍为测试版。

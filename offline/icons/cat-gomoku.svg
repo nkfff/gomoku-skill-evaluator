@@ -3,6 +3,7 @@
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFF8ED"/><stop offset="1" stop-color="#FCE0D8"/></linearGradient>
     <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFDF7"/><stop offset="1" stop-color="#F9E9D7"/></linearGradient>
   </defs>
+  <rect width="1024" height="1024" fill="#FFF8ED"/>
   <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
   <circle cx="828" cy="185" r="48" fill="#F7C6C0" opacity=".47"/>
   <circle cx="200" cy="785" r="63" fill="#F0CEB0" opacity=".32"/>

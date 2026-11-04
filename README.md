@@ -14,6 +14,10 @@
 
 技术架构：前端使用 HTML/CSS/JavaScript，部署于 GitHub Pages；账号认证使用 Supabase；云端业务使用 Cloudflare Workers、D1 与 Durable Objects。
 
+## 离线多端版（独立开发预览）
+
+离线单机发行线位于 [`offline/`](offline/README.md)，版本独立命名为 `offline-v0.1.0-beta.1`，计划覆盖 **Android、iOS、macOS、Windows、Linux**；基于现有本地 AI/Gunuce 引擎，云端账号与 PVP 不包含在单机版中。Android 调试 APK、iOS 模拟器应用以及桌面安装包已接入 CI 构建，但**尚未真机验收或正式创建 Release**。此发行线与 V4.1 神经网络训练研究分支无关。
+
 ## 版本更新记录
 
 按发布日期倒序排列；每个版本仅保留核心变化，完整功能、技术细节和测试记录请查看对应文档。
