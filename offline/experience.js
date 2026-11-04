@@ -1,4 +1,4 @@
-// Offline-only presentation and touch navigation; core gameplay remains in v4.0.
+// Hybrid native presentation and touch navigation; core gameplay remains in v4.0.
 const $=id=>document.getElementById(id);
 const links=[
  ["game","🐾","对弈"],["replay","🧠","复盘"],["puzzle","🎯","挑战"],["pvp","♟","好友"],["account","🐱","我的"]
