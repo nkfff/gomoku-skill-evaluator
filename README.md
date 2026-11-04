@@ -3,7 +3,7 @@
 > 一个集 AI 对弈、棋力评估、残局训练、随机连珠与好友真人 PVP 于一体的浏览器五子棋项目。
 
 **当前稳定版本：** [V4.0.12](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)  
-**离线单机版（Beta）：** [offline-v0.1.0-beta.2 · macOS 双架构 / Android / iOS 模拟器 / Windows / Linux / PWA](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2)  
+**离线原生 App（Hybrid Beta）：** [offline-v0.1.0-beta.3 · 账号登录 / AI复盘 / 好友 PVP / 离线单机](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.3)  
 **项目档案：** [完整开发规划与历史记录](docs/DEVELOPMENT_ROADMAP.md)
 
 ## V4.0.12 · 每日 AI 额度及棋盘联动复盘（2026-11-04）
@@ -28,27 +28,35 @@
 
 技术架构：前端使用 HTML/CSS/JavaScript，部署于 GitHub Pages；账号认证使用 Supabase；云端业务使用 Cloudflare Workers、D1 与 Durable Objects。
 
-## 离线多端版 · Offline Edition
+## 离线原生 App · Hybrid Edition
 
-**当前离线 Beta：** [offline-v0.1.0-beta.2 · 全平台下载](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2)（2026-11-04）
+**当前版本：** [offline-v0.1.0-beta.3 · 下载全部平台]( https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.3 )
 
-本次修复旧版 macOS 应用签名封装错误（`code has no resources but signature indicates they must be present`），新增 Intel x64 DMG。两种 macOS DMG 在 CI 均经过挂载、代码签名结构校验及架构验证。**测试版仍为 ad-hoc 签名，未通过 Apple Developer ID 公证，Gatekeeper 仍可能拦截。**
+这不再是纯离线单机壳，而是一个 **local-first Hybrid App**：游戏、AI、模型和 UI 资源随 App 内置；联网时在 App 内登录现有账号，使用在线 AI 棋局教练、云端积分/排行榜和好友 PVP；断网时继续本地 AI、残局、随机连珠和本地复盘。游戏不需要打开外部浏览器，Electron / Capacitor 使用 App 内置 WebView 渲染本地资源，并直接请求现有 Cloudflare Workers / Supabase API。
 
-| 平台 | 永久下载 | 说明 |
+| 平台 | 下载 | 说明 |
 |---|---|---|
-| macOS Apple Silicon | [arm64 DMG](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.2/cat-gomoku-offline-0.1.0-beta.2-mac-arm64.dmg) | M1/M2/M3/M4；签名结构验证通过，未公证 |
-| macOS Intel | [x64 DMG](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.2/cat-gomoku-offline-0.1.0-beta.2-mac-x64.dmg) | Intel Mac；签名结构验证通过，未公证 |
-| Android | [APK](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.2/Gomoku_Offline_Android_Debug_offline-v0.1.0-beta.2.apk) | Debug 测试签名 |
-| iOS | [Simulator ZIP](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.2/Gomoku_Offline_iOS_Simulator_offline-v0.1.0-beta.2.zip) | 仅模拟器，**不是直接安装到 iPhone 的签名 IPA** |
-| Windows | [x64 EXE](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.2/cat-gomoku-offline-0.1.0-beta.2-win-x64.exe) | 未正式签名 |
-| Linux | [x86_64 AppImage](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.2/cat-gomoku-offline-0.1.0-beta.2-linux-x86_64.AppImage) | 测试版 |
-| Web / PWA | [离线网页 ZIP](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.2/Gomoku_Offline_PWA_offline-v0.1.0-beta.2.zip) | 首次缓存完成后可断网 |
+| macOS Apple Silicon | [arm64 DMG](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.3/cat-gomoku-offline-0.1.0-beta.3-mac-arm64.dmg) | M 系列；签名结构已验证，尚未 Apple 公证 |
+| macOS Intel | [x64 DMG](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.3/cat-gomoku-offline-0.1.0-beta.3-mac-x64.dmg) | Intel Mac；签名结构已验证，尚未 Apple 公证 |
+| Windows | [x64 EXE](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.3/cat-gomoku-offline-0.1.0-beta.3-win-x64.exe) | 测试安装包 |
+| Linux | [x86_64 AppImage](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.3/cat-gomoku-offline-0.1.0-beta.3-linux-x86_64.AppImage) | 测试安装包 |
+| Android | [Debug APK](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.3/Gomoku_Offline_Android_Debug_offline-v0.1.0-beta.3.apk) | 可安装测试版，尚非 Play Store 正式签名 |
+| iOS | [Simulator ZIP](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.3/Gomoku_Offline_iOS_Simulator_offline-v0.1.0-beta.3.zip) | **仅 iOS 模拟器，不是 iPhone 真机 IPA** |
+| Web / PWA | [离线网页 ZIP](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.3/Gomoku_Offline_PWA_offline-v0.1.0-beta.3.zip) | 首次缓存完成后可断网 |
 
-**iPhone 真机版本：** 已新增 [Ad Hoc 签名 IPA 工作流](.github/workflows/offline-iphone-sign.yml) 和 [证书配置说明](offline/ios-sign/README.md)。需 Apple Developer 证书及已登记设备的描述文件，才能产生可安装的 IPA。公开分发给所有 iPhone 用户应使用 TestFlight/App Store。
+**联网能力：**
+- 复用现有 Supabase 账号和 V2 Cloudflare Worker：登录、云端资料/积分、排行榜、在线 AI 复盘。
+- 复用现有 V3 Worker + Durable Objects：好友 PVP、观战、悔棋/和棋申请、真人 Elo。
+- 已部署并验证 iOS Capacitor、Android Capacitor、Electron 三种原生 Origin 的 V2/V3 CORS。
+- 断网时本地游戏不受影响；联网恢复后自动重试账号初始化和待同步对局成绩。PVP 必须联网，且仍遵守服务端断线宽限期。
 
-**macOS 免安全提示版本：** 已增加 [Developer ID 签名与 Apple 公证工作流](.github/workflows/offline-macos-notarized.yml)，需要维护者提供 Apple 证书和公证凭据。目前公开的两个 DMG 均不应标注为已公证。
+**发布边界：**
+- iPhone 真机签名 IPA 仍需 Apple Distribution 证书及 Ad Hoc 设备描述文件；公开分发建议 TestFlight。
+- macOS DMG 已通过签名资源结构和架构验证，但尚未 Developer ID 公证，Gatekeeper 仍可能提示风险。
+- Android 当前为 Debug APK；Windows/Linux 尚未完成正式代码签名。
+- App 使用嵌入式 WebView 加载本地游戏，不是原生 SwiftUI/Jetpack Compose 重写；但玩家无需打开浏览器网页进行游戏。
 
-[最新 Release](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2) · [旧版 beta.1](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.1) · [离线版文档](offline/README.md) · [签名修复 PR #65](https://github.com/nkfff/gomoku-skill-evaluator/pull/65)
+[GitHub Release](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.3) · [离线/Hybrid 架构与签名说明](offline/README.md) · [Hybrid 升级 PR #68](https://github.com/nkfff/gomoku-skill-evaluator/pull/68)
 
 ## 版本更新记录
 
