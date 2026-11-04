@@ -10,17 +10,17 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag, for example offline-v0.1.0-beta.3"
+        description: "Release tag, for example offline-v0.1.0-beta.4"
         required: true
         type: string
-        default: "offline-v0.1.0-beta.3"
+        default: "offline-v0.1.0-beta.4"
 permissions:
   contents: read
 env:
-  RELEASE_TAG: ${{ inputs.release_tag || (github.ref_type == 'tag' && github.ref_name) || 'offline-v0.1.0-beta.3' }}
+  RELEASE_TAG: ${{ inputs.release_tag || (github.ref_type == 'tag' && github.ref_name) || 'offline-v0.1.0-beta.4' }}
 jobs:
   web-pwa:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.3')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.4')) }}
     name: Build offline PWA archive
     runs-on: ubuntu-latest
     steps:
@@ -46,7 +46,7 @@ jobs:
           retention-days: 7
 
   android:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.3')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.4')) }}
     name: Build Android debug APK
     runs-on: ubuntu-latest
     steps:
@@ -89,7 +89,7 @@ jobs:
           retention-days: 7
 
   ios-simulator:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.3')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.4')) }}
     name: Build iOS Simulator app (not IPA)
     runs-on: macos-15
     steps:
@@ -128,7 +128,7 @@ jobs:
           retention-days: 7
 
   desktop-linux:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.3')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.4')) }}
     name: Build Linux AppImage
     runs-on: ubuntu-latest
     env:
@@ -159,7 +159,7 @@ jobs:
           retention-days: 7
 
   desktop-windows:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.3')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.4')) }}
     name: Build Windows installer
     runs-on: windows-latest
     env:
@@ -191,7 +191,7 @@ jobs:
           retention-days: 7
 
   desktop-macos:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.3')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.4')) }}
     name: Build macOS DMG
     runs-on: macos-15
     env:
@@ -222,7 +222,7 @@ jobs:
           retention-days: 7
 
   desktop-macos-intel:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.3')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.4')) }}
     name: Build and verify Intel x64 macOS DMG
     runs-on: macos-15
     env:
@@ -259,7 +259,7 @@ jobs:
           retention-days: 7
 
   publish-release:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.3')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.4')) }}
     name: Publish GitHub prerelease
     runs-on: ubuntu-latest
     needs:
@@ -285,7 +285,7 @@ jobs:
       - name: Write beta release notes
         run: |
           cat > release-notes.md <<'EOF'
-          ## 猫猫棋局 · Offline Edition Beta
+          ## 猫猫棋局 · Hybrid App Beta.4\n\n- 修复浅色 App 外壳与夜间/金色棋盘主题的 CSS 变量冲突。\n- 统一提升正文、辅助说明、统计标签、导航、按钮、表格、AI 复盘及 PVP 状态的可读性。\n- 对全部 6 种棋盘皮肤 × 6 种棋子皮肤加入 WCAG AA 对比度回归测试。\n\n## 猫猫棋局 · Offline Edition Beta
 
           这是独立原生 Hybrid App 预览。游戏界面与资源内置于安装包；联网功能直接连接现有 Cloudflare Workers / Supabase，不需要通过浏览器打开网页。版本不影响在线 V4.0.x，也不属于 V4.1 AI 训练研究分支。
 
