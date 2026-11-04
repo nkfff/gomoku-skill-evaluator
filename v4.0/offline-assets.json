@@ -30,6 +30,6 @@
     "vendor/ort/ort-wasm-simd-threaded.mjs": "30ed0b5cd1182ede931fea448afb567d4dc705ec957af09f108a2be5f770dac3",
     "vendor/ort/ort-wasm-simd-threaded.wasm": "4b884c203b0fa48d057be3332c65513ff85aa3c5bddd6946acc0fab7ecda001d"
   },
-  "totalAssetBytes": 48538498,
+  "totalAssetBytes": 48538572,
   "note": "Runtime/model cached lazily on first Gunuce use. No inference endpoint."
 }
