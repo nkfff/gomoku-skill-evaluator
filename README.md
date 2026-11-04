@@ -21,6 +21,27 @@
 
 技术架构：前端使用 HTML/CSS/JavaScript，部署于 GitHub Pages；账号认证使用 Supabase；云端业务使用 Cloudflare Workers、D1 与 Durable Objects。
 
+## 离线多端版 · Offline Edition
+
+<sub>当前开发版本：<strong>offline-v0.1.0-beta.1</strong> · Android / iOS / macOS / Windows / Linux / PWA</sub>
+
+**六个平台的 CI 测试构建已完成；正式 GitHub Release 尚未发布。** 先提供当前测试包下载入口。完成 Android/iPhone 真机验收并合并离线版 PR 后，再发布带长期下载资产的 Beta Release。
+
+| 平台 | 当前测试包 / 下载入口 | 说明 |
+|---|---|---|
+| Android | [下载 Debug APK（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) | 可安装测试；非 Play Store 正式签名包 |
+| iOS | [下载 Simulator App（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) | **仅 iOS 模拟器**，不是 iPhone IPA |
+| macOS | [下载 DMG（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 未签名测试包 |
+| Windows | [下载 EXE（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 未签名测试包 |
+| Linux | [下载 AppImage（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 测试包 |
+| Web / PWA | [下载离线网页包（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819656) | 首次加载缓存完成后可断网使用 |
+
+- **正式版本入口：** [GitHub Releases](https://github.com/nkfff/gomoku-skill-evaluator/releases)（当前尚无离线版 Release）
+- **构建记录：** [Web/PWA](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819656) · [Android/iOS](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) · [桌面三平台](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761)
+- **开发进度：** [离线版 PR #56](https://github.com/nkfff/gomoku-skill-evaluator/pull/56)
+
+> Actions 测试产物有保留期限，不能替代正式 Release。离线单机版不包含云端登录、在线 PVP、观战或服务器排行榜；本地积分与在线账号独立。离线发行线与线上 V4.0.x、V4.1 AI 训练研究分支相互独立。
+
 ## 版本更新记录
 
 按发布日期倒序排列；每个版本仅保留核心变化，完整功能、技术细节和测试记录请查看对应文档。
