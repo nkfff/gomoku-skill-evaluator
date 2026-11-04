@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "test": "node offline.cjs",
-    "test:webgpu": "node webgpu.cjs"
+    "test:webgpu": "node webgpu.cjs",
+    "test:arena": "node arena.cjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"
