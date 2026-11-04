@@ -1107,6 +1107,10 @@ function returnToPvpLobby() {
 }
 
 async function refreshLeaderboard() {
+ if(!navigator.onLine){
+  $("pvpRankRows").innerHTML="<tr><td colspan='6'>当前离线，恢复网络后自动刷新真人排行榜。</td></tr>";
+  return;
+ }
  try {
   const data=await api("/api/pvp/leaderboard","GET",null,false),players=data.players||[],titles=["棋圣","棋王","棋宗"];
   $("pvpPodium").innerHTML=players.slice(0,3).map((p,i)=>"<article class='podium-card podium-"+(i+1)+"'><span class='podium-medal'>"+["👑","🥈","🥉"][i]+"</span><small>"+titles[i]+"</small><strong>"+escapeText(p.name)+"</strong><em>"+Number(p.rating)+" Elo</em></article>").join("");
@@ -1421,7 +1425,7 @@ let finishedRoomSyncInFlight = false;
 setInterval(() => {
   const needsSync = roomId && roomState &&
     (roomState.status === "active" || roomState.status === "finished");
-  if (!needsSync || document.visibilityState !== "visible" || finishedRoomSyncInFlight) return;
+  if (!navigator.onLine || !needsSync || document.visibilityState !== "visible" || finishedRoomSyncInFlight) return;
   finishedRoomSyncInFlight = true;
   refreshRoomState().catch(() => {}).finally(() => {
     finishedRoomSyncInFlight = false;
