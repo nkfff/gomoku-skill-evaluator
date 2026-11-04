@@ -1,12 +1,12 @@
-# 猫猫棋局 · 全平台离线版（开发预览）
+# 猫猫棋局 · Offline Edition
 
-> 本目录是独立于在线 V4 的单机发行工程。**CI 已生成 Android 调试 APK、iOS 模拟器应用与未签名桌面安装包；尚未创建正式 Release。** 不修改在线 Pages、PVP、Supabase、Cloudflare 的服务配置。
+> 本目录是独立于在线 V4 的单机发行工程。**[offline-v0.1.0-beta.1 已发布 GitHub Beta 预发布版](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.1)**，含六个平台的下载附件。维护者已确认本次 Beta 验收通过。在线 Pages、PVP、Supabase、Cloudflare 的服务逻辑保持独立。
 
 ## 支持范围与当前边界
 
 - Web/PWA：AI 三档、Gunuce 本地 ONNX+WASM/WebGPU、残局、随机连珠、复盘、皮肤与本地积分，均复用 V4 引擎。
-- Android/iOS：采用 Capacitor 8，将静态资源随 App 内置，首次启动不需要网络。已完成原生 CI 编译；**仍需真实设备验证**。
-- macOS/Windows/Linux：Electron 的独立打包流程已接入，CI 可生成未签名安装包，仍需目标设备验收。
+- Android/iOS：采用 Capacitor 8，将静态资源随 App 内置，首次启动不需要网络。已完成原生 CI 编译。**当前公开 iOS 附件仅为 Simulator 应用，并非可供普通 iPhone 安装的签名 IPA**。
+- macOS/Windows/Linux：Electron 的独立打包流程已接入，CI 已构建并上传未签名安装包，目前 macOS 附件只提供 Apple Silicon (arm64)，暂未提供 Intel 安装包。
 - 不提供在线登录、PVP、观战、云端积分或服务器排行榜。本地积分独立；卸载或清理数据可能丢失。
 - PWA 第一次打开需联网下载包括 Gunuce 模型与 WASM 的离线资源，直到显示“可断网使用”。原生 Android/iOS 将资源打入安装包。
 
@@ -38,20 +38,13 @@ npm run native:ios      # 需要 macOS + Xcode
 脚本先构建离线 Web，然后执行 `cap add` / `cap sync` 和 `capacitor-assets generate`。Android 可在 `offline/android` 目录运行 `./gradlew assembleDebug` 获取用于测试安装的 APK。iOS 需 Xcode 真机签名，TestFlight/App Store 需要 Apple Developer 账号。
 Capacitor 依赖固定在 8.6.0；生成目录暂不纳入 Git，避免改动在线版。正式发布前需要锁定 native 依赖、签名包、真实设备兼容性测试与升级测试。
 
-## GitHub Release 发布流程
+## GitHub Release 下载与发布流程
 
-正式发布工作流位于 `.github/workflows/offline-release.yml`。它监听 `offline-v*` 标签；标签推送后会重新构建 PWA、Android Debug APK、iOS Simulator 包、macOS DMG、Windows EXE 与 Linux AppImage，待全部构建成功后自动创建 GitHub **预发布版（Pre-release）** 并上传附件。
+**当前 Beta Release：** [offline-v0.1.0-beta.1](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.1)，包含 Android Debug APK、iOS Simulator ZIP、macOS arm64 DMG、Windows x64 EXE、Linux x86_64 AppImage、Web/PWA ZIP。永久附件链接见仓库首页 [README](../README.md#离线多端版--offline-edition)。
 
-建议在 Android/iPhone 真机验收完成、PR 合并到 `main` 后，再创建并推送版本标签：
+自动发布工作流为 [Offline Beta Release](../.github/workflows/offline-release.yml)。在未来发布新版本时，修改版本号并推送新 `offline-v*` 标签，或使用 GitHub Actions 的 `workflow_dispatch` 指定新标签；所有平台构建成功才创建新的 Pre-release。**不要重复发布已有标签，避免覆盖已经分发的安装包。**
 
-```bash
-git checkout main
-git pull --ff-only
-git tag offline-v0.1.0-beta.1
-git push origin offline-v0.1.0-beta.1
-```
-
-也可以在 PR 合并到 `main` 后，进入 [Offline Beta Release 工作流](https://github.com/nkfff/gomoku-skill-evaluator/actions/workflows/offline-release.yml)，选择 **Run workflow** 并填写 `release_tag`，手动启动同一套构建与发布流程。工作流成功后，下载入口为 [GitHub Releases](https://github.com/nkfff/gomoku-skill-evaluator/releases)。当前尚未推送发布标签或手动运行，因此**目前没有正式 GitHub Release**；README 首页列出的链接是暂时的 Actions 测试产物，不是永久下载链接。
+用户已确认本次 Beta 验收通过；但 GitHub Beta 发行不等于 Google Play、TestFlight 或 App Store 上架。面向这些商店时仍需要 Android 正式签名/AAB、Apple Developer 证书和签名 IPA、应用审核以及必要的机型兼容记录。
 
 ## 尚未满足的正式发布门槛
 
@@ -60,7 +53,8 @@ git push origin offline-v0.1.0-beta.1
 - [x] Mobile-first 布局与离线导航
 - [x] Capacitor Android / iOS 配置及工程生成命令
 - [x] CI 浏览器功能、离线启动和横向溢出测试通过
-- [ ] 至少两台 Android 真机及两台不同屏幕的 iPhone 完成验证
+- [x] 维护者已确认 Beta 验收通过
+- [ ] 补齐公开可追溯的 Android/iPhone 设备与系统版本测试矩阵
 - [ ] WKWebView / Web Worker / WASM、后台恢复、冷启动和低内存压力测试
 - [x] GitHub Release 自动化构建与上传工作流
 - [ ] 签名 APK/AAB/IPA 与正式商店发布
@@ -71,6 +65,6 @@ git push origin offline-v0.1.0-beta.1
 
 ## macOS / Windows / Linux 桌面版
 
-独立 Electron 安装包构建已在 `offline/desktop/` 中提供。使用 `gomoku://app` 安全源加载本地 Worker 与 WASM，复用 Android/iOS 同一套单机逻辑。参见 [desktop/README.md](desktop/README.md)。当前未签名，CI 构建已经成功，正式 Release 前仍需目标机器验收。
+独立 Electron 安装包构建已在 `offline/desktop/` 中提供。使用 `gomoku://app` 安全源加载本地 Worker 与 WASM，复用 Android/iOS 同一套单机逻辑。参见 [desktop/README.md](desktop/README.md)。当前为未签名 Beta 预发布，CI 构建已经成功；正式签名及广泛兼容性支持尚待完善。
 
-**版本命名**：离线版独立从 `offline-v0.1.0-beta.1` 起步；线上版本继续为 V4.0.x，训练研究分支 V4.1.x 保持独立。原生安装包仍为测试版。
+**版本命名**：离线版独立从 `offline-v0.1.0-beta.1` 起步；线上版本继续为 V4.0.x，训练研究分支 V4.1.x 保持独立。已在 GitHub 发布 Beta，安装包仍为测试版本。
