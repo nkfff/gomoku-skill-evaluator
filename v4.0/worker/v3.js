@@ -526,6 +526,13 @@ export default {
         return await createTicket(env, ticketMatch[1], user.id, headers);
       }
 
+      const leaveMatch = url.pathname.match(/^\/api\/pvp\/rooms\/([0-9a-f-]+)\/leave$/i);
+      if (leaveMatch && request.method === "POST") {
+        await ensurePlayer(env, user);
+        const room = await roomForPlayer(env, leaveMatch[1], user.id);
+        return reply(await callRoom(env, room.id, "/internal/leave", {method: "POST", playerId: user.id}), 200, headers);
+      }
+
       const ackResultMatch = url.pathname.match(new RegExp("^/api/pvp/rooms/([0-9a-f-]+)/ack-result$", "i"));
       if (ackResultMatch && request.method === "POST") {
         await ensurePlayer(env, user);
