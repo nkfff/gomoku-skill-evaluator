@@ -1,0 +1,258 @@
+name: Offline Beta Release
+on:
+  push:
+    tags:
+      - 'offline-v*'
+permissions:
+  contents: read
+jobs:
+  web-pwa:
+    name: Build offline PWA archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python3 -m pip install -r offline/requirements.txt
+      - run: node offline/build.mjs
+      - name: Package offline PWA
+        run: |
+          mkdir -p release-assets
+          cd offline
+          zip -qr "../release-assets/Gomoku_Offline_PWA_\${GITHUB_REF_NAME}.zip" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-web-pwa
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    name: Build Android debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' || true
+      - run: python3 -m pip install -r offline/requirements.txt
+      - name: Install Capacitor dependencies
+        working-directory: offline
+        run: npm install --no-audit --no-fund
+      - name: Generate native Android project
+        working-directory: offline
+        run: npm run native:android
+      - name: Build debug APK
+        working-directory: offline/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - name: Stage APK
+        run: |
+          mkdir -p release-assets
+          cp offline/android/app/build/outputs/apk/debug/*.apk "release-assets/Gomoku_Offline_Android_Debug_\${GITHUB_REF_NAME}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  ios-simulator:
+    name: Build iOS Simulator app (not IPA)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Cairo for icon generation
+        run: |
+          brew install cairo
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix cairo)/lib:/opt/homebrew/lib" >> "$GITHUB_ENV"
+      - run: python3 -m pip install -r offline/requirements.txt
+      - name: Install Capacitor dependencies
+        working-directory: offline
+        run: npm install --no-audit --no-fund
+      - name: Generate native iOS project
+        working-directory: offline
+        run: npm run native:ios
+      - name: Compile unsigned iOS Simulator app
+        working-directory: offline
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -derivedDataPath "$RUNNER_TEMP/gomoku-ios-build" build
+      - name: Package simulator app
+        run: |
+          mkdir -p release-assets
+          cd "$RUNNER_TEMP/gomoku-ios-build/Build/Products/Debug-iphonesimulator"
+          ditto -c -k --sequesterRsrc --keepParent App.app "$GITHUB_WORKSPACE/release-assets/Gomoku_Offline_iOS_Simulator_\${GITHUB_REF_NAME}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-ios-simulator
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  desktop-linux:
+    name: Build Linux AppImage
+    runs-on: ubuntu-latest
+    env:
+      GOMOKU_ICON_RENDERER: resvg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install desktop dependencies
+        working-directory: offline/desktop
+        run: npm install --no-audit --no-fund
+      - name: Build offline game resources
+        run: node offline/build.mjs
+      - name: Package AppImage
+        working-directory: offline/desktop
+        run: npm run pack:linux
+      - name: Stage installer
+        run: |
+          mkdir -p release-assets
+          cp offline/desktop/dist-installers/* release-assets/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-desktop-linux
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  desktop-windows:
+    name: Build Windows installer
+    runs-on: windows-latest
+    env:
+      GOMOKU_ICON_RENDERER: resvg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install desktop dependencies
+        working-directory: offline/desktop
+        run: npm install --no-audit --no-fund
+      - name: Build offline game resources
+        run: node offline/build.mjs
+      - name: Package Windows installer
+        working-directory: offline/desktop
+        run: npm run pack:win
+      - name: Stage installer
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp offline/desktop/dist-installers/* release-assets/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-desktop-windows
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  desktop-macos:
+    name: Build macOS DMG
+    runs-on: macos-15
+    env:
+      GOMOKU_ICON_RENDERER: resvg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install desktop dependencies
+        working-directory: offline/desktop
+        run: npm install --no-audit --no-fund
+      - name: Build offline game resources
+        run: node offline/build.mjs
+      - name: Package macOS DMG
+        working-directory: offline/desktop
+        run: npm run pack:mac
+      - name: Stage installer
+        run: |
+          mkdir -p release-assets
+          cp offline/desktop/dist-installers/* release-assets/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-desktop-macos
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-release:
+    name: Publish GitHub prerelease
+    runs-on: ubuntu-latest
+    needs:
+      - web-pwa
+      - android
+      - ios-simulator
+      - desktop-linux
+      - desktop-windows
+      - desktop-macos
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: List release assets
+        run: |
+          find release-assets -maxdepth 1 -type f -printf '%f (%s bytes)\n' | sort
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -ge 6
+      - name: Write beta release notes
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## 猫猫棋局 · Offline Edition Beta
+
+          这是独立离线单机版预览。版本不影响在线 V4.0.x，也不属于 V4.1 AI 训练研究分支。
+
+          ### 下载说明
+          - Android：Debug APK，仅供测试安装，尚非 Play Store 签名发布包。
+          - iOS：当前附件为 iOS Simulator App 压缩包，不是 iPhone 可安装 IPA。真机包需 Apple 签名和设备验收。
+          - macOS / Windows / Linux：未签名测试安装包，系统可能提示开发者身份或安全警告。
+          - PWA：静态离线网页包；首次加载/缓存完成后可断网使用。
+
+          ### 功能范围
+          本地 AI、Gunuce 模型、残局、随机连珠、复盘和本地积分。没有云端账号、在线 PVP、观战或在线排行榜。
+
+          ### Beta 限制
+          还需完成 Android/iPhone 真机兼容性、低性能设备推理、后台恢复、签名、公证及升级测试。请勿把该版本视为稳定正式版。
+          EOF
+      - name: Create GitHub prerelease and attach all installers
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: \${{ github.ref_name }}
+          name: 猫猫棋局离线版 \${{ github.ref_name }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
