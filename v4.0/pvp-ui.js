@@ -13,6 +13,7 @@ let diceAnimationMatchId = "";
 let diceAnimationComplete = false;
 let diceAnimationRunId = 0;
 let pvpResultMatchId = "";
+let undoModalRequestKey = "";
 let socket = null;
 let reconnectTimer = null;
 let intentionalClose = false;
@@ -200,8 +201,11 @@ function handleMessage(message) {
   } else if (message.type === "error") {
     $("pvpRematchInviteAccept").disabled = false;
     $("pvpRematchInviteDecline").disabled = false;
+    $("pvpUndoAccept").disabled = false;
+    $("pvpUndoDecline").disabled = false;
+    $("pvpUndoCancel").disabled = false;
     notice(message.message || "对局操作失败", true);
-    if (message.code === "STALE_REVISION") refreshRoomState().catch(() => {});
+    if (["STALE_REVISION","STALE_UNDO_REQUEST","NO_PENDING_UNDO_REQUEST","UNDO_REQUEST_EXPIRED"].includes(message.code)) refreshRoomState().catch(() => {});
   } else if (message.type === "match_started") {
     notice("双方摇骰揭晓先手！点数较大的一方执黑先行。");
   } else if (message.type === "game_over") {
@@ -253,6 +257,24 @@ function handleMessage(message) {
     notice(message.playerId === playerId
       ? "你已拒绝和棋，对局继续。"
       : "对手拒绝了和棋，继续战斗。");
+  } else if (message.type === "undo_requested") {
+    notice(message.playerId === playerId
+      ? "悔棋申请已发送，等待对方同意。"
+      : "对手提出悔棋申请，请在弹窗中选择是否同意。");
+  } else if (message.type === "undo_accepted") {
+    notice("双方已同意悔棋，上一手已撤回。");
+  } else if (message.type === "undo_declined") {
+    notice(message.playerId === playerId
+      ? "你已拒绝悔棋申请，对局继续。"
+      : "对手拒绝了悔棋申请，对局继续。");
+  } else if (message.type === "undo_cancelled") {
+    notice(message.playerId === playerId
+      ? "你已撤回悔棋申请。"
+      : "对手撤回了悔棋申请。");
+  } else if (message.type === "undo_expired") {
+    notice(message.requesterPlayerId === playerId
+      ? "悔棋申请超时，已自动取消。"
+      : "悔棋申请已超时，对局继续。");
   }
 }
 
@@ -691,6 +713,43 @@ function renderSpectators(spectators = []) {
     : "<span class='pvp-spectator-empty'>暂无观战者</span>";
 }
 
+function syncUndoModal(room) {
+  const modal = $("pvpUndoModal");
+  const pending = room && room.match && room.match.pendingUndo;
+  if (!modal) return;
+  if (spectatorMode || !room || room.status !== "active" || !pending) {
+    modal.hidden = true;
+    undoModalRequestKey = "";
+    $("pvpUndoAccept").disabled = false;
+    $("pvpUndoDecline").disabled = false;
+    $("pvpUndoCancel").disabled = false;
+    return;
+  }
+  const requestKey = [room.match.matchId, pending.requestedAt, pending.requesterPlayerId].join(":");
+  if (requestKey !== undoModalRequestKey) {
+    undoModalRequestKey = requestKey;
+    $("pvpUndoAccept").disabled = false;
+    $("pvpUndoDecline").disabled = false;
+    $("pvpUndoCancel").disabled = false;
+  }
+  const isRequester = pending.requesterPlayerId === playerId;
+  const requesterName = pending.requesterPlayerId === room.hostPlayerId
+    ? room.hostName || "房主"
+    : room.guestName || "好友";
+  const opponentName = pending.requesterPlayerId === room.hostPlayerId
+    ? room.guestName || "好友"
+    : room.hostName || "房主";
+  const movePly = Number(pending.movePly || room.match.moves.length);
+  $("pvpUndoTitle").textContent = isRequester ? "等待对手确认悔棋" : "收到悔棋申请";
+  $("pvpUndoMessage").textContent = isRequester
+    ? "你已向" + opponentName + "申请撤回第 " + movePly + " 手，等待对方同意。棋钟不会暂停，申请将在 20 秒后自动失效。"
+    : requesterName + "申请撤回第 " + movePly + " 手，是否同意？棋钟继续计时，申请将在 20 秒后自动失效。";
+  $("pvpUndoAccept").hidden = isRequester;
+  $("pvpUndoDecline").hidden = isRequester;
+  $("pvpUndoCancel").hidden = !isRequester;
+  modal.hidden = false;
+}
+
 function renderRoom(room) {
  if(!room)return;
  const isSpectator = spectatorMode;
@@ -738,12 +797,19 @@ function renderRoom(room) {
  const drawBy=room.match&&room.match.pendingDrawBy;
  const drawPending=Boolean(drawBy);
  const myDrawOffer=drawBy===playerId;
- $("pvpOfferDraw").hidden=isSpectator||room.status!=="active"||(drawPending&&!myDrawOffer);
+ const pendingUndo=room.match&&room.match.pendingUndo;
+ const undoPending=Boolean(pendingUndo);
+ const myUndoRequest=undoPending&&pendingUndo.requesterPlayerId===playerId;
+ syncUndoModal(room);
+ $("pvpOfferDraw").hidden=isSpectator||room.status!=="active"||(drawPending&&!myDrawOffer)||undoPending;
  $("pvpOfferDraw").disabled=myDrawOffer;
  $("pvpOfferDraw").textContent=myDrawOffer?"等待对手回应…":"提出和棋";
+ $("pvpOfferUndo").hidden=isSpectator||room.status!=="active"||!room.match||!room.match.moves.length||drawPending||(undoPending&&!myUndoRequest);
+ $("pvpOfferUndo").disabled=undoPending;
+ $("pvpOfferUndo").textContent=myUndoRequest?"等待对手回应…":"申请悔棋";
  $("pvpResign").hidden=isSpectator||room.status!=="active";
- $("pvpAcceptDraw").hidden=isSpectator||room.status!=="active"||!drawBy||drawBy===playerId;
- $("pvpDeclineDraw").hidden=isSpectator||room.status!=="active"||!drawBy||drawBy===playerId;
+ $("pvpAcceptDraw").hidden=isSpectator||room.status!=="active"||!drawBy||drawBy===playerId||undoPending;
+ $("pvpDeclineDraw").hidden=isSpectator||room.status!=="active"||!drawBy||drawBy===playerId||undoPending;
  const finished = room.status === "finished" && room.match && room.match.status === "finished";
  const rematchByPlayer = room.rematchByPlayer || {};
  const opponentId = playerId === room.hostPlayerId ? room.guestPlayerId : room.hostPlayerId;
@@ -879,6 +945,8 @@ function returnToPvpLobby() {
   $("pvpDiceStage").hidden = true;
   $("pvpBoard").hidden = true;
   renderSpectators([]);
+  $("pvpUndoModal").hidden = true;
+  undoModalRequestKey = "";
   notice("已返回好友对战大厅。可以创建新房间或输入其他好友的邀请码。");
 }
 
@@ -928,6 +996,10 @@ function sendAction(message) {
     offer_draw: "已向对手发送和棋请求，等待回应。",
     accept_draw: "你已接受和棋请求，正在完成结算…",
     decline_draw: "已拒绝和棋请求，对局继续。",
+    offer_undo: "已向对手发送悔棋申请，等待回应。",
+    accept_undo: "已同意悔棋，正在撤回上一手…",
+    decline_undo: "已拒绝悔棋申请。",
+    cancel_undo: "已撤回悔棋申请。",
     decline_rematch: "已提交拒绝再来一局邀请。",
     resign: "已提交认输，正在确认本局结果…"
   };
@@ -967,6 +1039,27 @@ $("pvpRematchInviteDecline").onclick = () => {
 };
 $("pvpNewMatch").onclick = () => { if (roomState && roomState.status === "finished") returnToPvpLobby(); };
 $("pvpOfferDraw").onclick = () => sendAction({type: "offer_draw"});
+$("pvpOfferUndo").onclick = () => sendAction({type: "offer_undo"});
+$("pvpUndoAccept").onclick = () => {
+  $("pvpUndoAccept").disabled = true;
+  $("pvpUndoDecline").disabled = true;
+  if (!sendAction({type: "accept_undo"})) {
+    $("pvpUndoAccept").disabled = false;
+    $("pvpUndoDecline").disabled = false;
+  }
+};
+$("pvpUndoDecline").onclick = () => {
+  $("pvpUndoAccept").disabled = true;
+  $("pvpUndoDecline").disabled = true;
+  if (!sendAction({type: "decline_undo"})) {
+    $("pvpUndoAccept").disabled = false;
+    $("pvpUndoDecline").disabled = false;
+  }
+};
+$("pvpUndoCancel").onclick = () => {
+  $("pvpUndoCancel").disabled = true;
+  if (!sendAction({type: "cancel_undo"})) $("pvpUndoCancel").disabled = false;
+};
 $("pvpAcceptDraw").onclick = () => sendAction({type: "accept_draw"});
 $("pvpDeclineDraw").onclick = () => sendAction({type: "decline_draw"});
 $("pvpResign").onclick = () => {

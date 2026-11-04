@@ -366,3 +366,20 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 @media(max-width:640px){.pvp-room-topbar{gap:10px}.pvp-spectator-panel{flex:1 1 100%;min-width:0}.pvp-spectator-list{max-height:90px}}
 
 #pvpLeaveSpectate[hidden],#pvpRatingStat[hidden]{display:none!important}
+
+
+/* V4.0.8 PVP undo consent modal. The live match clock keeps running while a request is pending. */
+.pvp-undo-modal[hidden]{display:none!important}
+.pvp-undo-modal{position:fixed;z-index:1400;inset:0;display:grid;place-items:center;padding:20px}
+.pvp-undo-backdrop{position:absolute;inset:0;background:rgba(43,31,35,.6);backdrop-filter:blur(10px);animation:pvpResultFade .2s ease}
+.pvp-undo-card{position:relative;width:min(100%,410px);padding:30px 26px 25px;border:1px solid rgba(255,255,255,.82);border-radius:25px;background:linear-gradient(155deg,#fffefa 0%,#fff3f5 100%);box-shadow:0 28px 90px rgba(35,22,25,.3);text-align:center;animation:pvpResultPop .36s cubic-bezier(.18,.78,.2,1)}
+.pvp-undo-mark{display:grid;place-items:center;width:58px;height:58px;margin:0 auto 13px;border:1px solid #efdae0;border-radius:19px;background:linear-gradient(145deg,#fff9f1,#f8e8ed);color:#986076;font-size:34px;box-shadow:0 9px 22px rgba(166,95,118,.13)}
+.pvp-undo-card h2{margin:8px 0 10px;color:#684351;font-size:23px;letter-spacing:-.035em}
+.pvp-undo-card>p{margin:0 auto 22px;color:#806c72;font-size:13px;line-height:1.85;overflow-wrap:anywhere}
+.pvp-undo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pvp-undo-actions button{min-height:44px;border-radius:12px;font-weight:750}
+.pvp-undo-actions button:not(.primary){border:1px solid #e8d8dc;background:#fff;color:#805d68}
+.pvp-undo-actions button:disabled{opacity:.6;cursor:wait}
+.pvp-undo-actions #pvpUndoCancel[hidden]{display:none!important}
+@media(max-width:640px){.pvp-undo-card{padding:27px 20px 21px;border-radius:22px}.pvp-undo-card h2{font-size:21px}}
+@media(prefers-reduced-motion:reduce){.pvp-undo-backdrop,.pvp-undo-card{animation:none!important}}

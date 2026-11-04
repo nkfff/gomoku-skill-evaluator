@@ -1,6 +1,7 @@
 import {
-  DEFAULT_TIME_CONTROL_MS, acceptPvpDraw, applyPvpMove, calculateElo, createMatchState,
-  declinePvpDraw, declinePvpRematch, offerPvpDraw, requestPvpRematch, finishByResign, finishByTimeout, publicMatchState
+  DEFAULT_TIME_CONTROL_MS, UNDO_REQUEST_TIMEOUT_MS, acceptPvpDraw, acceptPvpUndo, applyPvpMove, calculateElo, createMatchState,
+  cancelPvpUndo, declinePvpDraw, declinePvpRematch, declinePvpUndo, expirePvpUndo,
+  offerPvpDraw, offerPvpUndo, requestPvpRematch, finishByResign, finishByTimeout, publicMatchState
 } from "../src/pvp.js";
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), {
@@ -245,6 +246,10 @@ export class PvpRoom {
       if (message.type === "offer_draw") return await this.offerDraw(playerId);
       if (message.type === "accept_draw") return await this.acceptDraw(playerId);
       if (message.type === "decline_draw") return await this.declineDraw(playerId);
+      if (message.type === "offer_undo") return await this.offerUndo(playerId);
+      if (message.type === "accept_undo") return await this.acceptUndo(playerId);
+      if (message.type === "decline_undo") return await this.declineUndo(playerId);
+      if (message.type === "cancel_undo") return await this.cancelUndo(playerId);
       this.sendTo(socket, {type: "error", code: "UNKNOWN_ACTION", message: "不支持的操作"});
     } catch (error) {
       this.sendTo(socket, {type: "error", code: error.message || "PVP_ERROR", message: this.errorText(error.message)});
@@ -305,6 +310,12 @@ export class PvpRoom {
         this.room.match = finishByTimeout(match, timedOutPlayerId, now);
         await this.finishMatch("timeout");
         return;
+      }
+      if (match.pendingUndo && now >= match.pendingUndo.requestedAt + UNDO_REQUEST_TIMEOUT_MS) {
+        const requesterPlayerId = match.pendingUndo.requesterPlayerId;
+        this.room.match = expirePvpUndo(match, now);
+        await this.ctx.storage.put("room", this.room);
+        this.broadcast({type: "undo_expired", requesterPlayerId, room: true});
       }
       for (const [playerId, disconnectedAt] of Object.entries(this.room.disconnectedAt)) {
         if (disconnectedAt && now - disconnectedAt >= DISCONNECT_GRACE_MS) {
@@ -538,6 +549,69 @@ export class PvpRoom {
     this.broadcast({type: "draw_declined", playerId, room: this.snapshot(playerId)});
   }
 
+  async offerUndo(playerId) {
+    if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
+    this.room.match = offerPvpUndo(this.room.match, playerId, nowMs());
+    await this.ctx.storage.put("room", this.room);
+    await this.scheduleNextAlarm();
+    this.broadcast({type: "undo_requested", playerId, room: true});
+  }
+
+  async acceptUndo(playerId) {
+    if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
+    const oldState = this.room.match;
+    const removedMove = oldState.moves[oldState.moves.length - 1];
+    let nextState;
+    try {
+      nextState = acceptPvpUndo(oldState, playerId, nowMs());
+    } catch (error) {
+      if (error.message === "CLOCK_EXPIRED") {
+        this.room.match = finishByTimeout(oldState, oldState.turnPlayerId, nowMs());
+        await this.finishMatch("timeout");
+        return;
+      }
+      throw error;
+    }
+    this.room.match = nextState;
+    await this.ctx.storage.put("room", this.room);
+    try {
+      const results = await this.env.DB.batch([
+        this.env.DB.prepare(
+          "DELETE FROM pvp_moves WHERE match_id=? AND ply=? AND player_id=? AND revision=? AND EXISTS(SELECT 1 FROM pvp_matches WHERE id=? AND status='active')"
+        ).bind(oldState.matchId, removedMove.ply, removedMove.playerId, removedMove.revision, oldState.matchId),
+        this.env.DB.prepare(
+          "UPDATE pvp_matches SET move_count=? WHERE id=? AND status='active' AND changes()=1"
+        ).bind(nextState.moves.length, oldState.matchId)
+      ]);
+      if (Number(results?.[0]?.meta?.changes || 0) !== 1 ||
+          Number(results?.[1]?.meta?.changes || 0) !== 1) {
+        throw new Error("UNDO_PERSIST_FAILED");
+      }
+    } catch {
+      this.room.match = oldState;
+      await this.ctx.storage.put("room", this.room);
+      throw new Error("UNDO_PERSIST_FAILED");
+    }
+    await this.scheduleNextAlarm();
+    this.broadcast({type: "undo_accepted", playerId, removedMove, room: true});
+  }
+
+  async declineUndo(playerId) {
+    if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
+    this.room.match = declinePvpUndo(this.room.match, playerId);
+    await this.ctx.storage.put("room", this.room);
+    await this.scheduleNextAlarm();
+    this.broadcast({type: "undo_declined", playerId, room: true});
+  }
+
+  async cancelUndo(playerId) {
+    if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
+    this.room.match = cancelPvpUndo(this.room.match, playerId);
+    await this.ctx.storage.put("room", this.room);
+    await this.scheduleNextAlarm();
+    this.broadcast({type: "undo_cancelled", playerId, room: true});
+  }
+
   async finishMatch(reason) {
     const match = this.room.match;
     if (!match || match.status !== "finished") return;
@@ -587,6 +661,7 @@ export class PvpRoom {
       const match = this.room.match;
       const key = match.turnColor === 1 ? "black" : "white";
       deadlines.push(match.turnStartedAt + match.clocksMs[key]);
+      if (match.pendingUndo) deadlines.push(match.pendingUndo.requestedAt + UNDO_REQUEST_TIMEOUT_MS);
       for (const disconnectedAt of Object.values(this.room.disconnectedAt)) {
         if (disconnectedAt) deadlines.push(disconnectedAt + DISCONNECT_GRACE_MS);
       }
@@ -714,6 +789,15 @@ export class PvpRoom {
       DRAW_ALREADY_OFFERED: "你已经提出和棋，请等待对手回应",
       DRAW_ALREADY_PENDING: "对手已经提出和棋，请选择接受或拒绝",
       NO_OPPONENT_DRAW_OFFER: "当前没有对手提出的和棋请求",
+      NO_MOVE_TO_UNDO: "当前还没有可以撤回的落子",
+      UNDO_ALREADY_PENDING: "已有悔棋申请，请先处理",
+      NO_PENDING_UNDO_REQUEST: "当前没有待处理的悔棋申请",
+      UNDO_REQUEST_EXPIRED: "悔棋申请已超时，请重新同步棋盘",
+      CANNOT_ACCEPT_OWN_UNDO: "不能接受自己发起的悔棋申请",
+      CANNOT_DECLINE_OWN_UNDO: "不能拒绝自己发起的悔棋申请",
+      NOT_UNDO_REQUESTER: "只有悔棋申请方可以撤回申请",
+      STALE_UNDO_REQUEST: "悔棋申请已失效，请重新同步棋盘",
+      UNDO_PERSIST_FAILED: "悔棋记录保存失败，棋盘已恢复，请重试",
       NO_PENDING_REMATCH_INVITE: "当前没有待处理的再来一局邀请",
       MOVE_PERSIST_FAILED: "落子保存失败，请重新同步棋盘"
     };

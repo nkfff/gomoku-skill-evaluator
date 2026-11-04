@@ -3,6 +3,7 @@ import {CELLS, winLine} from "./engine.js";
 export const DEFAULT_TIME_CONTROL_MS = 10 * 60 * 1000;
 export const INITIAL_RATING = 1000;
 export const ELO_K = 32;
+export const UNDO_REQUEST_TIMEOUT_MS = 20_000;
 export const PVP_COLORS = Object.freeze({BLACK: 1, WHITE: 2});
 
 export function createMatchState({
@@ -36,12 +37,14 @@ export function createMatchState({
     initialRatings: {[blackPlayerId]: blackRating, [whitePlayerId]: whiteRating},
     diceRolls, diceWinnerPlayerId,
     finalRatings: null,
-    pendingDrawBy: null
+    pendingDrawBy: null,
+    pendingUndo: null
   };
 }
 
 export function applyPvpMove(state, {playerId, cellIndex, actionId, now = Date.now()}) {
   if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
+  if (state.pendingUndo) throw new Error("UNDO_ALREADY_PENDING");
   if (playerId !== state.turnPlayerId) throw new Error("NOT_YOUR_TURN");
   if (!Number.isInteger(cellIndex) || cellIndex < 0 || cellIndex >= CELLS) throw new Error("INVALID_CELL");
   if (state.board[cellIndex] !== 0) throw new Error("CELL_OCCUPIED");
@@ -109,7 +112,8 @@ export function finishByResign(state, playerId, now = Date.now()) {
     endedAt: now,
     turnPlayerId: null,
     turnColor: null,
-    pendingDrawBy: null
+    pendingDrawBy: null,
+    pendingUndo: null
   };
 }
 
@@ -117,6 +121,7 @@ export function finishByResign(state, playerId, now = Date.now()) {
 export function offerPvpDraw(state, playerId) {
   if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
   if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");
+  if (state.pendingUndo) throw new Error("UNDO_ALREADY_PENDING");
   if (state.pendingDrawBy === playerId) throw new Error("DRAW_ALREADY_OFFERED");
   if (state.pendingDrawBy) throw new Error("DRAW_ALREADY_PENDING");
   return {...state, pendingDrawBy: playerId};
@@ -135,7 +140,8 @@ export function acceptPvpDraw(state, playerId, now = Date.now()) {
     endedAt: now,
     turnPlayerId: null,
     turnColor: null,
-    pendingDrawBy: null
+    pendingDrawBy: null,
+    pendingUndo: null
   };
 }
 
@@ -144,6 +150,87 @@ export function declinePvpDraw(state, playerId) {
   if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");
   if (!state.pendingDrawBy || state.pendingDrawBy === playerId) throw new Error("NO_OPPONENT_DRAW_OFFER");
   return {...state, pendingDrawBy: null};
+}
+
+export function offerPvpUndo(state, playerId, now = Date.now()) {
+  if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
+  if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");
+  if (!Array.isArray(state.moves) || state.moves.length === 0) throw new Error("NO_MOVE_TO_UNDO");
+  if (state.pendingUndo) throw new Error("UNDO_ALREADY_PENDING");
+  if (state.pendingDrawBy) throw new Error("DRAW_ALREADY_PENDING");
+  const lastMove = state.moves[state.moves.length - 1];
+  return {
+    ...state,
+    pendingUndo: {
+      requesterPlayerId: playerId,
+      requestedAt: now,
+      moveRevision: state.revision,
+      movePly: lastMove.ply,
+      lastMovePlayerId: lastMove.playerId,
+      lastMoveCellIndex: lastMove.cellIndex
+    }
+  };
+}
+
+export function acceptPvpUndo(state, playerId, now = Date.now()) {
+  if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
+  if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");
+  const pending = state.pendingUndo;
+  if (!pending) throw new Error("NO_PENDING_UNDO_REQUEST");
+  if (now >= pending.requestedAt + UNDO_REQUEST_TIMEOUT_MS) throw new Error("UNDO_REQUEST_EXPIRED");
+  if (pending.requesterPlayerId === playerId) throw new Error("CANNOT_ACCEPT_OWN_UNDO");
+  const lastMove = state.moves[state.moves.length - 1];
+  if (!lastMove || state.revision !== pending.moveRevision ||
+      lastMove.ply !== pending.movePly || lastMove.playerId !== pending.lastMovePlayerId ||
+      lastMove.cellIndex !== pending.lastMoveCellIndex) {
+    throw new Error("STALE_UNDO_REQUEST");
+  }
+  const clockKey = state.turnColor === PVP_COLORS.BLACK ? "black" : "white";
+  const elapsedMs = Math.max(0, Math.floor(now - state.turnStartedAt));
+  if (elapsedMs >= state.clocksMs[clockKey]) throw new Error("CLOCK_EXPIRED");
+  const board = state.board.slice();
+  board[lastMove.cellIndex] = 0;
+  const moves = state.moves.slice(0, -1);
+  return {
+    ...state,
+    board,
+    moves,
+    clocksMs: {...state.clocksMs, [clockKey]: state.clocksMs[clockKey] - elapsedMs},
+    revision: state.revision + 1,
+    turnPlayerId: lastMove.playerId,
+    turnColor: lastMove.color,
+    turnStartedAt: now,
+    lastMoveAt: moves.length ? moves[moves.length - 1].playedAt : state.startedAt,
+    status: "active",
+    result: null,
+    winnerPlayerId: null,
+    endReason: null,
+    endedAt: null,
+    pendingDrawBy: null,
+    pendingUndo: null
+  };
+}
+
+export function declinePvpUndo(state, playerId) {
+  if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
+  if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");
+  if (!state.pendingUndo) throw new Error("NO_PENDING_UNDO_REQUEST");
+  if (state.pendingUndo.requesterPlayerId === playerId) throw new Error("CANNOT_DECLINE_OWN_UNDO");
+  return {...state, pendingUndo: null};
+}
+
+export function cancelPvpUndo(state, playerId) {
+  if (!state || state.status !== "active") throw new Error("MATCH_NOT_ACTIVE");
+  if (!state.colorByPlayer?.[playerId]) throw new Error("NOT_A_MATCH_PLAYER");
+  if (!state.pendingUndo) throw new Error("NO_PENDING_UNDO_REQUEST");
+  if (state.pendingUndo.requesterPlayerId !== playerId) throw new Error("NOT_UNDO_REQUESTER");
+  return {...state, pendingUndo: null};
+}
+
+export function expirePvpUndo(state, now = Date.now()) {
+  if (!state?.pendingUndo) return state;
+  if (now < state.pendingUndo.requestedAt + UNDO_REQUEST_TIMEOUT_MS) return state;
+  return {...state, pendingUndo: null};
 }
 
 export function finishByTimeout(state, timedOutPlayerId, now = Date.now()) {
@@ -163,7 +250,8 @@ export function finishByTimeout(state, timedOutPlayerId, now = Date.now()) {
     endedAt: now,
     turnPlayerId: null,
     turnColor: null,
-    pendingDrawBy: null
+    pendingDrawBy: null,
+    pendingUndo: null
   };
 }
 
@@ -305,6 +393,7 @@ export function publicMatchState(state, viewerPlayerId, {spectator = false} = {}
     diceWinnerPlayerId: state.diceWinnerPlayerId || state.blackPlayerId,
     finalRatings: state.finalRatings,
     pendingDrawBy: state.pendingDrawBy,
+    pendingUndo: state.pendingUndo || null,
     viewerPlayerId: isPlayer ? viewerPlayerId : null
   };
 }
