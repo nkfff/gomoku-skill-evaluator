@@ -1,9 +1,9 @@
 {
   "version": "4.0.12",
-  "cacheVersion": "3608d5f2228755f7-hybrid-1",
+  "cacheVersion": "0f128f9bd2fc30e2",
   "onnxruntime": "1.31.1",
   "files": {
-    "index.html": "c2bbd77d6a1ed9f4452c92e3cc2f5f841f78ec51d22dfd4ff9c0ebb01fecf7db",
+    "index.html": "a8bcfe8477096b42c27a853eddb7a176e268720ea4cbeb1c0744bb2ea0b036d9",
     "config.js": "a912311267c2dac8e20aa8e21c8617e19964ac21404b9c1c607073f10ed53bda",
     "pvp-ui.js": "b57afa14d75c1abef9281be4215b2fc86035ea033e8185f7da722d240a336e72",
     "special-modes-ui.js": "af6aa67d341e75b886b45d03efdeaf971a715feb8d28a128f7fc183049da1a9c",
@@ -32,6 +32,6 @@
     "vendor/ort/ort-wasm-simd-threaded.mjs": "30ed0b5cd1182ede931fea448afb567d4dc705ec957af09f108a2be5f770dac3",
     "vendor/ort/ort-wasm-simd-threaded.wasm": "4b884c203b0fa48d057be3332c65513ff85aa3c5bddd6946acc0fab7ecda001d"
   },
-  "totalAssetBytes": 48616830,
+  "totalAssetBytes": 48618918,
   "note": "Runtime/model cached lazily on first Gunuce use. No inference endpoint."
 }
