@@ -1420,8 +1420,16 @@ setInterval(() => {
 }, 3000);
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && roomId && roomState &&
-      (roomState.status === "active" || roomState.status === "finished")) {
-    refreshRoomState().catch(() => {});
+  if (document.visibilityState === "visible") {
+    // Background-tab timer throttling is not itself a disconnect. Resume the
+    // heartbeat from the foreground, then let the normal pong timeout decide.
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      lastPongAt = Date.now();
+      try { socket.send(JSON.stringify({type: "ping"})); } catch {}
+    }
+    if (roomId && roomState &&
+        (roomState.status === "active" || roomState.status === "finished")) {
+      refreshRoomState().catch(() => {});
+    }
   }
 });
