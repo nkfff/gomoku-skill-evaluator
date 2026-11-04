@@ -164,6 +164,10 @@ async function connectSocket(id, suppliedTicket = "") {
   socket = ws;
   ws.onopen = () => {
     lastPongAt = Date.now();
+    if ($("pvpIdleModal") && !$("pvpIdleModal").hidden) {
+      $("pvpIdleContinue").disabled = false;
+      $("pvpIdleExit").disabled = false;
+    }
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     heartbeatTimer = setInterval(() => {
       if (socket !== ws || ws.readyState !== WebSocket.OPEN) return;
@@ -1087,6 +1091,9 @@ function returnToPvpLobby() {
   $("pvpRoom").hidden = true;
   $("pvpLobby").hidden = false;
   $("pvpInviteCode").value = "";
+  $("pvpResultModal").hidden = true;
+  $("pvpIdleModal").hidden = true;
+  idleModalRequestKey = "";
   $("pvpDiceStage").hidden = true;
   $("pvpBoard").hidden = true;
   renderSpectators([]);
