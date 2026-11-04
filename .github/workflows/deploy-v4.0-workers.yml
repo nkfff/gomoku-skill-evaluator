@@ -49,6 +49,9 @@ jobs:
       - name: Install V4.0 dependencies
         working-directory: v4.0
         run: npm install
+      - name: Run V4.0 worker and regression tests
+        working-directory: v4.0
+        run: npm test
       - name: Inject D1 database ID
         working-directory: v4.0
         env:
@@ -130,3 +133,22 @@ jobs:
           }
           verify_health "V2" "https://gomoku-v2-api.1395598907.workers.dev/api/health"
           verify_health "V3" "https://gomoku-v3-api.1395598907.workers.dev/api/health"
+          verify_native_cors() {
+            local name="$1"
+            local url="$2"
+            for origin in "capacitor://localhost" "https://localhost" "gomoku://app"; do
+              local headers
+              headers="$(curl -sS --max-time 15 -D - -o /dev/null -X OPTIONS "$url" \
+                -H "Origin: $origin" \
+                -H "Access-Control-Request-Method: POST" \
+                -H "Access-Control-Request-Headers: authorization,content-type")"
+              if ! printf '%s\n' "$headers" | grep -iq "^access-control-allow-origin: $origin"; then
+                echo "$name did not allow native origin: $origin"
+                printf '%s\n' "$headers"
+                return 1
+              fi
+              echo "$name CORS verified for $origin"
+            done
+          }
+          verify_native_cors "V2" "https://gomoku-v2-api.1395598907.workers.dev/api/health"
+          verify_native_cors "V3" "https://gomoku-v3-api.1395598907.workers.dev/api/health"
