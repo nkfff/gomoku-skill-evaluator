@@ -1,5 +1,5 @@
 /* Cat Gomoku Offline: warm, accessible, mobile-first. */
-html[data-edition="offline"] { background:#fff9f3; color-scheme:light; }
+html[data-edition="hybrid"] { background:#fff9f3; color-scheme:light; }
 html[data-edition="offline"] body{
  --v4-accent:#c7836f;--v4-ink:#55413f;--v4-muted:#896e68;
  --v4-line:#eadbd0;--heading:#55413f;--muted:#896e68;
@@ -68,7 +68,7 @@ html[data-edition="offline"] .review-verdict{color:#735c52;}
  html[data-edition="offline"] #scoreboard{margin:0;white-space:nowrap;font-size:11px;}
  html[data-edition="offline"] .tabs{
   position:fixed;left:0;right:0;bottom:0;z-index:900;display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:0;
+  grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;margin:0;
   padding:8px max(9px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(9px,env(safe-area-inset-left,0px));
   background:#fffaf6f2;border-top:1px solid #e9d9cd;
   box-shadow:0 -6px 22px #b78d6e1b;backdrop-filter:blur(20px);
@@ -116,3 +116,13 @@ html[data-edition="offline"] .review-verdict{color:#735c52;}
 @media(prefers-reduced-motion:reduce){
  html[data-edition="offline"] *,html[data-edition="offline"] *::before,html[data-edition="offline"] *::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}
 }
+
+/* Hybrid online features stay visible, but remain graceful when offline. */
+html[data-edition="hybrid"] .hybrid-connection-status{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#826b61;}
+html[data-edition="hybrid"] .hybrid-connection-status::before{content:"";width:7px;height:7px;border-radius:50%;background:#70a987;}
+html[data-edition="hybrid"] .hybrid-connection-status.is-offline::before{background:#c7836f;}
+html[data-edition="hybrid"] .hybrid-shortcuts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 16px;padding:12px;border:1px solid #eadbd0;border-radius:15px;background:#fff8f1;}
+html[data-edition="hybrid"] .hybrid-shortcuts button,html[data-edition="hybrid"] .hybrid-back-button{font-size:12px;min-height:40px;}
+html[data-edition="hybrid"] .review-online-button{display:block!important;width:100%;min-height:48px;margin:12px 0;}
+html[data-edition="hybrid"] #panel-pvp .pvp-board{max-width:min(100%,600px);}
+@media(max-width:720px){html[data-edition="hybrid"] .tabs{grid-template-columns:repeat(5,minmax(0,1fr));}}
