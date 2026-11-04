@@ -388,6 +388,18 @@ test("PVP migration persists specific lifecycle end reasons without widening leg
   assert.match(room, /DELETE FROM pvp_active_players/);
 });
 
+test("PVP room exit uses HTTP acknowledgement and shared outages schedule a single deadline", () => {
+  const room = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
+  const api = readFileSync(fileURLToPath(new URL("../worker/v3.js", import.meta.url)), "utf8");
+  const ui = readFileSync(fileURLToPath(new URL("../pvp-ui.js", import.meta.url)), "utf8");
+  assert.match(api, /const leaveMatch = url\.pathname\.match/);
+  assert.match(api, /"\/internal\/leave", \{method: "POST", playerId: user\.id\}/);
+  assert.match(room, /url\.pathname === "\/internal\/leave"/);
+  assert.match(room, /Math\.max\(\.\.\.disconnectedAt\) \+ DISCONNECT_GRACE_MS/);
+  assert.match(room, /if \(disconnectedAt\.length === 2\)/);
+  assert.match(ui, /"\/leave", "POST", \{\}/);
+});
+
 test("PVP room reconnect remains online when an old socket closes after a new socket opens", () => {
   const closingSocket = {readyState: 3, deserializeAttachment: () => ({playerId:"host-id"})};
   const replacementSocket = {readyState: 1, deserializeAttachment: () => ({playerId:"host-id"})};
