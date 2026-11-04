@@ -443,6 +443,8 @@ test("PVP frontend restores each signed-in player's room and does not replay rev
   assert.match(pvpUi, /type: "continue_idle"/);
   assert.match(pvpUi, /type: "ping"/);
   assert.match(pvpUi, /lastPongAt/);
+  assert.match(pvpUi, /Date\.now\(\) - lastPongAt >= 20_000/);
+  assert.match(pvpUi, /\}, 10_000\)/);
   assert.match(pvpUi, /ack-result/);
   assert.match(pvpUi, /resultSeenByPlayer/);
   assert.match(pvpUi, /type: "leave_room"/);
