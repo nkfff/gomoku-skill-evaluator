@@ -6,6 +6,37 @@ export const ELO_K = 32;
 export const UNDO_REQUEST_TIMEOUT_MS = 20_000;
 export const PVP_COLORS = Object.freeze({BLACK: 1, WHITE: 2});
 
+export const IDLE_REMINDER_MS = 60_000;
+export const IDLE_CONFIRM_MS = 30_000;
+
+export function pvpIdleReminderDeadline(match, acknowledgedAt = 0) {
+  if (!match || match.status !== "active" || !Number.isFinite(Number(match.turnStartedAt))) return null;
+  return Math.max(Number(match.turnStartedAt), Number(acknowledgedAt) || 0) + IDLE_REMINDER_MS;
+}
+
+export function createPvpIdlePrompt(playerId, now = Date.now()) {
+  if (!playerId) throw new Error("INVALID_IDLE_PLAYER");
+  return {playerId, startedAt: now, deadlineAt: now + IDLE_CONFIRM_MS};
+}
+
+export function isPvpIdlePromptExpired(prompt, now = Date.now()) {
+  return Boolean(prompt && Number.isFinite(Number(prompt.deadlineAt)) && now >= Number(prompt.deadlineAt));
+}
+
+export function resolvePvpDisconnectState(playerIds, disconnectedAt, now = Date.now(), graceMs = 60_000) {
+  const offline = playerIds.filter(playerId =>
+    Number.isFinite(Number(disconnectedAt?.[playerId]))
+  );
+  if (!offline.length) return {type: "online"};
+  if (offline.length === playerIds.length) {
+    const deadline = Math.max(...offline.map(playerId => Number(disconnectedAt[playerId]))) + graceMs;
+    return now >= deadline ? {type: "abandon"} : {type: "wait", deadline};
+  }
+  const playerId = offline[0];
+  const deadline = Number(disconnectedAt[playerId]) + graceMs;
+  return now >= deadline ? {type: "forfeit", playerId} : {type: "wait", deadline};
+}
+
 export function createMatchState({
   roomId, matchId, blackPlayerId, whitePlayerId,
   timeControlMs = DEFAULT_TIME_CONTROL_MS, now = Date.now(),
