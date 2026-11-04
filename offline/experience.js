@@ -93,7 +93,7 @@ if(gameStats){
  });
 }
 window.addEventListener("gomoku:tab-change",event=>{
- const tab=event.detail?.tab,selected=tab==="random"?"puzzle":tab;
+ const tab=event.detail?.tab,selected=tab==="random"?"puzzle":tab==="store"||tab==="leaderboard"?"account":tab;
  if(matchMedia("(max-width:720px)").matches&&selected){
   for(const [id] of links)$("tab-"+id)?.classList.toggle("active",id===selected);
  }
