@@ -131,8 +131,23 @@
 <button id="pvpOfferUndo" hidden>申请悔棋</button>
 <button id="pvpResign">认输</button><button id="pvpRematch" class="primary" hidden>再来一局</button><button id="pvpNewMatch" hidden>重新匹配</button>
 </div>
-<p class="note">断线后系统会尝试自动重连，断线宽限期为 60 秒。对局结束后，双方可点击“再来一局”继续与同一好友对弈；“重新匹配”返回好友大厅，创建或加入新房间。当前版本使用邀请码房间，尚未提供随机匹配队列。</p>
+<p class="note">每步连续 60 秒未落子会弹出 30 秒确认提醒；无响应将判负。断线后有 60 秒重连宽限期，双方同时断线则中止且不结算 Elo。等待房间 30 分钟无活动自动关闭；对局结束后保留 10 分钟供查看结果或再战。对局历史和 Elo 记录不会随房间清理删除。</p>
 </div>
+<div id="pvpIdleModal" class="pvp-undo-modal pvp-idle-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pvpIdleTitle" aria-describedby="pvpIdleMessage">
+ <div class="pvp-undo-backdrop"></div>
+ <div class="pvp-undo-card pvp-idle-card">
+  <div class="pvp-undo-mark" aria-hidden="true">⏳</div>
+  <span class="eyebrow">STILL PLAYING?</span>
+  <h2 id="pvpIdleTitle">还在对局吗？</h2>
+  <p id="pvpIdleMessage">你已连续 1 分钟没有落子，请确认是否继续。</p>
+  <strong id="pvpIdleCountdown" class="pvp-idle-countdown" aria-live="off">00:30</strong>
+  <div class="pvp-undo-actions pvp-idle-actions">
+   <button id="pvpIdleExit" type="button">退出并认输</button>
+   <button id="pvpIdleContinue" class="primary" type="button">继续对局</button>
+  </div>
+ </div>
+</div>
+
 <div id="pvpResultModal" class="pvp-result-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pvpResultTitle" aria-describedby="pvpResultMessage">
  <div class="pvp-result-backdrop"></div>
  <div class="pvp-result-card">
