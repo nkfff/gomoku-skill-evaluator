@@ -6,6 +6,8 @@ on:
     paths:
       - ".github/workflows/deploy-v4.0-workers.yml"
       - "v4.0/worker/index.js"
+      - "v4.0/worker/review-coach.js"
+      - "v4.0/wrangler.v2.toml"
       - "v4.0/worker/v3.js"
       - "v4.0/worker/pvp-room.js"
       - "v4.0/src/pvp.js"

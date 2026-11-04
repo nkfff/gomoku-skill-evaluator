@@ -2,6 +2,9 @@ name = "gomoku-v2-api"
 main = "worker/index.js"
 compatibility_date = "2026-10-01"
 
+[ai]
+binding = "AI"
+
 [vars]
 FRONTEND_ORIGIN = "https://nkfff.github.io"
 

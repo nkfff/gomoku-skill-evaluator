@@ -1,5 +1,6 @@
 import {createRemoteJWKSet,jwtVerify} from "jose";
 import {LEVELS,CELLS,winLine,chooseAI,rankedMoves,coord} from "../src/engine.js";
+import {generateReviewCoach} from "./review-coach.js";
 
 const award={easy:10,normal:30,hard:80};
 const boards={classic:0,jade:60,night:150,cherry:260,catcafe:480,gold:500};
@@ -137,6 +138,7 @@ export default {
    if(Number(request.headers.get("Content-Length")||0)>25000)throw invalid("请求过大",413);
    const body=await request.json();
    if(JSON.stringify(body).length>25000)throw invalid("请求过大",413);
+   if(url.pathname==="/api/review/coach")return reply(await generateReviewCoach(env,user,body),200,cors);
    if(url.pathname==="/api/profile")return reply({profile:await profile(env,user.id)},200,cors);
    if(url.pathname==="/api/name"){
     const name=clean(body.name);
