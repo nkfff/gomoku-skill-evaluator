@@ -1,6 +1,6 @@
-# 猫猫棋局 · Offline Edition
+# 猫猫棋局 · Hybrid Edition
 
-> 本目录是独立于在线 V4 的单机发行工程。**[offline-v0.1.0-beta.2 已发布 GitHub Beta 预发布版](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2)**，含六个平台的下载附件。维护者已确认本次 Beta 验收通过。在线 Pages、PVP、Supabase、Cloudflare 的服务逻辑保持独立。
+ > 本目录是独立原生 App 发行工程：游戏资源随 App 安装，联网时使用现有账号、云端 AI 与 PVP 服务，断网时继续本地单机。它不是把网页地址装进壳，而是由 Electron / Capacitor 加载内置资源并通过 API 连接云端。**[offline-v0.1.0-beta.2 已发布 GitHub Beta 预发布版](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2)**，含六个平台的下载附件。维护者已确认本次 Beta 验收通过。在线 Pages、PVP、Supabase、Cloudflare 的服务逻辑保持独立。
 
 ## macOS DMG 修复和 Intel 适配（beta.2）
 
@@ -33,7 +33,7 @@ python3 -m http.server 8043 --bind 127.0.0.1
 打开 `http://127.0.0.1:8043/offline/dist/`；不要用 `file://` 双击 HTML 测试模块 Worker / Service Worker。
 静态验证：`node --test offline/tests/*.test.mjs`。
 
-手机 UI 优先适配 320/390/768px、44px 触控目标与 safe-area；底部导航为对弈、挑战、装扮、我的。随机连珠从挑战页面进入，复盘从对弈页面进入。
+手机 UI 优先适配 320/390/768px、44px 触控目标与 safe-area；底部五个主入口为对弈、复盘、挑战、好友、我的。随机连珠从挑战页面进入，排行榜与皮肤收藏从「我的」进入。在线 AI 教练位于复盘面板；未登录或离线时保留入口并明确显示不可用原因。
 统一图标源文件 `icons/cat-gomoku.svg`，构建生成 PWA 192/512 与原生 1024 PNG。
 
 ## Android / iOS 原生工程
@@ -54,7 +54,7 @@ Capacitor 依赖固定在 8.6.0；生成目录暂不纳入 Git，避免改动在
 
 自动发布工作流为 [Offline Beta Release](../.github/workflows/offline-release.yml)。在未来发布新版本时，修改版本号并推送新 `offline-v*` 标签，或使用 GitHub Actions 的 `workflow_dispatch` 指定新标签；所有平台构建成功才创建新的 Pre-release。**不要重复发布已有标签，避免覆盖已经分发的安装包。**
 
-用户已确认本次 Beta 验收通过；但 GitHub Beta 发行不等于 Google Play、TestFlight 或 App Store 上架。面向这些商店时仍需要 Android 正式签名/AAB、Apple Developer 证书和签名 IPA、应用审核以及必要的机型兼容记录。
+GitHub Beta 发行不等于 Google Play、TestFlight 或 App Store 上架。面向这些商店时仍需要 Android 正式签名/AAB、Apple Developer 证书和签名 IPA、应用审核以及必要的机型兼容记录。
 
 ## 尚未满足的正式发布门槛
 
