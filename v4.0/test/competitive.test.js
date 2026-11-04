@@ -5,12 +5,14 @@ import { fileURLToPath } from "node:url";
 import { chooseAI, CELLS } from "../src/engine.js";
 import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
 import {
-  acceptPvpDraw, applyPvpMove, applySpectatorMovePatch, createMatchState, declinePvpDraw, finishByResign, offerPvpDraw,
+  UNDO_REQUEST_TIMEOUT_MS, acceptPvpDraw, acceptPvpUndo, applyPvpMove, applySpectatorMovePatch,
+  cancelPvpUndo, createMatchState, declinePvpDraw, declinePvpUndo, expirePvpUndo,
+  finishByResign, finishByTimeout, offerPvpDraw, offerPvpUndo,
   declinePvpRematch, getIncomingPvpRematchInvite, publicMatchState,
   requestPvpRematch, shouldAnimatePvpDice
 } from "../src/pvp.js";
 import {
-  getConnectedSpectators, hasOpenPlayerConnection, hasOpenSpectatorConnection, rollDice
+  PvpRoom, getConnectedSpectators, hasOpenPlayerConnection, hasOpenSpectatorConnection, rollDice
 } from "../worker/pvp-room.js";
 
 test("AI can search as either black or white", () => {
@@ -166,6 +168,133 @@ test("PVP draw offer is visible to the opponent and requires explicit acceptance
   assert.equal(accepted.endedAt, 3000);
   assert.equal(accepted.pendingDrawBy, null);
   assert.throws(() => declinePvpDraw(offered, "stranger"), /NOT_A_MATCH_PLAYER/);
+});
+
+test("PVP undo request requires opponent consent and blocks conflicting actions", () => {
+  const initial = createMatchState({
+    roomId:"room-undo", matchId:"match-undo", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:1000
+  });
+  assert.throws(() => offerPvpUndo(initial, "host-id", 2000), /NO_MOVE_TO_UNDO/);
+  const moved = applyPvpMove(initial, {
+    playerId:"host-id", cellIndex:112, actionId:"undo-move-01", now:3000
+  }).state;
+  const offered = offerPvpUndo(moved, "guest-id", 4000);
+  assert.equal(offered.pendingUndo.requesterPlayerId, "guest-id");
+  assert.equal(offered.pendingUndo.movePly, 1);
+  assert.equal(offered.pendingUndo.lastMoveCellIndex, 112);
+  assert.equal(moved.pendingUndo, null, "the prior state remains immutable");
+  assert.equal(publicMatchState(offered, "host-id").pendingUndo.requesterPlayerId, "guest-id");
+  assert.equal(publicMatchState(offered, "viewer-id", {spectator:true}).pendingUndo.requesterPlayerId, "guest-id");
+  assert.throws(() => offerPvpUndo(offered, "host-id", 4500), /UNDO_ALREADY_PENDING/);
+  assert.throws(() => applyPvpMove(offered, {
+    playerId:"guest-id", cellIndex:113, actionId:"undo-move-02", now:4500
+  }), /UNDO_ALREADY_PENDING/);
+  assert.throws(() => offerPvpDraw(offered, "host-id"), /UNDO_ALREADY_PENDING/);
+  assert.throws(() => acceptPvpUndo(offered, "guest-id", 5000), /CANNOT_ACCEPT_OWN_UNDO/);
+  assert.throws(() => acceptPvpUndo(offered, "stranger", 5000), /NOT_A_MATCH_PLAYER/);
+});
+
+test("PVP undo acceptance restores the board, returns the turn and never refunds thinking time", () => {
+  const initial = createMatchState({
+    roomId:"room-undo-clock", matchId:"match-undo-clock", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:1000
+  });
+  const moved = applyPvpMove(initial, {
+    playerId:"host-id", cellIndex:112, actionId:"undo-clock-01", now:3000
+  }).state;
+  const offered = offerPvpUndo(moved, "guest-id", 4000);
+  const accepted = acceptPvpUndo(offered, "host-id", 7000);
+
+  assert.equal(accepted.status, "active");
+  assert.equal(accepted.board[112], 0);
+  assert.equal(accepted.moves.length, 0);
+  assert.equal(accepted.turnPlayerId, "host-id");
+  assert.equal(accepted.turnColor, 1);
+  assert.equal(accepted.turnStartedAt, 7000);
+  assert.equal(accepted.lastMoveAt, initial.startedAt);
+  assert.equal(accepted.clocksMs.black, 598000, "black's original thinking time is not refunded");
+  assert.equal(accepted.clocksMs.white, 596000, "white's time continues while the request is pending");
+  assert.equal(accepted.revision, 2, "revision remains monotonic after undo");
+  assert.equal(accepted.pendingUndo, null);
+  assert.equal(offered.board[112], 1, "accepting must not mutate the prior snapshot");
+});
+
+test("PVP undo can be declined, cancelled by its requester or expired automatically", () => {
+  const initial = createMatchState({
+    roomId:"room-undo-actions", matchId:"match-undo-actions", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:1000
+  });
+  const moved = applyPvpMove(initial, {
+    playerId:"host-id", cellIndex:112, actionId:"undo-actions-01", now:3000
+  }).state;
+  const offered = offerPvpUndo(moved, "host-id", 4000);
+  assert.throws(() => declinePvpUndo(offered, "host-id"), /CANNOT_DECLINE_OWN_UNDO/);
+  assert.throws(() => cancelPvpUndo(offered, "guest-id"), /NOT_UNDO_REQUESTER/);
+  assert.equal(declinePvpUndo(offered, "guest-id").pendingUndo, null);
+  assert.equal(cancelPvpUndo(offered, "host-id").pendingUndo, null);
+  assert.equal(expirePvpUndo(offered, 4000 + UNDO_REQUEST_TIMEOUT_MS - 1), offered);
+  assert.equal(expirePvpUndo(offered, 4000 + UNDO_REQUEST_TIMEOUT_MS).pendingUndo, null);
+  assert.throws(() => acceptPvpUndo(offered, "guest-id", 4000 + UNDO_REQUEST_TIMEOUT_MS), /UNDO_REQUEST_EXPIRED/);
+  assert.equal(finishByResign(offered, "host-id", 5000).pendingUndo, null);
+  assert.equal(finishByTimeout(offered, "guest-id", 5000).pendingUndo, null);
+});
+
+test("PVP undo acceptance respects the active player's clock and rejects stale requests", () => {
+  const initial = createMatchState({
+    roomId:"room-undo-expired", matchId:"match-undo-expired", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:1000
+  });
+  const moved = applyPvpMove(initial, {
+    playerId:"host-id", cellIndex:112, actionId:"undo-expired-01", now:3000
+  }).state;
+  const lowClock = {...moved, clocksMs:{...moved.clocksMs, white:1000}};
+  const offered = offerPvpUndo(lowClock, "guest-id", 3000);
+  assert.throws(() => acceptPvpUndo(offered, "host-id", 4000), /CLOCK_EXPIRED/);
+  assert.throws(() => acceptPvpUndo({...offered, revision:offered.revision + 1}, "host-id", 3500), /STALE_UNDO_REQUEST/);
+});
+
+test("PVP Durable Object removes the final D1 move only after consent", async () => {
+  const initial = createMatchState({
+    roomId:"room-undo-db", matchId:"match-undo-db", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:Date.now() - 2000
+  });
+  const moved = applyPvpMove(initial, {
+    playerId:"host-id", cellIndex:112, actionId:"undo-db-0001", now:Date.now() - 1000
+  }).state;
+  const offered = offerPvpUndo(moved, "guest-id", Date.now() - 900);
+  let storedRoom = null;
+  const statements = [];
+  const ctx = {
+    storage: {
+      get: async () => storedRoom,
+      put: async (_key, value) => { storedRoom = value; },
+      setAlarm: async () => {},
+      deleteAlarm: async () => {}
+    },
+    getWebSockets: () => []
+  };
+  const env = {
+    DB: {
+      prepare: sql => ({sql, bind: (...args) => ({sql, args})}),
+      batch: async sql => {
+        statements.push(...sql);
+        return [{meta:{changes:1}},{meta:{changes:1}}];
+      }
+    }
+  };
+  const room = new PvpRoom(ctx, env);
+  await room.ready;
+  room.room = {
+    roomId:"room-undo-db", status:"active", hostPlayerId:"host-id", guestPlayerId:"guest-id",
+    disconnectedAt:{}, match:offered
+  };
+  await room.acceptUndo("host-id");
+  assert.equal(room.room.match.moves.length, 0);
+  assert.equal(room.room.match.board[112], 0);
+  assert.equal(room.room.match.turnPlayerId, "host-id");
+  assert.match(statements[0].sql, /DELETE FROM pvp_moves/);
+  assert.match(statements[1].sql, /UPDATE pvp_matches SET move_count/);
 });
 
 test("PVP resignation assigns the win to the opponent", () => {
@@ -352,7 +481,7 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   const css = readFileSync(fileURLToPath(new URL("../src/style.css", import.meta.url)), "utf8");
   const pvpUi = readFileSync(fileURLToPath(new URL("../pvp-ui.js", import.meta.url)), "utf8");
   const pvpRoom = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
-  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","pvpResultModal","pvpResultClose","pvpResultTitle","pvpResultMessage","pvpResultRating","pvpResultContinue","pvpRematchInviteModal","pvpRematchInviteTitle","pvpRematchInviteMessage","pvpRematchInviteFrom","pvpRematchInviteAccept","pvpRematchInviteDecline","aiPodium","pvpPodium"]) {
+  for (const id of ["firstMoveChoice","drawEasterEgg","drawEggReward","pvpDiceStage","pvpDiceLeft","pvpDiceRight","pvpRematch","pvpNewMatch","pvpResultModal","pvpResultClose","pvpResultTitle","pvpResultMessage","pvpResultRating","pvpResultContinue","pvpRematchInviteModal","pvpRematchInviteTitle","pvpRematchInviteMessage","pvpRematchInviteFrom","pvpRematchInviteAccept","pvpRematchInviteDecline","pvpUndoModal","pvpUndoTitle","pvpUndoMessage","pvpUndoAccept","pvpUndoDecline","pvpUndoCancel","pvpOfferUndo","aiPodium","pvpPodium"]) {
     assert.equal((html.match(new RegExp('id="' + id + '"' , "g")) || []).length, 1, id);
   }
   assert.match(html, /class="dice-cube show-5"/);
@@ -380,6 +509,10 @@ test("V4.0 HTML contains the new interaction surfaces exactly once", () => {
   assert.match(pvpRoom, /message.type === "decline_rematch"/);
   assert.match(pvpRoom, /type: "rematch_declined", playerId, room:/);
   assert.match(css, /\.pvp-rematch-invite-modal\[hidden\]\{display:none!important\}/);
+  assert.match(css, /\.pvp-undo-modal\[hidden\]\{display:none!important\}/);
+  assert.match(pvpUi, /function syncUndoModal/);
+  assert.match(pvpUi, /type: "accept_undo"/);
+  assert.match(pvpUi, /type: "decline_undo"/);
   assert.match(pvpRoom, /type: "draw_offered", playerId, room:/);
   assert.match(pvpRoom, /type: "draw_declined", playerId, room:/);
   assert.match(pvpRoom, /type: "game_over", room:/);
