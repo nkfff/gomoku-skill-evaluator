@@ -1,5 +1,5 @@
 import {
-  DEFAULT_TIME_CONTROL_MS, UNDO_REQUEST_TIMEOUT_MS, IDLE_REMINDER_MS, IDLE_CONFIRM_MS,
+  DEFAULT_TIME_CONTROL_MS, UNDO_REQUEST_TIMEOUT_MS,
   acceptPvpDraw, acceptPvpUndo, applyPvpMove, calculateElo, createMatchState,
   cancelPvpDraw, cancelPvpUndo, createPvpIdlePrompt, declinePvpDraw, declinePvpRematch, declinePvpUndo, expirePvpUndo,
   isPvpIdlePromptExpired, offerPvpDraw, offerPvpUndo, pvpIdleReminderDeadline, requestPvpRematch,
