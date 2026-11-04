@@ -440,3 +440,24 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 .review-ai-result:not(:empty){padding:12px;border-radius:11px;background:rgba(139,178,154,.1);border:1px solid var(--border,var(--v4-line))}
 .review-ai-card .review-online-button[disabled]{opacity:.65;cursor:progress}
 @media(max-width:640px){.review-ai-card{gap:7px}.review-ai-card .review-online-button{width:100%}}
+
+/* V4.0.11 — balanced desktop review columns; preserve compact mobile flow. */
+.layout.review-mode{
+ grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
+ align-items:stretch;
+}
+.layout.review-mode>.board-panel,
+.layout.review-mode>.side-panel{align-self:stretch;min-height:100%}
+.layout.review-mode>.board-panel{display:flex;flex-direction:column}
+.layout.review-mode>.board-panel>.board-note{margin-top:auto;padding-top:10px}
+.layout.review-mode>.side-panel{display:flex;flex-direction:column}
+.layout.review-mode>.side-panel>#panel-replay{flex:1;min-height:0}
+.review-ai-card .review-ai-status{display:flex;align-items:center;gap:8px;min-height:22px;margin:0}
+.review-ai-card .review-ai-status::before{content:"";flex:0 0 7px;width:7px;height:7px;border-radius:50%;background:var(--v4-accent,#8bb29a);opacity:.65}
+.review-ai-card .review-ai-status.is-streaming::before{opacity:1;animation:review-ai-pulse 1.15s ease-in-out infinite}
+@keyframes review-ai-pulse{0%,100%{transform:scale(.8);opacity:.45}50%{transform:scale(1.25);opacity:1}}
+@media(max-width:950px){
+ .layout.review-mode{align-items:start}
+ .layout.review-mode>.board-panel,.layout.review-mode>.side-panel{min-height:0;height:auto}
+ .layout.review-mode>.board-panel>.board-note{margin-top:12px;padding-top:0}
+}
