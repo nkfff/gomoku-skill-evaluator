@@ -1,6 +1,6 @@
 {
   "version": "4.0.12",
-  "cacheVersion": "4046eb6595ea66ca",
+  "cacheVersion": "4046eb6595ea66ca-hybrid-1",
   "onnxruntime": "1.31.1",
   "files": {
     "index.html": "c2bbd77d6a1ed9f4452c92e3cc2f5f841f78ec51d22dfd4ff9c0ebb01fecf7db",
