@@ -53,7 +53,7 @@ function randomSeed(){
   else a[0]=(Date.now()^Math.floor(Math.random()*0xffffffff))>>>0;
   return a[0]||1;
 }
-function isCloudUser(){return loggedIn()&&cloudConfigured()&&!!API;}
+function isCloudUser(){return navigator.onLine&&loggedIn()&&cloudConfigured()&&!!API;}
 async function modeApi(path,payload){
   const token=await bearer();
   if(!token)throw new Error("请先登录账号，或切换为游客模式进行本地挑战");
