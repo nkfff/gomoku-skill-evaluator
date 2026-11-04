@@ -102,8 +102,9 @@ function adminOrThrow(env,user){
 function corsFor(request,env){
  const origin=request.headers.get("Origin")||"";
  const allowed=(env.FRONTEND_ORIGIN||"https://nkfff.github.io").replace(/\/$/,"");
- const localDev=env.DEV_ORIGIN||"";
- return (origin===allowed||(localDev&&origin===localDev))?
+ const configuredApps=String(env.APP_ORIGINS||"").split(",").map(value=>value.trim().replace(/\/$/,"")).filter(Boolean);
+ const allowedOrigins=new Set([allowed,env.DEV_ORIGIN||"",...configuredApps].filter(Boolean));
+ return allowedOrigins.has(origin)?
  {"Access-Control-Allow-Origin":origin,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET,POST,OPTIONS","Vary":"Origin"}:{};
 }
 export default {
