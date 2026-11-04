@@ -24,9 +24,10 @@ export function isPvpIdlePromptExpired(prompt, now = Date.now()) {
 }
 
 export function resolvePvpDisconnectState(playerIds, disconnectedAt, now = Date.now(), graceMs = 60_000) {
-  const offline = playerIds.filter(playerId =>
-    Number.isFinite(Number(disconnectedAt?.[playerId]))
-  );
+  const offline = playerIds.filter(playerId => {
+    const timestamp = disconnectedAt?.[playerId];
+    return typeof timestamp === "number" && Number.isFinite(timestamp);
+  });
   if (!offline.length) return {type: "online"};
   if (offline.length === playerIds.length) {
     const deadline = Math.max(...offline.map(playerId => Number(disconnectedAt[playerId]))) + graceMs;
