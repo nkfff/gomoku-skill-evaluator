@@ -1,6 +1,6 @@
 {
   "version": "4.0.12",
-  "cacheVersion": "v4012lifecycle12",
+  "cacheVersion": "v4012lifecycle13",
   "onnxruntime": "1.31.1",
   "files": {
     "index.html": "c390f43eb0d866eaa15238d7ae5614440e16e503b4ace449d572556d22ef6023",
