@@ -61,6 +61,7 @@ export class PvpRoom {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
+    this.undoPersistenceInFlight = false;
     this.ready = this.ctx.storage.get("room").then(room => { this.room = room || null; });
   }
 
@@ -238,6 +239,7 @@ export class PvpRoom {
     }
     try {
       this.requireMember(playerId);
+      if (this.undoPersistenceInFlight) throw new Error("MATCH_ACTION_IN_PROGRESS");
       if (message.type === "ready") return await this.markReady(playerId);
       if (message.type === "rematch") return await this.requestRematch(playerId);
       if (message.type === "decline_rematch") return await this.declineRematch(playerId);
@@ -294,6 +296,10 @@ export class PvpRoom {
   async alarm() {
     await this.ready;
     if (!this.room) return;
+    if (this.undoPersistenceInFlight) {
+      await this.ctx.storage.setAlarm(nowMs() + 250);
+      return;
+    }
     const now = nowMs();
     if (this.room.status === "finished" && this.room.settlementPending && this.room.match) {
       await this.finishMatch(this.room.match.endReason || "five_in_row");
@@ -559,41 +565,48 @@ export class PvpRoom {
 
   async acceptUndo(playerId) {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
-    const oldState = this.room.match;
-    const removedMove = oldState.moves[oldState.moves.length - 1];
-    let nextState;
+    if (this.undoPersistenceInFlight) throw new Error("MATCH_ACTION_IN_PROGRESS");
+    this.undoPersistenceInFlight = true;
     try {
-      nextState = acceptPvpUndo(oldState, playerId, nowMs());
-    } catch (error) {
-      if (error.message === "CLOCK_EXPIRED") {
-        this.room.match = finishByTimeout(oldState, oldState.turnPlayerId, nowMs());
-        await this.finishMatch("timeout");
-        return;
+      if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
+      const oldState = this.room.match;
+      const removedMove = oldState.moves[oldState.moves.length - 1];
+      let nextState;
+      try {
+        nextState = acceptPvpUndo(oldState, playerId, nowMs());
+      } catch (error) {
+        if (error.message === "CLOCK_EXPIRED") {
+          this.room.match = finishByTimeout(oldState, oldState.turnPlayerId, nowMs());
+          await this.finishMatch("timeout");
+          return;
+        }
+        throw error;
       }
-      throw error;
-    }
-    this.room.match = nextState;
-    await this.ctx.storage.put("room", this.room);
-    try {
-      const results = await this.env.DB.batch([
-        this.env.DB.prepare(
-          "DELETE FROM pvp_moves WHERE match_id=? AND ply=? AND player_id=? AND revision=? AND EXISTS(SELECT 1 FROM pvp_matches WHERE id=? AND status='active')"
-        ).bind(oldState.matchId, removedMove.ply, removedMove.playerId, removedMove.revision, oldState.matchId),
-        this.env.DB.prepare(
-          "UPDATE pvp_matches SET move_count=? WHERE id=? AND status='active' AND changes()=1"
-        ).bind(nextState.moves.length, oldState.matchId)
-      ]);
-      if (Number(results?.[0]?.meta?.changes || 0) !== 1 ||
-          Number(results?.[1]?.meta?.changes || 0) !== 1) {
+      this.room.match = nextState;
+      await this.ctx.storage.put("room", this.room);
+      try {
+        const results = await this.env.DB.batch([
+          this.env.DB.prepare(
+            "DELETE FROM pvp_moves WHERE match_id=? AND ply=? AND player_id=? AND revision=? AND EXISTS(SELECT 1 FROM pvp_matches WHERE id=? AND status='active')"
+          ).bind(oldState.matchId, removedMove.ply, removedMove.playerId, removedMove.revision, oldState.matchId),
+          this.env.DB.prepare(
+            "UPDATE pvp_matches SET move_count=? WHERE id=? AND status='active' AND changes()=1"
+          ).bind(nextState.moves.length, oldState.matchId)
+        ]);
+        if (Number(results?.[0]?.meta?.changes || 0) !== 1 ||
+            Number(results?.[1]?.meta?.changes || 0) !== 1) {
+          throw new Error("UNDO_PERSIST_FAILED");
+        }
+      } catch {
+        this.room.match = oldState;
+        await this.ctx.storage.put("room", this.room);
         throw new Error("UNDO_PERSIST_FAILED");
       }
-    } catch {
-      this.room.match = oldState;
-      await this.ctx.storage.put("room", this.room);
-      throw new Error("UNDO_PERSIST_FAILED");
+      await this.scheduleNextAlarm();
+      this.broadcast({type: "undo_accepted", playerId, removedMove, room: true});
+    } finally {
+      this.undoPersistenceInFlight = false;
     }
-    await this.scheduleNextAlarm();
-    this.broadcast({type: "undo_accepted", playerId, removedMove, room: true});
   }
 
   async declineUndo(playerId) {
@@ -798,6 +811,7 @@ export class PvpRoom {
       NOT_UNDO_REQUESTER: "只有悔棋申请方可以撤回申请",
       STALE_UNDO_REQUEST: "悔棋申请已失效，请重新同步棋盘",
       UNDO_PERSIST_FAILED: "悔棋记录保存失败，棋盘已恢复，请重试",
+      MATCH_ACTION_IN_PROGRESS: "悔棋正在同步棋谱，请稍候再操作",
       NO_PENDING_REMATCH_INVITE: "当前没有待处理的再来一局邀请",
       MOVE_PERSIST_FAILED: "落子保存失败，请重新同步棋盘"
     };
