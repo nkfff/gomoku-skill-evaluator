@@ -696,6 +696,11 @@ export class PvpRoom {
       blackRating: blackRating?.rating ?? 1000, whiteRating: whiteRating?.rating ?? 1000,
       diceRolls: dice.rolls, diceWinnerPlayerId: dice.winnerPlayerId
     });
+    this.room.idlePrompt = null;
+    this.room.idleAcknowledgedAt = null;
+    this.room.resultSeenByPlayer = {[host]: false, [guest]: false};
+    this.room.leftByPlayer = {};
+    this.room.disconnectedAt = {};
     await this.ctx.storage.put("room", this.room);
     await this.scheduleNextAlarm();
     this.broadcast({type: "match_started", room: this.snapshot(blackPlayerId)});
@@ -758,7 +763,10 @@ export class PvpRoom {
   async offerDraw(playerId) {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
     this.room.match = offerPvpDraw(this.room.match, playerId);
+    this.room.idlePrompt = null;
+    this.room.idleAcknowledgedAt = nowMs();
     await this.ctx.storage.put("room", this.room);
+    await this.scheduleNextAlarm();
     this.broadcast({type: "draw_offered", playerId, room: this.snapshot(playerId)});
   }
 
@@ -771,20 +779,28 @@ export class PvpRoom {
   async declineDraw(playerId) {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
     this.room.match = declinePvpDraw(this.room.match, playerId);
+    this.room.idlePrompt = null;
+    this.room.idleAcknowledgedAt = nowMs();
     await this.ctx.storage.put("room", this.room);
+    await this.scheduleNextAlarm();
     this.broadcast({type: "draw_declined", playerId, room: this.snapshot(playerId)});
   }
 
   async cancelDraw(playerId) {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
     this.room.match = cancelPvpDraw(this.room.match, playerId);
+    this.room.idlePrompt = null;
+    this.room.idleAcknowledgedAt = nowMs();
     await this.ctx.storage.put("room", this.room);
+    await this.scheduleNextAlarm();
     this.broadcast({type: "draw_cancelled", playerId, room: this.snapshot(playerId)});
   }
 
   async offerUndo(playerId) {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
     this.room.match = offerPvpUndo(this.room.match, playerId, nowMs());
+    this.room.idlePrompt = null;
+    this.room.idleAcknowledgedAt = nowMs();
     await this.ctx.storage.put("room", this.room);
     await this.scheduleNextAlarm();
     this.broadcast({type: "undo_requested", playerId, room: true});
@@ -810,6 +826,8 @@ export class PvpRoom {
         throw error;
       }
       this.room.match = nextState;
+      this.room.idlePrompt = null;
+      this.room.idleAcknowledgedAt = null;
       await this.ctx.storage.put("room", this.room);
       try {
         const results = await this.env.DB.batch([
@@ -839,6 +857,8 @@ export class PvpRoom {
   async declineUndo(playerId) {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
     this.room.match = declinePvpUndo(this.room.match, playerId);
+    this.room.idlePrompt = null;
+    this.room.idleAcknowledgedAt = nowMs();
     await this.ctx.storage.put("room", this.room);
     await this.scheduleNextAlarm();
     this.broadcast({type: "undo_declined", playerId, room: true});
@@ -847,6 +867,8 @@ export class PvpRoom {
   async cancelUndo(playerId) {
     if (this.room.status !== "active" || !this.room.match) throw new Error("MATCH_NOT_ACTIVE");
     this.room.match = cancelPvpUndo(this.room.match, playerId);
+    this.room.idlePrompt = null;
+    this.room.idleAcknowledgedAt = nowMs();
     await this.ctx.storage.put("room", this.room);
     await this.scheduleNextAlarm();
     this.broadcast({type: "undo_cancelled", playerId, room: true});
@@ -862,16 +884,26 @@ export class PvpRoom {
     const elo = calculateElo(initialBlack, initialWhite, match.result);
     const blackOutcome = match.result === "draw" ? "draw" : match.result === "black_win" ? "win" : "loss";
     const whiteOutcome = match.result === "draw" ? "draw" : match.result === "white_win" ? "win" : "loss";
+    const dbReason = reason === "idle_timeout" ? "timeout" : reason;
+    const detailReason = reason === "idle_timeout" ? "idle_timeout" : null;
     match.endReason = reason;
+    match.endReasonDetail = detailReason;
     match.finalRatings = {[black]: elo.blackAfter, [white]: elo.whiteAfter};
     this.room.status = "finished";
+    this.room.idlePrompt = null;
     this.room.rematchByPlayer = {};
     this.room.settlementPending = true;
+    this.room.unratedAbortPending = false;
+    this.room.expiresAt = nowMs() + FINISHED_ROOM_RETENTION_MS;
+    this.room.resultSeenByPlayer = this.room.resultSeenByPlayer || {
+      [this.room.hostPlayerId]: false,
+      [this.room.guestPlayerId]: false
+    };
     await this.ctx.storage.put("room", this.room);
     try {
       await this.env.DB.batch([
-        this.env.DB.prepare("UPDATE pvp_matches SET status='finished',result=?,end_reason=?,final_black_rating=?,final_white_rating=?,ended_at=datetime('now') WHERE id=? AND status='active'")
-          .bind(match.result, reason, elo.blackAfter, elo.whiteAfter, match.matchId),
+        this.env.DB.prepare("UPDATE pvp_matches SET status='finished',result=?,end_reason=?,end_reason_detail=?,final_black_rating=?,final_white_rating=?,ended_at=datetime('now') WHERE id=? AND status='active'")
+          .bind(match.result, dbReason, detailReason, elo.blackAfter, elo.whiteAfter, match.matchId),
         this.env.DB.prepare("INSERT OR IGNORE INTO pvp_rating_events(id,match_id,player_id,outcome,rating_before,rating_after,delta) VALUES(?,?,?,?,?,?,?)")
           .bind(crypto.randomUUID(), match.matchId, black, blackOutcome, initialBlack, elo.blackAfter, elo.deltaBlack),
         this.env.DB.prepare("UPDATE pvp_ratings SET rating=?,rated_games=rated_games+1,wins=wins+?,losses=losses+?,draws=draws+?,peak_rating=MAX(peak_rating,?),updated_at=datetime('now') WHERE player_id=? AND changes()=1")
@@ -881,12 +913,12 @@ export class PvpRoom {
         this.env.DB.prepare("UPDATE pvp_ratings SET rating=?,rated_games=rated_games+1,wins=wins+?,losses=losses+?,draws=draws+?,peak_rating=MAX(peak_rating,?),updated_at=datetime('now') WHERE player_id=? AND changes()=1")
           .bind(elo.whiteAfter, whiteOutcome === "win" ? 1 : 0, whiteOutcome === "loss" ? 1 : 0, whiteOutcome === "draw" ? 1 : 0, elo.whiteAfter, white),
         this.env.DB.prepare("DELETE FROM pvp_active_players WHERE match_id=?").bind(match.matchId),
-        this.env.DB.prepare("UPDATE pvp_rooms SET status='finished',ended_at=datetime('now') WHERE id=?")
+        this.env.DB.prepare("UPDATE pvp_rooms SET status='finished',expires_at=datetime('now','+10 minutes'),ended_at=datetime('now') WHERE id=?")
           .bind(this.room.roomId)
       ]);
       this.room.settlementPending = false;
       await this.ctx.storage.put("room", this.room);
-      await this.ctx.storage.deleteAlarm();
+      await this.scheduleNextAlarm();
     } catch {
       await this.ctx.storage.setAlarm(nowMs() + 5000);
       throw new Error("SETTLEMENT_PENDING");
