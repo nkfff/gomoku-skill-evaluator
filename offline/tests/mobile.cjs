@@ -60,8 +60,7 @@ const path=require("node:path");
  const dir=path.resolve(__dirname,"../.test-artifacts");fs.mkdirSync(dir,{recursive:true});
  await page.screenshot({path:path.join(dir,"hybrid-mobile-390.png"),fullPage:true});
  assert.equal(remote.length,0,"Cold offline app requested external domains: "+remote.join(", "));
- assert.equal(errors.length,0,errors.join("
-"));
+ assert.equal(errors.length,0,errors.join(" | "));
  console.log("Hybrid mobile navigation, AI review visibility and airplane-mode smoke test passed");
  await browser.close();
 })().catch(e=>{console.error(e);process.exitCode=1;});
