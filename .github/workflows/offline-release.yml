@@ -20,7 +20,7 @@ env:
   RELEASE_TAG: ${{ inputs.release_tag || (github.ref_type == 'tag' && github.ref_name) || 'offline-v0.1.0-beta.1' }}
 jobs:
   web-pwa:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
     name: Build offline PWA archive
     runs-on: ubuntu-latest
     steps:
@@ -46,7 +46,7 @@ jobs:
           retention-days: 7
 
   android:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
     name: Build Android debug APK
     runs-on: ubuntu-latest
     steps:
@@ -89,7 +89,7 @@ jobs:
           retention-days: 7
 
   ios-simulator:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
     name: Build iOS Simulator app (not IPA)
     runs-on: macos-15
     steps:
@@ -128,7 +128,7 @@ jobs:
           retention-days: 7
 
   desktop-linux:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
     name: Build Linux AppImage
     runs-on: ubuntu-latest
     env:
@@ -159,7 +159,7 @@ jobs:
           retention-days: 7
 
   desktop-windows:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
     name: Build Windows installer
     runs-on: windows-latest
     env:
@@ -191,7 +191,7 @@ jobs:
           retention-days: 7
 
   desktop-macos:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
     name: Build macOS DMG
     runs-on: macos-15
     env:
@@ -222,7 +222,7 @@ jobs:
           retention-days: 7
 
   publish-release:
-    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'offline-v0.1.0-beta.1')) }}
     name: Publish GitHub prerelease
     runs-on: ubuntu-latest
     needs:
