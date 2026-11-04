@@ -346,3 +346,23 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 .admin-feedback:not(.error){border-color:#668c78;background:rgba(102,140,120,.12);color:var(--heading,var(--v4-ink))}
 .admin-feedback[hidden]{display:none!important}
 #adminActions button:disabled{opacity:.65;cursor:wait}
+
+
+/* V4.0.7 PVP spectator view: visible roster, compact responsive chips and neutral match clocks. */
+.pvp-room-topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+.pvp-room-heading{min-width:0;flex:1 1 250px}
+.pvp-room-heading h3{margin:0 0 4px}
+.pvp-room-heading .note{margin:0}
+.pvp-spectator-panel{flex:0 1 360px;min-width:220px;max-width:100%;padding:10px 12px;border:1px solid var(--border,var(--v4-line));border-radius:13px;background:var(--surface,var(--v4-surface));box-shadow:0 5px 16px rgba(40,35,35,.05)}
+.pvp-spectator-panel[hidden]{display:none!important}
+.pvp-spectator-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--heading,var(--v4-ink));font-size:11px;font-weight:800;letter-spacing:.04em}
+.pvp-spectator-heading strong{color:var(--accent,var(--v4-accent));font-size:12px;font-variant-numeric:tabular-nums}
+.pvp-spectator-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;max-height:72px;overflow:auto}
+.pvp-spectator-chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:5px 8px;border:1px solid var(--border,var(--v4-line));border-radius:999px;background:var(--panel,var(--v4-panel));color:var(--heading,var(--v4-ink));font-size:10px;font-weight:700}
+.pvp-spectator-chip i{color:#48a783;font-size:8px;font-style:normal}
+.pvp-spectator-empty{color:var(--muted,var(--v4-muted));font-size:10px}
+#pvpThinkClock,#pvpLastThinkClock{font-variant-numeric:tabular-nums}
+#pvpLeaveSpectate{border-color:var(--border,var(--v4-line));background:var(--surface,var(--v4-surface));color:var(--heading,var(--v4-ink))}
+@media(max-width:640px){.pvp-room-topbar{gap:10px}.pvp-spectator-panel{flex:1 1 100%;min-width:0}.pvp-spectator-list{max-height:90px}}
+
+#pvpLeaveSpectate[hidden],#pvpRatingStat[hidden]{display:none!important}

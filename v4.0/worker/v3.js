@@ -117,7 +117,7 @@ async function handleWebSocket(request, env, roomId) {
   if (ticket.length < 32 || ticket.length > 256) throw fail("连接凭证无效或已过期", 401);
   const tokenHash = await sha256(ticket);
   const row = await env.DB.prepare(
-    "SELECT t.player_id,t.room_id FROM pvp_connection_tickets t JOIN pvp_rooms r ON r.id=t.room_id WHERE t.token_hash=? AND t.room_id=? AND t.consumed_at IS NULL AND t.expires_at>datetime('now') AND (r.host_player_id=t.player_id OR r.guest_player_id=t.player_id) AND r.status IN ('waiting','ready','active','finished')"
+    "SELECT t.player_id,t.room_id,t.role,p.name AS player_name FROM pvp_connection_tickets t JOIN pvp_rooms r ON r.id=t.room_id JOIN players p ON p.id=t.player_id WHERE t.token_hash=? AND t.room_id=? AND t.consumed_at IS NULL AND t.expires_at>datetime('now') AND r.status IN ('waiting','ready','active','finished') AND ((t.role='player' AND (r.host_player_id=t.player_id OR r.guest_player_id=t.player_id)) OR t.role='spectator')"
   ).bind(tokenHash, roomId).first();
   if (!row) throw fail("连接凭证无效或已过期，请重新连接", 401);
   const consumed = await env.DB.prepare(
@@ -128,6 +128,8 @@ async function handleWebSocket(request, env, roomId) {
   const stub = env.PVP_ROOMS.get(env.PVP_ROOMS.idFromName(roomId));
   const headers = new Headers(request.headers);
   headers.set("x-player-id", row.player_id);
+  headers.set("x-role", row.role || "player");
+  headers.set("x-player-name", row.player_name || "观战者");
   return stub.fetch(new Request("https://pvp-room/websocket", {method: "GET", headers}));
 }
 
@@ -214,9 +216,40 @@ async function createTicket(env, roomId, playerId, headers) {
   const ticket = randomTicket();
   const tokenHash = await sha256(ticket);
   await env.DB.prepare(
-    "INSERT INTO pvp_connection_tickets(token_hash,room_id,player_id,expires_at) VALUES(?,?,?,datetime('now','+45 seconds'))"
+    "INSERT INTO pvp_connection_tickets(token_hash,room_id,player_id,role,expires_at) VALUES(?,?,?,'player',datetime('now','+45 seconds'))"
   ).bind(tokenHash, roomId, playerId).run();
   return reply({ticket, expiresInSeconds: 45}, 200, headers);
+}
+
+async function createSpectatorTicket(request, env, user, headers) {
+  const player = await ensurePlayer(env, user);
+  const body = await parseBody(request);
+  const code = String(body.inviteCode || "").trim().toUpperCase();
+  if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) throw fail("邀请码格式不正确");
+  const inviteHash = await sha256(code);
+  const room = await env.DB.prepare(
+    "SELECT id,host_player_id,guest_player_id,status FROM pvp_rooms WHERE invite_code_hash=?"
+  ).bind(inviteHash).first();
+  if (!room) throw fail("邀请码不存在", 404);
+  if (room.host_player_id === user.id || room.guest_player_id === user.id) {
+    throw fail("你是本房间的棋手，请直接进入对局，不需要观战。", 409);
+  }
+  if (!["waiting", "ready", "active", "finished"].includes(room.status)) {
+    throw fail("这个房间当前不接受观战。", 410);
+  }
+
+  const ticket = randomTicket();
+  const tokenHash = await sha256(ticket);
+  await env.DB.prepare(
+    "INSERT INTO pvp_connection_tickets(token_hash,room_id,player_id,role,expires_at) VALUES(?,?,?,'spectator',datetime('now','+45 seconds'))"
+  ).bind(tokenHash, room.id, user.id).run();
+  return reply({
+    ticket,
+    roomId: room.id,
+    playerName: player.name || "观战者",
+    role: "spectator",
+    expiresInSeconds: 45
+  }, 200, headers);
 }
 
 async function currentRoom(env, playerId, headers, inviteCode = "") {
@@ -481,6 +514,10 @@ export default {
       if (url.pathname === "/api/pvp/rooms/current" && request.method === "GET") {
         await ensurePlayer(env, user);
         return await currentRoom(env, user.id, headers, url.searchParams.get("invite") || "");
+      }
+
+      if (url.pathname === "/api/pvp/rooms/spectate" && request.method === "POST") {
+        return await createSpectatorTicket(request, env, user, headers);
       }
 
       const ticketMatch = url.pathname.match(/^\/api\/pvp\/rooms\/([0-9a-f-]+)\/ticket$/i);

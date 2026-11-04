@@ -248,10 +248,39 @@ export function shouldAnimatePvpDice(match) {
   );
 }
 
-export function publicMatchState(state, viewerPlayerId) {
+export function applySpectatorMovePatch(match, message) {
+  if (!match || !message || !message.move || !message.patch) return {status:"resync"};
+  const patch = message.patch;
+  if (patch.matchId !== match.matchId) return {status:"resync"};
+
+  const currentRevision = Number(match.revision);
+  const nextRevision = Number(patch.revision);
+  if (!Number.isInteger(currentRevision) || !Number.isInteger(nextRevision)) return {status:"resync"};
+  if (nextRevision <= currentRevision) return {status:"duplicate", match};
+  if (nextRevision !== currentRevision + 1) return {status:"resync"};
+
+  const move = message.move;
+  if (!Array.isArray(match.board) || !Number.isInteger(move.cellIndex) ||
+      move.cellIndex < 0 || move.cellIndex >= match.board.length ||
+      match.board[move.cellIndex] !== 0 || ![1, 2].includes(move.color)) {
+    return {status:"resync"};
+  }
+
+  const board = match.board.slice();
+  board[move.cellIndex] = move.color;
+  const moves = Array.isArray(match.moves) ? match.moves.concat(move) : [move];
+  const {roomStatus, ...matchPatch} = patch;
+  return {
+    status:"applied",
+    roomStatus,
+    match:{...match, ...matchPatch, board, moves}
+  };
+}
+
+export function publicMatchState(state, viewerPlayerId, {spectator = false} = {}) {
   if (!state) return null;
   const isPlayer = viewerPlayerId === state.blackPlayerId || viewerPlayerId === state.whitePlayerId;
-  if (!isPlayer) throw new Error("NOT_A_MATCH_PLAYER");
+  if (!isPlayer && !spectator) throw new Error("NOT_A_MATCH_PLAYER");
   return {
     roomId: state.roomId,
     matchId: state.matchId,
@@ -276,6 +305,6 @@ export function publicMatchState(state, viewerPlayerId) {
     diceWinnerPlayerId: state.diceWinnerPlayerId || state.blackPlayerId,
     finalRatings: state.finalRatings,
     pendingDrawBy: state.pendingDrawBy,
-    viewerPlayerId
+    viewerPlayerId: isPlayer ? viewerPlayerId : null
   };
 }

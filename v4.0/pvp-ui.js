@@ -1,5 +1,5 @@
 import {bearer, loggedIn, waitForAuthReady} from "./src/account.js";
-import {getIncomingPvpRematchInvite, shouldAnimatePvpDice} from "./src/pvp.js";
+import {applySpectatorMovePatch, getIncomingPvpRematchInvite, shouldAnimatePvpDice} from "./src/pvp.js";
 
 const $ = id => document.getElementById(id);
 const API = String(window.GOMOKU_PVP_API_URL || "").replace(/\/$/, "");
@@ -7,6 +7,7 @@ const DEFAULT_CLOCK_MS = 600000;
 let roomId = "";
 let inviteCode = "";
 let playerId = "";
+let spectatorMode = false;
 let roomState = null;
 let diceAnimationMatchId = "";
 let diceAnimationComplete = false;
@@ -53,6 +54,7 @@ async function tokenOrThrow() {
     roomId = "";
     inviteCode = "";
     roomState = null;
+    spectatorMode = false;
     $("pvpRoom").hidden = true;
     $("pvpLobby").hidden = false;
     syncRoomUrl("", "");
@@ -77,13 +79,14 @@ function loadRoomSession() {
   }
 }
 
-function saveRoomSession(id = roomId, code = inviteCode, diceMatchId) {
+function saveRoomSession(id = roomId, code = inviteCode, diceMatchId, role = spectatorMode ? "spectator" : "player") {
   if (!playerId || !id) return;
   const previous = loadRoomSession();
   const sameRoom = previous && previous.roomId === id;
   const session = {
     roomId: id,
     inviteCode: code || (sameRoom ? previous.inviteCode || "" : ""),
+    role: role === "spectator" ? "spectator" : "player",
     diceMatchId: diceMatchId === undefined
       ? (sameRoom ? previous.diceMatchId || "" : "")
       : diceMatchId
@@ -96,12 +99,14 @@ function clearRoomSession() {
   try { localStorage.removeItem(roomSessionKey()); } catch {}
 }
 
-function syncRoomUrl(id = roomId, code = inviteCode) {
+function syncRoomUrl(id = roomId, code = inviteCode, watch = spectatorMode) {
   const url = new URL(window.location.href);
   if (id) url.searchParams.set("pvpRoom", id);
   else url.searchParams.delete("pvpRoom");
   if (code) url.searchParams.set("invite", code);
   else url.searchParams.delete("invite");
+  if (watch) url.searchParams.set("watch", "1");
+  else url.searchParams.delete("watch");
   history.replaceState(null, "", url.toString());
 }
 
@@ -134,15 +139,24 @@ function closeSocket() {
   socket = null;
 }
 
-async function connectSocket(id) {
+async function connectSocket(id, suppliedTicket = "") {
   if (!id) return;
   closeSocket();
   intentionalClose = false;
-  const ticketResult = await api("/api/pvp/rooms/" + encodeURIComponent(id) + "/ticket", "POST", {});
+  const ticketResult = suppliedTicket
+    ? {ticket: suppliedTicket}
+    : spectatorMode
+      ? await api("/api/pvp/rooms/spectate", "POST", {inviteCode})
+      : await api("/api/pvp/rooms/" + encodeURIComponent(id) + "/ticket", "POST", {});
+  if (spectatorMode && ticketResult.roomId && ticketResult.roomId !== id) {
+    throw new Error("观战房间与邀请码不匹配，请重新输入邀请码。");
+  }
   const wsBase = API.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
   const ws = new WebSocket(wsBase + "/api/pvp/rooms/" + encodeURIComponent(id) + "/ws?ticket=" + encodeURIComponent(ticketResult.ticket));
   socket = ws;
-  ws.onopen = () => notice("已连接好友房间，正在同步对局状态。");
+  ws.onopen = () => notice(spectatorMode
+    ? "已进入观战模式，正在同步实时棋局。"
+    : "已连接好友房间，正在同步对局状态。");
   ws.onmessage = event => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
@@ -158,9 +172,32 @@ async function connectSocket(id) {
   };
 }
 
+function applySpectatorMove(message) {
+  if (!spectatorMode || !roomState || !roomState.match) return;
+  const result = applySpectatorMovePatch(roomState.match, message);
+  if (result.status === "duplicate") return;
+  if (result.status !== "applied") {
+    notice("观战棋局正在重新同步，请稍候…");
+    connectSocket(roomId).catch(error => notice("观战重新连接失败：" + error.message, true));
+    return;
+  }
+  roomState = {
+    ...roomState,
+    status: result.roomStatus || roomState.status,
+    match: result.match
+  };
+  renderRoom(roomState);
+}
+
 function handleMessage(message) {
+  if (message.type === "spectator_move") {
+    applySpectatorMove(message);
+    return;
+  }
   if (message.room) renderRoom(message.room);
-  if (message.type === "error") {
+  if (message.type === "spectators_updated") {
+    renderSpectators(message.spectators || []);
+  } else if (message.type === "error") {
     $("pvpRematchInviteAccept").disabled = false;
     $("pvpRematchInviteDecline").disabled = false;
     notice(message.message || "对局操作失败", true);
@@ -170,13 +207,18 @@ function handleMessage(message) {
   } else if (message.type === "game_over") {
     const match = message.room && message.room.match;
     const result = match ? match.result : "";
-    notice(result === "draw" ? "本局已和棋，真人 Elo 已结算。" :
-      match && match.winnerPlayerId === playerId ? "漂亮！你赢下了这局真人对战。" :
-      "本局已结束，结果与真人 Elo 已结算。");
-    if (match) showPvpResult(match, message.room);
-    refreshHistory().catch(() => {});
-    refreshLeaderboard().catch(() => {});
+    notice(spectatorMode
+      ? "本局已结束，观战棋局已完成结算。"
+      : result === "draw" ? "本局已和棋，真人 Elo 已结算。" :
+        match && match.winnerPlayerId === playerId ? "漂亮！你赢下了这局真人对战。" :
+        "本局已结束，结果与真人 Elo 已结算。");
+    if (match && !spectatorMode) showPvpResult(match, message.room);
+    if (!spectatorMode) {
+      refreshHistory().catch(() => {});
+      refreshLeaderboard().catch(() => {});
+    }
   } else if (message.type === "rematch_requested") {
+    if (spectatorMode) return;
     if (message.playerId === playerId) {
       notice("已发起再战邀请，等待好友同意。");
     } else {
@@ -197,6 +239,10 @@ function handleMessage(message) {
   } else if (message.type === "rematch_failed") {
     notice("新对局创建失败，请再次接受再来一局。", true);
   } else if (message.type === "rematch_started") {
+    if (spectatorMode) {
+      notice("棋手已开始新一局；当前观战房间保留上一局棋谱。");
+      return;
+    }
     notice("双方已同意再战，正在切换到新棋局…");
     switchToRematchRoom(message.newRoomId).catch(error => notice(error.message, true));
   } else if (message.type === "draw_offered") {
@@ -211,7 +257,7 @@ function handleMessage(message) {
 }
 
 async function refreshRoomState() {
-  if (!roomId) return;
+  if (!roomId || spectatorMode) return;
   const data = await api("/api/pvp/rooms/" + encodeURIComponent(roomId));
   renderRoom(data.room || data);
 }
@@ -237,7 +283,7 @@ function closePvpResultModal() {
 }
 
 function showPvpResult(match, room = roomState) {
-  if (!match || match.status !== "finished" || !match.matchId || pvpResultMatchId === match.matchId) return;
+  if (spectatorMode || !match || match.status !== "finished" || !match.matchId || pvpResultMatchId === match.matchId) return;
   pvpResultMatchId = match.matchId;
   const isDraw = match.result === "draw";
   const won = !isDraw && match.winnerPlayerId === playerId;
@@ -279,15 +325,42 @@ function showPvpResult(match, room = roomState) {
 
 function renderClock() {
   const match = roomState && roomState.match;
+  const myLabel = $("pvpMyClockLabel");
+  const opponentLabel = $("pvpOpponentClockLabel");
   if (!match) {
     $("pvpMyClock").textContent = "10:00";
     $("pvpOpponentClock").textContent = "10:00";
+    $("pvpThinkClock").textContent = "—";
+    $("pvpLastThinkClock").textContent = "—";
+    if (myLabel) myLabel.textContent = spectatorMode ? "黑方剩余时间" : "我的剩余时间";
+    if (opponentLabel) opponentLabel.textContent = spectatorMode ? "白方剩余时间" : "对手剩余时间";
     return;
   }
+
+  const blackRemaining = currentClock(match, "black");
+  const whiteRemaining = currentClock(match, "white");
   const myColor = match.blackPlayerId === playerId ? "black" : "white";
   const otherColor = myColor === "black" ? "white" : "black";
-  $("pvpMyClock").textContent = formatClock(currentClock(match, myColor));
-  $("pvpOpponentClock").textContent = formatClock(currentClock(match, otherColor));
+  if (spectatorMode) {
+    if (myLabel) myLabel.textContent = "黑方剩余时间";
+    if (opponentLabel) opponentLabel.textContent = "白方剩余时间";
+    $("pvpMyClock").textContent = formatClock(blackRemaining);
+    $("pvpOpponentClock").textContent = formatClock(whiteRemaining);
+  } else {
+    if (myLabel) myLabel.textContent = "我的剩余时间";
+    if (opponentLabel) opponentLabel.textContent = "对手剩余时间";
+    $("pvpMyClock").textContent = formatClock(currentClock(match, myColor));
+    $("pvpOpponentClock").textContent = formatClock(currentClock(match, otherColor));
+  }
+
+  const thinkingMs = match.status === "active" && match.turnStartedAt
+    ? Math.max(0, Date.now() - Number(match.turnStartedAt))
+    : 0;
+  $("pvpThinkClock").textContent = match.status === "active" ? formatClock(thinkingMs) : "—";
+  const lastMove = Array.isArray(match.moves) ? match.moves[match.moves.length - 1] : null;
+  $("pvpLastThinkClock").textContent = lastMove && Number.isFinite(Number(lastMove.thinkMs))
+    ? formatClock(Number(lastMove.thinkMs))
+    : "—";
 }
 
 const BOARD_THEMES = {
@@ -568,6 +641,7 @@ function revealDiceImmediately(match, room) {
 }
 async function switchToRematchRoom(nextRoomId) {
   if (!nextRoomId || roomId === nextRoomId) return;
+  spectatorMode = false;
   closePvpResultModal();
   intentionalClose = true;
   closeSocket();
@@ -606,29 +680,45 @@ function syncRematchInviteModal(room, expectedInviterPlayerId = "") {
   return visible;
 }
 
+function renderSpectators(spectators = []) {
+  const panel = $("pvpSpectatorPanel");
+  if (!panel) return;
+  panel.hidden = !roomId;
+  const list = Array.isArray(spectators) ? spectators : [];
+  $("pvpSpectatorCount").textContent = String(list.length);
+  $("pvpSpectatorList").innerHTML = list.length
+    ? list.map(item => "<span class='pvp-spectator-chip'><i aria-hidden='true'>●</i>" + escapeText(item.name || "观战者") + "</span>").join("")
+    : "<span class='pvp-spectator-empty'>暂无观战者</span>";
+}
+
 function renderRoom(room) {
  if(!room)return;
+ const isSpectator = spectatorMode;
  if (room.status === "cancelled" || room.status === "expired") {
    const message = room.status === "cancelled" ? "这个房间已被取消。" : "这个房间已过期。";
    returnToPvpLobby();
    notice(message, true);
    return;
  }
- if (room.rematchRoomId && roomId && roomId !== room.rematchRoomId) {
+ if (!isSpectator && room.rematchRoomId && roomId && roomId !== room.rematchRoomId) {
    switchToRematchRoom(room.rematchRoomId).catch(error => notice(error.message, true));
    return;
  }
- saveRoomSession(room.roomId, inviteCode);
+ saveRoomSession(room.roomId, inviteCode, undefined, isSpectator ? "spectator" : "player");
  roomState=room;$("pvpLobby").hidden=true;$("pvpRoom").hidden=false;$("pvpAuthRequired").hidden=true;
  const names=(room.hostName||"房主")+"（房主） vs "+(room.guestName||"等待好友加入");
  $("pvpRoomTitle").textContent="房间 "+room.roomId.slice(0,8);
  $("pvpRoomPlayers").textContent=names;
  const statusText={waiting:"等待好友加入",ready:"双方已进入，等待准备",active:"对局进行中",finished:"对局已结束",cancelled:"房间已取消",expired:"房间已过期"};
  $("pvpRoomTitle").textContent+=" · "+(statusText[room.status]||room.status);
+ renderSpectators(room.spectators || []);
  const isHost=room.hostPlayerId===playerId,ready=!!(room.readyByPlayer&&room.readyByPlayer[playerId]);
- $("pvpReady").hidden=room.status!=="ready";$("pvpReady").disabled=ready;$("pvpReady").textContent=ready?"已准备，等待对手":"我准备好了";
- $("pvpCancelRoom").hidden=!isHost||!["waiting","ready"].includes(room.status);
- $("pvpInvitePanel").hidden=!inviteCode||!isHost;$("pvpInviteCodeDisplay").textContent=inviteCode;
+ $("pvpReady").hidden=isSpectator||room.status!=="ready";$("pvpReady").disabled=ready;$("pvpReady").textContent=ready?"已准备，等待对手":"我准备好了";
+ $("pvpCancelRoom").hidden=isSpectator||!isHost||!["waiting","ready"].includes(room.status);
+ $("pvpInvitePanel").hidden=isSpectator||!inviteCode||!isHost;$("pvpInviteCodeDisplay").textContent=inviteCode;
+ $("pvpLeaveSpectate").hidden=!isSpectator;
+ $("pvpRatingStat").hidden=isSpectator;
+ if (isSpectator) $("pvpResultModal").hidden = true;
  if(room.match&&Array.isArray(room.match.diceRolls)&&room.match.diceRolls.length){
   $("pvpDiceStage").hidden=false;
   if(diceAnimationMatchId!==room.match.matchId) {
@@ -648,12 +738,12 @@ function renderRoom(room) {
  const drawBy=room.match&&room.match.pendingDrawBy;
  const drawPending=Boolean(drawBy);
  const myDrawOffer=drawBy===playerId;
- $("pvpOfferDraw").hidden=room.status!=="active"||(drawPending&&!myDrawOffer);
+ $("pvpOfferDraw").hidden=isSpectator||room.status!=="active"||(drawPending&&!myDrawOffer);
  $("pvpOfferDraw").disabled=myDrawOffer;
  $("pvpOfferDraw").textContent=myDrawOffer?"等待对手回应…":"提出和棋";
- $("pvpResign").hidden=room.status!=="active";
- $("pvpAcceptDraw").hidden=room.status!=="active"||!drawBy||drawBy===playerId;
- $("pvpDeclineDraw").hidden=room.status!=="active"||!drawBy||drawBy===playerId;
+ $("pvpResign").hidden=isSpectator||room.status!=="active";
+ $("pvpAcceptDraw").hidden=isSpectator||room.status!=="active"||!drawBy||drawBy===playerId;
+ $("pvpDeclineDraw").hidden=isSpectator||room.status!=="active"||!drawBy||drawBy===playerId;
  const finished = room.status === "finished" && room.match && room.match.status === "finished";
  const rematchByPlayer = room.rematchByPlayer || {};
  const opponentId = playerId === room.hostPlayerId ? room.guestPlayerId : room.hostPlayerId;
@@ -661,25 +751,39 @@ function renderRoom(room) {
  const opponentRematchRequested = !!rematchByPlayer[opponentId];
  const rematchStarting = !!room.rematchStarting;
  syncRematchInviteModal(room);
- $("pvpRematch").hidden = !finished;
+ if (isSpectator) $("pvpRematchInviteModal").hidden = true;
+ $("pvpRematch").hidden = isSpectator||!finished;
  $("pvpRematch").disabled = myRematchRequested || rematchStarting;
  $("pvpRematch").textContent = rematchStarting
    ? "正在创建新对局…"
    : myRematchRequested ? "等待对手同意…"
    : opponentRematchRequested ? "接受再来一局" : "再来一局";
- $("pvpNewMatch").hidden = !finished;
+ $("pvpNewMatch").hidden = isSpectator||!finished;
  if(room.match){
-  const match=room.match,myRating=match.finalRatings&&match.finalRatings[playerId]!==undefined?match.finalRatings[playerId]:match.initialRatings[playerId];
-  const delta=match.finalRatings&&match.initialRatings[playerId]!==undefined?match.finalRatings[playerId]-match.initialRatings[playerId]:0;
-  $("pvpMyRating").textContent=String(myRating??1000)+(match.status==="finished"?" · "+(delta>=0?"+":"")+delta:" · 对局中");
-  $("pvpTurn").textContent=match.status==="finished"?"对局结束":match.turnPlayerId===playerId?"轮到你落子":"等待对手落子";
-  $("pvpTurn").style.color=match.turnPlayerId===playerId?"#986076":"#9a8c86";
- }else{$("pvpTurn").textContent=room.status==="ready"?"等待双方准备":"等待好友加入";$("pvpMyRating").textContent="1000 · 定级中";}
+  const match=room.match;
+  if (!isSpectator) {
+    const myRating=match.finalRatings&&match.finalRatings[playerId]!==undefined?match.finalRatings[playerId]:match.initialRatings[playerId];
+    const delta=match.finalRatings&&match.initialRatings[playerId]!==undefined?match.finalRatings[playerId]-match.initialRatings[playerId]:0;
+    $("pvpMyRating").textContent=String(myRating??1000)+(match.status==="finished"?" · "+(delta>=0?"+":"")+delta:" · 对局中");
+  } else {
+    $("pvpMyRating").textContent="观战模式";
+  }
+  $("pvpTurn").textContent=match.status==="finished"
+    ? "对局结束"
+    : isSpectator
+      ? (match.turnColor===1?"黑方":"白方")+"思考中"
+      : match.turnPlayerId===playerId?"轮到你落子":"等待对手落子";
+  $("pvpTurn").style.color=match.status==="finished"?"#9a8c86":isSpectator?"#986076":match.turnPlayerId===playerId?"#986076":"#9a8c86";
+ }else{
+  $("pvpTurn").textContent=room.status==="ready"?"等待双方准备":"等待好友加入";
+  $("pvpMyRating").textContent=isSpectator?"观战模式":"1000 · 定级中";
+ }
  renderClock();drawBoard();
- if (finished) showPvpResult(room.match, room);
+ if (finished && !isSpectator) showPvpResult(room.match, room);
 }
 async function createRoom() {
   try {
+    spectatorMode = false;
     const result = await api("/api/pvp/rooms", "POST", {timeControlMs: DEFAULT_CLOCK_MS});
     roomId = result.room.id;
     inviteCode = result.inviteCode;
@@ -701,6 +805,7 @@ async function createRoom() {
 
 async function joinRoom() {
   try {
+    spectatorMode = false;
     const code = $("pvpInviteCode").value.trim().toUpperCase();
     const result = await api("/api/pvp/rooms/join", "POST", {inviteCode: code});
     roomId = result.room.id;
@@ -717,7 +822,47 @@ async function joinRoom() {
   } catch (error) { notice(error.message, true); }
 }
 
+async function watchRoom() {
+  const code = $("pvpInviteCode").value.trim().toUpperCase();
+  if (!code) {
+    notice("请先输入好友邀请码，再点击观战。", true);
+    return;
+  }
+  try {
+    const result = await api("/api/pvp/rooms/spectate", "POST", {inviteCode: code});
+    spectatorMode = true;
+    roomId = result.roomId;
+    inviteCode = code;
+    roomState = null;
+    pvpResultMatchId = "";
+    diceAnimationRunId++;
+    diceAnimationMatchId = "";
+    diceAnimationComplete = false;
+    closePvpResultModal();
+    saveRoomSession(roomId, inviteCode, "", "spectator");
+    syncRoomUrl(roomId, inviteCode, true);
+    await connectSocket(roomId, result.ticket);
+    notice("已进入观战模式。你可以实时查看棋盘、双方剩余时间和当前思考时间。");
+  } catch (error) {
+    if (spectatorMode) {
+      spectatorMode = false;
+      intentionalClose = true;
+      closeSocket();
+      roomId = "";
+      inviteCode = "";
+      roomState = null;
+      clearRoomSession();
+      syncRoomUrl("", "", false);
+      $("pvpRoom").hidden = true;
+      $("pvpLobby").hidden = false;
+      renderSpectators([]);
+    }
+    notice(error.message, true);
+  }
+}
+
 function returnToPvpLobby() {
+  spectatorMode = false;
   intentionalClose = true;
   closeSocket();
   roomId = "";
@@ -733,6 +878,7 @@ function returnToPvpLobby() {
   $("pvpInviteCode").value = "";
   $("pvpDiceStage").hidden = true;
   $("pvpBoard").hidden = true;
+  renderSpectators([]);
   notice("已返回好友对战大厅。可以创建新房间或输入其他好友的邀请码。");
 }
 
@@ -764,6 +910,10 @@ async function refreshHistory() {
 }
 
 function sendAction(message) {
+  if (spectatorMode) {
+    notice("观战模式为只读，不能操作棋局。", true);
+    return false;
+  }
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     notice("实时连接尚未就绪，请稍等或刷新房间状态。", true);
     return false;
@@ -793,6 +943,8 @@ $("pvpLoginLink").onclick = () => {
 };
 $("pvpCreateRoom").onclick = async () => { await tokenOrThrow().catch(error => notice(error.message, true)); if (playerId) await createRoom(); };
 $("pvpJoinRoom").onclick = async () => { await tokenOrThrow().catch(error => notice(error.message, true)); if (playerId) await joinRoom(); };
+$("pvpWatchRoom").onclick = async () => { await tokenOrThrow().catch(error => notice(error.message, true)); if (playerId) await watchRoom(); };
+$("pvpLeaveSpectate").onclick = returnToPvpLobby;
 $("pvpReady").onclick = () => sendAction({type: "ready"});
 $("pvpResultClose").onclick = closePvpResultModal;
 $("pvpResultContinue").onclick = closePvpResultModal;
@@ -842,7 +994,7 @@ $("pvpRefreshLeaderboard").onclick = refreshLeaderboard;
 $("pvpRefreshHistory").onclick = refreshHistory;
 $("pvpBoard").addEventListener("click", event => {
   const match = roomState && roomState.match;
-  if (!match || match.status !== "active" || match.turnPlayerId !== playerId) return;
+  if (spectatorMode || !match || match.status !== "active" || match.turnPlayerId !== playerId) return;
   const rect = $("pvpBoard").getBoundingClientRect();
   const x = (event.clientX - rect.left) * 600 / rect.width;
   const y = (event.clientY - rect.top) * 600 / rect.height;
@@ -859,6 +1011,7 @@ $("pvpBoard").addEventListener("click", event => {
 const initialParams = new URLSearchParams(window.location.search);
 const initialInvite = initialParams.get("invite");
 const initialPvpRoom = initialParams.get("pvpRoom");
+const initialWatch = initialParams.get("watch") === "1";
 if (initialInvite) $("pvpInviteCode").value = initialInvite.toUpperCase();
 if (!API) notice("PVP 后端尚未部署。当前分支先完成前端与服务端开发，部署后即可联调。", true);
 else notice("PVP 服务已配置。登录后创建房间或输入好友邀请码。");
@@ -874,6 +1027,26 @@ async function restorePvpRoomOnLoad() {
     if (restoredPlayerId === playerId && roomId && roomState) return;
 
     const saved = loadRoomSession();
+    const shouldRestoreSpectator = initialWatch || saved?.role === "spectator";
+    if (shouldRestoreSpectator) {
+      const code = initialInvite || saved?.inviteCode || "";
+      if (!code) throw new Error("观战恢复链接缺少邀请码，请重新输入邀请码。");
+      spectatorMode = true;
+      inviteCode = code;
+      const ticketResult = await api("/api/pvp/rooms/spectate", "POST", {inviteCode: code});
+      roomId = ticketResult.roomId;
+      roomState = null;
+      pvpResultMatchId = "";
+      await connectSocket(roomId, ticketResult.ticket);
+      if (!roomId) return;
+      saveRoomSession(roomId, inviteCode, undefined, "spectator");
+      syncRoomUrl(roomId, inviteCode, true);
+      if (typeof window.activateGomokuTab === "function") window.activateGomokuTab("pvp");
+      restoredPlayerId = playerId;
+      notice("已恢复此前的观战房间，棋盘、双方时钟与观战名单已同步。");
+      return;
+    }
+
     let resumeId = "";
     if (initialInvite) {
       // An invite URL is the strongest room locator, including for a guest
@@ -900,7 +1073,19 @@ async function restorePvpRoomOnLoad() {
     restoredPlayerId = playerId;
     notice("已恢复你此前的好友房间，棋盘和对局状态已同步。");
   } catch (error) {
-    if ([403, 404, 410].includes(error.status)) {
+    if (spectatorMode) {
+      spectatorMode = false;
+      intentionalClose = true;
+      closeSocket();
+      clearRoomSession();
+      roomId = "";
+      inviteCode = "";
+      roomState = null;
+      syncRoomUrl("", "", false);
+      $("pvpRoom").hidden = true;
+      $("pvpLobby").hidden = false;
+      renderSpectators([]);
+    } else if ([403, 404, 410].includes(error.status)) {
       clearRoomSession();
       roomId = "";
       inviteCode = "";
@@ -919,12 +1104,12 @@ window.addEventListener("gomoku:auth-changed", event => {
   if (event.detail && event.detail.signedIn) restorePvpRoomOnLoad();
 });
 waitForAuthReady().then(() => {
-  if (initialPvpRoom || initialInvite) {
+  if (initialPvpRoom || initialInvite || initialWatch) {
     if (typeof window.activateGomokuTab === "function") window.activateGomokuTab("pvp");
   }
   if (loggedIn()) {
     restorePvpRoomOnLoad();
-  } else if (initialPvpRoom || initialInvite) {
+  } else if (initialPvpRoom || initialInvite || initialWatch) {
     $("pvpAuthRequired").hidden = false;
     notice("检测到好友房间链接，请先登录；登录成功后会自动恢复房间。");
   }
@@ -932,7 +1117,7 @@ waitForAuthReady().then(() => {
 refreshLeaderboard();
 setInterval(() => {
   renderClock();
-  if (roomState && roomState.match && roomState.match.status === "active") drawBoard();
+  if (!spectatorMode && roomState && roomState.match && roomState.match.status === "active") drawBoard();
 }, 250);
 
 let finishedRoomSyncInFlight = false;

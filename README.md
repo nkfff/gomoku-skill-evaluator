@@ -2,7 +2,7 @@
 
 > 一个集 AI 对弈、棋力评估、残局训练、随机连珠与好友真人 PVP 于一体的浏览器五子棋项目。
 
-**当前稳定版本：** [V4.0.6](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)  
+**当前稳定版本：** [V4.0.7](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/)  
 **项目档案：** [完整开发规划与历史记录](docs/DEVELOPMENT_ROADMAP.md)
 
 ## 项目功能
@@ -19,6 +19,9 @@
 按发布日期倒序排列；每个版本仅保留核心变化，完整功能、技术细节和测试记录请查看对应文档。
 
 ### 2026-11-04
+
+- **V4.0.7｜PVP 实时观战**：通过邀请码进入只读观战；房间右上角显示在线观战名单，观战端同步棋盘、双方剩余时间和思考时间，不参与对局计算。
+  [在线体验](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/) · [版本详情](v4.0/README.md)
 
 - **V4.0.6｜再战邀请通知与骰子开局同步修复**：补充再战邀请的主动状态同步和弹窗兜底；房主、好友在第一手落子前均先完成骰子揭晓，再显示棋盘。
   [在线体验](https://nkfff.github.io/gomoku-skill-evaluator/v4.0/) · [版本详情](v4.0/README.md)

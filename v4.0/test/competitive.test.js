@@ -5,11 +5,13 @@ import { fileURLToPath } from "node:url";
 import { chooseAI, CELLS } from "../src/engine.js";
 import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
 import {
-  acceptPvpDraw, createMatchState, declinePvpDraw, finishByResign, offerPvpDraw,
+  acceptPvpDraw, applyPvpMove, applySpectatorMovePatch, createMatchState, declinePvpDraw, finishByResign, offerPvpDraw,
   declinePvpRematch, getIncomingPvpRematchInvite, publicMatchState,
   requestPvpRematch, shouldAnimatePvpDice
 } from "../src/pvp.js";
-import { hasOpenPlayerConnection, rollDice } from "../worker/pvp-room.js";
+import {
+  getConnectedSpectators, hasOpenPlayerConnection, hasOpenSpectatorConnection, rollDice
+} from "../worker/pvp-room.js";
 
 test("AI can search as either black or white", () => {
   const board = Array(CELLS).fill(0);
@@ -43,6 +45,93 @@ test("PVP dice reroll ties and award black to the higher roll", () => {
   const last = result.rolls.at(-1);
   assert.notEqual(last.hostRoll, last.guestRoll);
   assert.equal(result.winnerPlayerId, last.hostRoll > last.guestRoll ? "host-id" : "guest-id");
+});
+
+test("spectator match snapshots are public but remain read-only", () => {
+  const state = createMatchState({
+    roomId:"room-watch", matchId:"match-watch", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:1000
+  });
+  assert.throws(() => publicMatchState(state, "spectator-id"), /NOT_A_MATCH_PLAYER/);
+  const spectatorView = publicMatchState(state, "spectator-id", {spectator:true});
+  assert.equal(spectatorView.viewerPlayerId, null);
+  assert.deepEqual(spectatorView.board, state.board);
+  assert.equal(spectatorView.turnStartedAt, state.turnStartedAt);
+  assert.deepEqual(spectatorView.clocksMs, state.clocksMs);
+});
+
+test("spectator move deltas update the board, move history and clocks without a full snapshot", () => {
+  const initial = createMatchState({
+    roomId:"room-watch", matchId:"match-watch", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:1000
+  });
+  const result = applyPvpMove(initial, {
+    playerId:"host-id", cellIndex:112, actionId:"watchmove0001", now:2500
+  });
+  const patch = {
+    roomStatus:"active",
+    matchId:result.state.matchId,
+    status:result.state.status,
+    revision:result.state.revision,
+    turnPlayerId:result.state.turnPlayerId,
+    turnColor:result.state.turnColor,
+    turnStartedAt:result.state.turnStartedAt,
+    clocksMs:result.state.clocksMs,
+    pendingDrawBy:result.state.pendingDrawBy,
+    result:result.state.result,
+    winnerPlayerId:result.state.winnerPlayerId,
+    endReason:result.state.endReason,
+    endedAt:result.state.endedAt
+  };
+  const applied = applySpectatorMovePatch(initial, {move:result.move,patch});
+  assert.equal(applied.status, "applied");
+  assert.equal(applied.roomStatus, "active");
+  assert.equal(applied.match.board[112], 1);
+  assert.equal(applied.match.moves.length, 1);
+  assert.equal(applied.match.moves[0].thinkMs, 1500);
+  assert.deepEqual(applied.match.clocksMs, result.state.clocksMs);
+  assert.equal(applied.match.turnPlayerId, "guest-id");
+
+  assert.equal(applySpectatorMovePatch(applied.match, {move:result.move,patch}).status, "duplicate");
+  assert.equal(applySpectatorMovePatch(initial, {move:result.move,patch:{...patch,revision:3}}).status, "resync");
+  assert.equal(applySpectatorMovePatch(initial, {move:{...result.move,cellIndex:999},patch}).status, "resync");
+});
+
+test("spectator presence is deduplicated and never counted as a player connection", () => {
+  const makeSocket = (readyState, attachment) => ({
+    readyState, deserializeAttachment: () => attachment
+  });
+  const host = makeSocket(1, {playerId:"host-id"});
+  const spectatorA = makeSocket(1, {playerId:"viewer-a",role:"spectator",displayName:"小猫"});
+  const spectatorASecondTab = makeSocket(1, {playerId:"viewer-a",role:"spectator",displayName:"小猫"});
+  const spectatorB = makeSocket(1, {playerId:"viewer-b",role:"spectator",displayName:"棋友"});
+  const offline = makeSocket(3, {playerId:"viewer-c",role:"spectator",displayName:"离线观众"});
+  const sockets = [host,spectatorA,spectatorASecondTab,spectatorB,offline];
+
+  assert.deepEqual(getConnectedSpectators(sockets), [{name:"小猫"},{name:"棋友"}]);
+  assert.equal(hasOpenSpectatorConnection(sockets,"viewer-a"), true);
+  assert.equal(hasOpenSpectatorConnection(sockets,"viewer-a",spectatorA), true);
+  assert.equal(hasOpenSpectatorConnection([host,spectatorB], "viewer-a"), false);
+  assert.equal(hasOpenPlayerConnection(sockets,"host-id"), true);
+  assert.equal(hasOpenPlayerConnection(sockets,"viewer-a"), false);
+});
+
+test("PVP spectator tickets are invite-code scoped and cannot acquire player privileges", () => {
+  const pvpApi = readFileSync(fileURLToPath(new URL("../worker/v3.js", import.meta.url)), "utf8");
+  const room = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
+  const migration = readFileSync(fileURLToPath(new URL("../migrations/0008_pvp_spectators.sql", import.meta.url)), "utf8");
+  assert.match(pvpApi, /async function createSpectatorTicket/);
+  assert.match(pvpApi, /url\.pathname === "\/api\/pvp\/rooms\/spectate"/);
+  assert.match(pvpApi, /t\.role='spectator'/);
+  assert.match(pvpApi, /headers\.set\("x-role", row\.role/);
+  assert.match(migration, /ADD COLUMN role TEXT NOT NULL DEFAULT 'player'/);
+  assert.match(room, /MAX_SPECTATORS/);
+  assert.match(room, /SPECTATOR_READ_ONLY/);
+  assert.match(room, /type: "spectators_updated"/);
+  assert.match(room, /const encodedPayloads = new Map\(\)/);
+  assert.match(room, /type: "spectator_move"/);
+  assert.match(room, /message\.type === "move_accepted"/);
+  assert.match(room, /publicMatchState\(this\.room\.match, viewerPlayerId, \{spectator: !isPlayer\}\)/);
 });
 
 test("both PVP clients receive the same auditable dice result", () => {
@@ -138,6 +227,14 @@ test("PVP frontend restores each signed-in player's room and does not replay rev
   assert.match(pvpUi, /gomoku:auth-changed/);
   assert.match(pvpUi, /activateGomokuTab\("pvp"\)/);
   assert.match(pvpUi, /inviteCode = code/);
+  assert.match(pvpUi, /async function watchRoom/);
+  assert.match(pvpUi, /spectatorMode/);
+  assert.match(pvpUi, /pvpSpectatorPanel/);
+  assert.match(pvpUi, /pvpThinkClock/);
+  assert.match(pvpUi, /applySpectatorMovePatch/);
+  assert.match(pvpUi, /if \(spectatorMode\) return;/);
+  assert.match(pvpUi, /if \(!spectatorMode && roomState && roomState\.match/);
+  assert.match(pvpUi, /api\("\/api\/pvp\/rooms\/spectate"/);
   const account = readFileSync(fileURLToPath(new URL("../src/account.js", import.meta.url)), "utf8");
   assert.match(account, /export function waitForAuthReady/);
   assert.match(account, /resolveAuthReady\(true\)/);

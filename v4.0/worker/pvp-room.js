@@ -10,6 +10,7 @@ const json = (value, status = 200) => new Response(JSON.stringify(value), {
 const parse = value => { try { return JSON.parse(value); } catch { return null; } };
 const nowMs = () => Date.now();
 const DISCONNECT_GRACE_MS = 60_000;
+const MAX_SPECTATORS = 24;
 const PERMANENT_ROOM_EXPIRY_MS = Date.parse("9999-12-31T23:59:59.000Z");
 
 function secureDie(){
@@ -18,11 +19,31 @@ function secureDie(){
   return value[0]%6+1;
 }
 export function hasOpenPlayerConnection(sockets, playerId, excludedSocket = null) {
-  return sockets.some(socket =>
-    socket !== excludedSocket &&
-    socket.readyState === 1 &&
-    (socket.deserializeAttachment() || {}).playerId === playerId
-  );
+  return sockets.some(socket => {
+    if (socket === excludedSocket || socket.readyState !== 1) return false;
+    const attachment = socket.deserializeAttachment() || {};
+    return attachment.playerId === playerId && attachment.role !== "spectator";
+  });
+}
+
+export function hasOpenSpectatorConnection(sockets, spectatorId, excludedSocket = null) {
+  return sockets.some(socket => {
+    if (socket === excludedSocket || socket.readyState !== 1) return false;
+    const attachment = socket.deserializeAttachment() || {};
+    return attachment.playerId === spectatorId && attachment.role === "spectator";
+  });
+}
+
+export function getConnectedSpectators(sockets) {
+  const byPlayer = new Map();
+  for (const socket of sockets) {
+    if (socket.readyState !== 1) continue;
+    const attachment = socket.deserializeAttachment() || {};
+    if (attachment.role !== "spectator" || !attachment.playerId) continue;
+    const name = String(attachment.displayName || "观战者").trim().slice(0, 24) || "观战者";
+    byPlayer.set(attachment.playerId, {name});
+  }
+  return [...byPlayer.values()];
 }
 
 export function rollDice(hostPlayerId,guestPlayerId){
@@ -150,19 +171,42 @@ export class PvpRoom {
   async connect(request) {
     if (!this.room) return json({error: "Room not found"}, 404);
     const playerId = request.headers.get("x-player-id") || "";
-    this.requireMember(playerId);
-    if (!["waiting", "ready", "active", "finished"].includes(this.room.status)) return json({error: "房间当前不可连接"}, 409);
+    const role = request.headers.get("x-role") === "spectator" ? "spectator" : "player";
+    if (!["waiting", "ready", "active", "finished"].includes(this.room.status)) {
+      return json({error: "房间当前不可连接"}, 409);
+    }
+
+    if (role === "spectator") {
+      if (this.isMember(playerId)) return json({error: "本房间棋手不能重复以观战者身份进入"}, 409);
+      const sockets = this.ctx.getWebSockets();
+      if (!hasOpenSpectatorConnection(sockets, playerId) &&
+          getConnectedSpectators(sockets).length >= MAX_SPECTATORS) {
+        return json({error: "观战人数已达上限，请稍后再试"}, 429);
+      }
+    } else {
+      this.requireMember(playerId);
+    }
+
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({playerId});
-    this.room.connectedByPlayer[playerId] = true;
-    delete this.room.disconnectedAt[playerId];
-    await this.ctx.storage.put("room", this.room);
-    server.send(JSON.stringify({type: "room_state", room: this.snapshot(playerId)}));
-    this.broadcast({type: "presence", playerId, connected: true});
-    await this.scheduleNextAlarm();
+    const displayName = String(request.headers.get("x-player-name") || "观战者").trim().slice(0, 24) || "观战者";
+    server.serializeAttachment({playerId, role, displayName});
+
+    if (role === "player") {
+      this.room.connectedByPlayer[playerId] = true;
+      delete this.room.disconnectedAt[playerId];
+      await this.ctx.storage.put("room", this.room);
+    }
+
+    server.send(JSON.stringify({type: "room_state", room: this.snapshot(playerId, role)}));
+    if (role === "spectator") {
+      this.broadcast({type: "spectators_updated", spectators: this.spectatorList()});
+    } else {
+      this.broadcast({type: "presence", playerId, connected: true});
+      await this.scheduleNextAlarm();
+    }
     return new Response(null, {status: 101, webSocket: client});
   }
 
@@ -179,12 +223,20 @@ export class PvpRoom {
       this.sendTo(socket, {type: "error", code: "INVALID_MESSAGE", message: "消息格式不正确"});
       return;
     }
+    if (message.type === "ping") {
+      this.sendTo(socket, {type: "pong", now: nowMs()});
+      return;
+    }
+    if (attachment.role === "spectator") {
+      this.sendTo(socket, {
+        type: "error",
+        code: "SPECTATOR_READ_ONLY",
+        message: "观战模式只读，不能操作棋局。"
+      });
+      return;
+    }
     try {
       this.requireMember(playerId);
-      if (message.type === "ping") {
-        this.sendTo(socket, {type: "pong", now: nowMs()});
-        return;
-      }
       if (message.type === "ready") return await this.markReady(playerId);
       if (message.type === "rematch") return await this.requestRematch(playerId);
       if (message.type === "decline_rematch") return await this.declineRematch(playerId);
@@ -201,8 +253,18 @@ export class PvpRoom {
 
   async webSocketClose(socket) {
     await this.ready;
-    const playerId = (socket.deserializeAttachment() || {}).playerId;
-    if (!this.room || !playerId || !this.isMember(playerId)) return;
+    const attachment = socket.deserializeAttachment() || {};
+    const playerId = attachment.playerId;
+    if (!this.room || !playerId) return;
+
+    if (attachment.role === "spectator") {
+      const stillConnected = hasOpenSpectatorConnection(this.ctx.getWebSockets(), playerId, socket);
+      if (!stillConnected) {
+        this.broadcast({type: "spectators_updated", spectators: this.spectatorList()});
+      }
+      return;
+    }
+    if (!this.isMember(playerId)) return;
 
     // A refresh may establish a replacement socket before the old socket's
     // close event arrives. Keep the player online while another live socket exists.
@@ -447,7 +509,7 @@ export class PvpRoom {
     }
     if (this.room.match.status === "finished") await this.finishMatch(this.room.match.endReason || "five_in_row");
     else await this.scheduleNextAlarm();
-    this.broadcast({type: "move_accepted", move: result.move, winningLine: result.winningLine, room: this.snapshot(playerId)});
+    this.broadcast({type: "move_accepted", move: result.move, winningLine: result.winningLine, room: true});
   }
 
   async resign(playerId) {
@@ -545,10 +607,16 @@ export class PvpRoom {
     return !!this.room && (playerId === this.room.hostPlayerId || playerId === this.room.guestPlayerId);
   }
 
-  snapshot(viewerPlayerId) {
+  spectatorList(sockets = this.ctx.getWebSockets()) {
+    return getConnectedSpectators(sockets);
+  }
+
+  snapshot(viewerPlayerId, viewerRole = "player", spectators = this.spectatorList()) {
     if (!this.room) return null;
-    const match = this.room.match && this.isMember(viewerPlayerId)
-      ? publicMatchState(this.room.match, viewerPlayerId)
+    const isPlayer = this.isMember(viewerPlayerId);
+    const canViewMatch = isPlayer || viewerRole === "spectator";
+    const match = this.room.match && canViewMatch
+      ? publicMatchState(this.room.match, viewerPlayerId, {spectator: !isPlayer})
       : null;
     return {
       roomId: this.room.roomId,
@@ -566,6 +634,8 @@ export class PvpRoom {
       rematchRoomId: this.room.rematchRoomId || null,
       rematchStarting: Boolean(this.room.rematchStarting),
       connectedByPlayer: this.room.connectedByPlayer,
+      spectators,
+      spectatorCount: spectators.length,
       match
     };
   }
@@ -573,7 +643,7 @@ export class PvpRoom {
   sendToPlayer(playerId, message) {
     for (const socket of this.ctx.getWebSockets()) {
       const attachment = socket.deserializeAttachment() || {};
-      if (attachment.playerId === playerId) this.sendTo(socket, message);
+      if (attachment.playerId === playerId && attachment.role !== "spectator") this.sendTo(socket, message);
     }
   }
 
@@ -582,12 +652,46 @@ export class PvpRoom {
   }
 
   broadcast(message) {
-    for (const socket of this.ctx.getWebSockets()) {
+    const sockets = this.ctx.getWebSockets();
+    const spectators = this.spectatorList(sockets);
+    const snapshots = new Map();
+    const encodedPayloads = new Map();
+    for (const socket of sockets) {
       const attachment = socket.deserializeAttachment() || {};
-      const payload = message.room && attachment.playerId
-        ? {...message, room: this.snapshot(attachment.playerId)}
-        : message;
-      this.sendTo(socket, payload);
+      let payload = message;
+      let cacheKey = "shared";
+      if (message.type === "move_accepted" && attachment.role === "spectator" && this.room?.match) {
+        const match = this.room.match;
+        cacheKey = "spectator";
+        payload = {
+          type: "spectator_move",
+          move: message.move,
+          patch: {
+            roomStatus: this.room.status,
+            matchId: match.matchId,
+            status: match.status,
+            revision: match.revision,
+            turnPlayerId: match.turnPlayerId,
+            turnColor: match.turnColor,
+            turnStartedAt: match.turnStartedAt,
+            clocksMs: match.clocksMs,
+            pendingDrawBy: match.pendingDrawBy,
+            result: match.result,
+            winnerPlayerId: match.winnerPlayerId,
+            endReason: match.endReason,
+            endedAt: match.endedAt
+          }
+        };
+      } else if (message.room && attachment.playerId) {
+        const role = attachment.role === "spectator" ? "spectator" : "player";
+        cacheKey = role === "spectator" ? "spectator" : "player:" + attachment.playerId;
+        if (!snapshots.has(cacheKey)) {
+          snapshots.set(cacheKey, this.snapshot(attachment.playerId, role, spectators));
+        }
+        payload = {...message, room: snapshots.get(cacheKey)};
+      }
+      if (!encodedPayloads.has(cacheKey)) encodedPayloads.set(cacheKey, JSON.stringify(payload));
+      try { socket.send(encodedPayloads.get(cacheKey)); } catch {}
     }
   }
 
