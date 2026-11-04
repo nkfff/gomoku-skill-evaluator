@@ -59,6 +59,23 @@ export async function reserveReviewCoachQuota(db,userId,day){
  }
  return {day,userId};
 }
+
+export function reviewCoachQuotaSnapshot(userUsed,globalUsed,day=new Date().toISOString().slice(0,10)){
+ const userConsumed=Math.max(0,Math.trunc(Number(userUsed)||0)),globalConsumed=Math.max(0,Math.trunc(Number(globalUsed)||0));
+ const userRemaining=Math.max(0,PER_USER-userConsumed),globalRemaining=Math.max(0,GLOBAL-globalConsumed);
+ const resetAtUTC=new Date(Date.parse(day+"T00:00:00Z")+86400000).toISOString();
+ return {dateUTC:day,resetAtUTC,user:{limit:PER_USER,used:userConsumed,remaining:userRemaining},
+  global:{limit:GLOBAL,used:globalConsumed,remaining:globalRemaining},
+  canUse:userRemaining>0&&globalRemaining>0,
+  reason:userRemaining===0?"user_exhausted":globalRemaining===0?"global_exhausted":null};
+}
+export async function getReviewCoachQuota(db,userId,day=new Date().toISOString().slice(0,10)){
+ const [user,global]=await Promise.all([
+  db.prepare("SELECT used FROM review_ai_daily_usage WHERE scope=? AND day=?").bind("user:"+userId,day).first(),
+  db.prepare("SELECT used FROM review_ai_daily_usage WHERE scope=? AND day=?").bind("global",day).first()
+ ]);
+ return reviewCoachQuotaSnapshot(user?.used??0,global?.used??0,day);
+}
 function publicModelError(error){
  const message=String(error?.message||error||"");
  if(/429|capacity|neurons|quota|rate.?limit|overloaded/i.test(message))return "模型当前繁忙或免费推理额度暂时不足，请稍后再试。";
