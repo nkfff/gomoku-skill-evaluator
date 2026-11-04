@@ -12,7 +12,7 @@ on:
         default: false
         type: boolean
 permissions:
-  contents: read
+  contents: write
 jobs:
   notarized-macos:
     runs-on: macos-15
