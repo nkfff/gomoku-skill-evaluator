@@ -30,7 +30,7 @@ export function resolvePvpDisconnectState(playerIds, disconnectedAt, now = Date.
   if (!offline.length) return {type: "online"};
   if (offline.length === playerIds.length) {
     const deadline = Math.max(...offline.map(playerId => Number(disconnectedAt[playerId]))) + graceMs;
-    return now >= deadline ? {type: "abandon"} : {type: "wait", deadline};
+    return now >= deadline ? {type: "abandon"} : {type: "wait", deadline, both: true};
   }
   const playerId = offline[0];
   const deadline = Number(disconnectedAt[playerId]) + graceMs;
