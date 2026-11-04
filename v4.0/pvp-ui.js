@@ -1421,7 +1421,7 @@ window.addEventListener("offline", () => {
   closeSocket();
   restoredPlayerId = "";
   roomRestoreInProgress = false;
-  notice("网络已断开。单机对弈不受影响；当前房间会保留，网络恢复后自动尝试重连。");
+  notice("网络已断开。单机对弈不受影响；恢复网络后会尝试重连。若超过服务端断线宽限期，对局可能按断线规则结束。");
 });
 window.addEventListener("online", () => {
   intentionalClose = false;
