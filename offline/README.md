@@ -38,6 +38,21 @@ npm run native:ios      # 需要 macOS + Xcode
 脚本先构建离线 Web，然后执行 `cap add` / `cap sync` 和 `capacitor-assets generate`。Android 可在 `offline/android` 目录运行 `./gradlew assembleDebug` 获取用于测试安装的 APK。iOS 需 Xcode 真机签名，TestFlight/App Store 需要 Apple Developer 账号。
 Capacitor 依赖固定在 8.6.0；生成目录暂不纳入 Git，避免改动在线版。正式发布前需要锁定 native 依赖、签名包、真实设备兼容性测试与升级测试。
 
+## GitHub Release 发布流程
+
+正式发布工作流位于 `.github/workflows/offline-release.yml`。它监听 `offline-v*` 标签；标签推送后会重新构建 PWA、Android Debug APK、iOS Simulator 包、macOS DMG、Windows EXE 与 Linux AppImage，待全部构建成功后自动创建 GitHub **预发布版（Pre-release）** 并上传附件。
+
+建议在 Android/iPhone 真机验收完成、PR 合并到 `main` 后，再创建并推送版本标签：
+
+```bash
+git checkout main
+git pull --ff-only
+git tag offline-v0.1.0-beta.1
+git push origin offline-v0.1.0-beta.1
+```
+
+工作流成功后，下载入口为 [GitHub Releases](https://github.com/nkfff/gomoku-skill-evaluator/releases)。当前尚未推送发布标签，因此**目前没有正式 GitHub Release**；README 首页列出的链接是暂时的 Actions 测试产物，不是永久下载链接。
+
 ## 尚未满足的正式发布门槛
 
 - [x] 独立构建、离线云功能隔离、复用本地四类玩法
@@ -47,7 +62,8 @@ Capacitor 依赖固定在 8.6.0；生成目录暂不纳入 Git，避免改动在
 - [x] CI 浏览器功能、离线启动和横向溢出测试通过
 - [ ] 至少两台 Android 真机及两台不同屏幕的 iPhone 完成验证
 - [ ] WKWebView / Web Worker / WASM、后台恢复、冷启动和低内存压力测试
-- [ ] 签名 APK/AAB/IPA 与自动化发布
+- [x] GitHub Release 自动化构建与上传工作流
+- [ ] 签名 APK/AAB/IPA 与正式商店发布
 - [x] macOS、Windows、Linux 未签名安装包构建成功
 - [ ] 三套桌面安装包的实体设备安装与稳定性验证
 
