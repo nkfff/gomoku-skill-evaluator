@@ -9,6 +9,20 @@ on:
 permissions:
   contents: read
 jobs:
+  worker-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install V4.0 Worker dependencies
+        working-directory: v4.0
+        run: npm ci
+      - name: Run V4.0 API, PVP and native CORS regression tests
+        working-directory: v4.0
+        run: npm test
   web:
     runs-on: ubuntu-latest
     timeout-minutes: 20

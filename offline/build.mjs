@@ -7,14 +7,14 @@ import path from "node:path";
 const here=fileURLToPath(new URL(".",import.meta.url));
 const source=path.resolve(here,"../v4.0");
 const out=path.join(here,"dist");
-const version="0.1.0-beta.2";
+const version="0.1.0-beta.3";
 if(!existsSync(path.join(source,"src/review.js")))throw Error("Expected V4 review implementation is missing; please update the source snapshot.");
 rmSync(out,{recursive:true,force:true});
 mkdirSync(out,{recursive:true});
 for(const item of ["src","models","vendor"]){
  cpSync(path.join(source,item),path.join(out,item),{recursive:true});
 }
-for(const item of ["special-modes-ui.js","index.html"]){
+for(const item of ["special-modes-ui.js","pvp-ui.js","index.html"]){
  copyFileSync(path.join(source,item),path.join(out,item));
 }
 for(const item of ["offline-config.js","experience.js","offline.css"]){
@@ -35,23 +35,23 @@ function swap(original,replacement){
  html=html.replace(original,replacement);
 }
 swap('<script src="./config.js"></script>','<script src="./offline-config.js"></script>');
-swap('<script type="module" src="./pvp-ui.js"></script>','');
+swap('<script type="module" src="./pvp-ui.js"></script>','<script type="module" src="./pvp-ui.js"></script>');
 swap('<meta name="viewport" content="width=device-width,initial-scale=1">','<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">');
 swap('<link rel="stylesheet" href="./src/style.css">','<link rel="stylesheet" href="./src/style.css">\n<link rel="stylesheet" href="./offline.css">');
 swap('</head>','<link rel="manifest" href="./manifest.webmanifest">\n<link rel="icon" type="image/svg+xml" href="./icons/cat-gomoku.svg">\n<link rel="apple-touch-icon" href="./icons/icon-192.png">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-status-bar-style" content="default">\n</head>');
 swap('</body>','<script type="module" src="./experience.js"></script>\n</body>');
-html=html.replace(/<title>[^<]*<\/title>/,'<title>猫猫棋局 · 离线版</title>');
+html=html.replace(/<title>[^<]*<\/title>/,'<title>猫猫棋局 · 联网与离线版</title>');
 html=html.replace(/<meta name="theme-color" content="[^"]*">/,'<meta name="theme-color" content="#fff7ed">');
-html=html.replace(/<meta name="description" content="[^"]*">/,'<meta name="description" content="猫猫棋局离线版：本地AI、Gunuce神经网络、残局挑战、随机连珠与逐手复盘。">');
-html=html.replaceAll("V4.0.2","离线版").replace("GOMOKU CLUB · V4.0.8","GOMOKU CLUB · OFFLINE");
-html=html.replace(/<p class="note board-note">[^<]*<\/p>/,'<p class="note board-note">不需要联网或登录。普通 AI 与 Gunuce 在设备本地运行；本地积分和战绩不影响在线排行榜。</p>');
-html=html.replace(/<p id="puzzleRewardStatus" class="note">[^<]*<\/p>/,'<p id="puzzleRewardStatus" class="note">完成挑战后自动获得本地积分；与在线账号积分独立。</p>');
+html=html.replace(/<meta name="description" content="[^"]*">/,'<meta name="description" content="猫猫棋局：本地 AI、联网账号、好友对战、AI 复盘与离线单机。">');
+html=html.replaceAll("V4.0.2","离线版").replace("GOMOKU CLUB · V4.0.8","GOMOKU CLUB · HYBRID");
+html=html.replace(/<p class="note board-note">[^<]*<\/p>/,'<p class="note board-note">本地 AI 与 Gunuce 可断网运行；联网后可登录账号、使用在线 AI 复盘、好友 PVP 与云端排行榜。</p>');
+html=html.replace(/<p id="puzzleRewardStatus" class="note">[^<]*<\/p>/,'<p id="puzzleRewardStatus" class="note">联网账号由服务器验证并结算奖励；离线游客奖励保存在本机。</p>');
 writeFileSync(path.join(out,"index.html"),html);
 
 const manifest={
- name:"猫猫棋局 · 离线版",short_name:"猫猫棋局",lang:"zh-CN",
+ name:"猫猫棋局",short_name:"猫猫棋局",lang:"zh-CN",
  id:"./",start_url:"./",scope:"./",display:"standalone",background_color:"#fff7ed",theme_color:"#fff7ed",
- description:"可爱舒缓的离线五子棋：本地 AI、残局、随机连珠与逐手复盘",
+ description:"猫猫棋局：本地 AI、联网账号、好友对战、AI 复盘与离线单机",
  icons:[
   {src:"./icons/icon-192.png",sizes:"192x192",type:"image/png",purpose:"any"},
   {src:"./icons/icon-512.png",sizes:"512x512",type:"image/png",purpose:"any maskable"},
@@ -78,7 +78,7 @@ const digest=createHash("sha256");
 for(const name of required)digest.update(name+"\n").update(readFileSync(path.join(out,name)));
 const cacheVersion=version+"-"+digest.digest("hex").slice(0,12);
 const worker=[
- "/* Standalone offline shell: no network API and no CDN dependencies. */",
+ "/* Local-first app shell: cache all game assets; online APIs are called only by explicit cloud features. */",
  "const VERSION="+JSON.stringify(cacheVersion)+";",
  "const ASSETS="+JSON.stringify(["./",...all])+";",
  "const PRELOAD="+JSON.stringify(["./",...required])+";",

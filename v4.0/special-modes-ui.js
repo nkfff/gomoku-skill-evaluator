@@ -53,7 +53,7 @@ function randomSeed(){
   else a[0]=(Date.now()^Math.floor(Math.random()*0xffffffff))>>>0;
   return a[0]||1;
 }
-function isCloudUser(){return loggedIn()&&cloudConfigured()&&!!API;}
+function isCloudUser(){return navigator.onLine&&loggedIn()&&cloudConfigured()&&!!API;}
 async function modeApi(path,payload){
   const token=await bearer();
   if(!token)throw new Error("请先登录账号，或切换为游客模式进行本地挑战");
@@ -192,6 +192,12 @@ async function claimPuzzleReward(){
       if(localClaims.has(puzzleState.id)){
         puzzleState.claimed=true;
         $("puzzleStatus").textContent="这道残局已经领取过奖励。再生成一道新题继续挑战吧。";
+        renderPuzzle();return;
+      }
+      if(loggedIn()&&cloudConfigured()&&!navigator.onLine){
+        saveClaim(puzzleState.id);
+        puzzleState.claimed=true;
+        $("puzzleStatus").textContent="离线通关已在本机记录，但暂不能计入云端积分。联网后生成新的云端验证残局即可领取奖励。";
         renderPuzzle();return;
       }
       const awarded=window.gomokuAwardLocalModePoints&&window.gomokuAwardLocalModePoints(puzzleState.reward);

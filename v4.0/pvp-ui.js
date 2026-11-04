@@ -1107,6 +1107,10 @@ function returnToPvpLobby() {
 }
 
 async function refreshLeaderboard() {
+ if(!navigator.onLine){
+  $("pvpRankRows").innerHTML="<tr><td colspan='6'>当前离线，恢复网络后自动刷新真人排行榜。</td></tr>";
+  return;
+ }
  try {
   const data=await api("/api/pvp/leaderboard","GET",null,false),players=data.players||[],titles=["棋圣","棋王","棋宗"];
   $("pvpPodium").innerHTML=players.slice(0,3).map((p,i)=>"<article class='podium-card podium-"+(i+1)+"'><span class='podium-medal'>"+["👑","🥈","🥉"][i]+"</span><small>"+titles[i]+"</small><strong>"+escapeText(p.name)+"</strong><em>"+Number(p.rating)+" Elo</em></article>").join("");
@@ -1309,8 +1313,9 @@ const initialInvite = initialParams.get("invite");
 const initialPvpRoom = initialParams.get("pvpRoom");
 const initialWatch = initialParams.get("watch") === "1";
 if (initialInvite) $("pvpInviteCode").value = initialInvite.toUpperCase();
-if (!API) notice("PVP 后端尚未部署。当前分支先完成前端与服务端开发，部署后即可联调。", true);
-else notice("PVP 服务已配置。登录后创建房间或输入好友邀请码。");
+if (!API) notice("好友对战服务尚未配置。", true);
+else if (!navigator.onLine) notice("当前离线：本地 AI、复盘和残局仍可使用；联网后即可登录并加入好友对战。");
+else notice("好友对战服务已连接。登录后创建房间或输入好友邀请码。");
 
 let roomRestoreInProgress = false;
 let restoredPlayerId = "";
@@ -1410,7 +1415,20 @@ waitForAuthReady().then(() => {
     notice("检测到好友房间链接，请先登录；登录成功后会自动恢复房间。");
   }
 }).catch(error => notice("账号初始化失败：" + error.message, true));
-refreshLeaderboard();
+if (navigator.onLine) refreshLeaderboard();
+window.addEventListener("offline", () => {
+  intentionalClose = true;
+  closeSocket();
+  restoredPlayerId = "";
+  roomRestoreInProgress = false;
+  notice("网络已断开。单机对弈不受影响；恢复网络后会尝试重连。若超过服务端断线宽限期，对局可能按断线规则结束。");
+});
+window.addEventListener("online", () => {
+  intentionalClose = false;
+  notice("网络已恢复，正在检查好友房间…");
+  refreshLeaderboard();
+  if (loggedIn()) restorePvpRoomOnLoad();
+});
 setInterval(() => {
   renderClock();
   syncIdleModal(roomState);
@@ -1421,7 +1439,7 @@ let finishedRoomSyncInFlight = false;
 setInterval(() => {
   const needsSync = roomId && roomState &&
     (roomState.status === "active" || roomState.status === "finished");
-  if (!needsSync || document.visibilityState !== "visible" || finishedRoomSyncInFlight) return;
+  if (!navigator.onLine || !needsSync || document.visibilityState !== "visible" || finishedRoomSyncInFlight) return;
   finishedRoomSyncInFlight = true;
   refreshRoomState().catch(() => {}).finally(() => {
     finishedRoomSyncInFlight = false;
@@ -1436,7 +1454,7 @@ document.addEventListener("visibilitychange", () => {
       lastPongAt = Date.now();
       try { socket.send(JSON.stringify({type: "ping"})); } catch {}
     }
-    if (roomId && roomState &&
+    if (navigator.onLine && roomId && roomState &&
         (roomState.status === "active" || roomState.status === "finished")) {
       refreshRoomState().catch(() => {});
     }

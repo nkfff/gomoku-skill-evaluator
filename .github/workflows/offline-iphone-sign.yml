@@ -2,7 +2,8 @@ name: Offline iPhone device & Ad Hoc IPA
 on:
   pull_request:
     paths:
-      - 'offline/ios-sign/**'
+      - 'offline/**'
+      - 'v4.0/**'
       - '.github/workflows/offline-iphone-sign.yml'
   workflow_dispatch:
     inputs:

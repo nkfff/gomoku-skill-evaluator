@@ -8,7 +8,9 @@ const authCallbackError=callbackHash.get("error_description")||callbackQuery.get
 const hasAuthCallback=!!(callbackHash.get("access_token")||callbackQuery.get("code")||callbackQuery.get("token_hash")||authCallbackError);
 const SUPABASE_URL=String(window.GOMOKU_SUPABASE_URL||"").replace(/\/$/,"");
 const PUBLISHABLE_KEY=String(window.GOMOKU_SUPABASE_PUBLISHABLE_KEY||"");
+const authRedirect=()=>String(window.GOMOKU_AUTH_REDIRECT_URL||location.origin+location.pathname);
 let client=null,session=null,ready=false,onChange=()=>{},onProfileChange=()=>{};
+let authInitPromise=null,authListenerInstalled=false,lastUserId=null;
 let resolveAuthReady;
 const authReadyPromise = new Promise(resolve => { resolveAuthReady = resolve; });
 export function waitForAuthReady() { return authReadyPromise; }
@@ -156,61 +158,84 @@ async function adminPost(path,data,successMessage,button){
  }
 }
 export async function initAccount(onAuthChange,onRemoteProfileChange){
- onChange=onAuthChange||(()=>{});
- onProfileChange=onRemoteProfileChange||(()=>{});
+ onChange=onAuthChange||onChange||(()=>{});
+ onProfileChange=onRemoteProfileChange||onProfileChange||(()=>{});
  $("authForm").hidden=false;$("loggedPanel").hidden=true;
  if(!cloudConfigured()){
-  setMessage("账号系统尚未连接 Supabase / Cloudflare；可继续游客对弈。需要部署后才能注册和管理。");
+  setMessage("账号系统尚未连接 Supabase / Cloudflare；可继续游客对弈。");
   $("authInputs").disabled=true;resolveAuthReady(true);return;
  }
- try{
-  // Dynamic load: the offline game continues even if the auth provider is unavailable.
-  const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2");
-  client=createClient(SUPABASE_URL,PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  const result=await client.auth.getSession();
-  session=result.data?.session||null;
-  window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
-   detail:{signedIn:loggedIn(),userId:session?.user?.id||null}
-  }));
-  let lastUserId=session?.user?.id||null;
-  client.auth.onAuthStateChange((event,next)=>{
-   const nextUserId=next?.user?.id||null;
-   const identityChanged=nextUserId!==lastUserId;
-   session=next;
-   // Same-user token refreshes must not hide a server-verified admin panel.
-   // Account switches hide it until the new user is checked by the Worker.
-   showState({resetAdmin:identityChanged||!nextUserId});
-   if(!identityChanged)return;
-   lastUserId=nextUserId;
-   Promise.resolve().then(async()=>{
-    window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
-     detail:{signedIn:!!nextUserId,userId:nextUserId}
-    }));
-    if(nextUserId)await refresh();
-    await onChange(!!nextUserId);
-   }).catch(()=>{});
-  });
-  ready=true;
-  setMessage(loggedIn()?"已恢复账号登录":"请选择注册或登录；游客对局不会进入云端排行榜。");
-  await refresh();
-  if(session)await onChange(true);
-  if(authCallbackError){
-   const message="邮箱验证失败："+authCallbackError;
-   setMessage(message,true);setGlobalFeedback(message,true);
-  }else if(authCallbackType==="signup"||authCallbackType==="email"||(hasAuthCallback&&authCallbackType!=="recovery")){
-   const message=loggedIn()?"邮箱验证成功！账号已激活并自动登录，现在可以开始下棋。":"邮箱验证链接已打开。请进入「账号 / 管理」查看状态；如果未自动登录，请使用注册邮箱登录。";
-   setMessage(message,!loggedIn());setGlobalFeedback(message,!loggedIn());
+ if(authInitPromise)return authInitPromise;
+ authInitPromise=(async()=>{
+  try{
+   if(!navigator.onLine){
+    $("authInputs").disabled=true;
+    setMessage("当前离线：本地 AI、残局和复盘可正常使用；联网后自动恢复账号服务。");
+    resolveAuthReady(true);return;
+   }
+   // The auth SDK is loaded only while online. A later online event retries a failed/offline boot.
+   if(!client){
+    const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2");
+    client=createClient(SUPABASE_URL,PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+   }
+   const result=await client.auth.getSession();
+   session=result.data?.session||null;
+   lastUserId=session?.user?.id||null;
+   window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
+    detail:{signedIn:loggedIn(),userId:lastUserId}
+   }));
+   if(!authListenerInstalled){
+    client.auth.onAuthStateChange((event,next)=>{
+     const nextUserId=next?.user?.id||null;
+     const identityChanged=nextUserId!==lastUserId;
+     session=next;
+     // Same-user token refreshes must not hide a server-verified admin panel.
+     // Account switches hide it until the new user is checked by the Worker.
+     showState({resetAdmin:identityChanged||!nextUserId});
+     if(!identityChanged)return;
+     lastUserId=nextUserId;
+     Promise.resolve().then(async()=>{
+      window.dispatchEvent(new CustomEvent("gomoku:auth-changed",{
+       detail:{signedIn:!!nextUserId,userId:nextUserId}
+      }));
+      if(nextUserId)await refresh();
+      await onChange(!!nextUserId);
+     }).catch(()=>{});
+    });
+    authListenerInstalled=true;
+   }
+   ready=true;
+   $("authInputs").disabled=false;
+   setMessage(loggedIn()?"已恢复账号登录":"请选择注册或登录；游客对局不会进入云端排行榜。");
+   await refresh();
+   if(session)await onChange(true);
+   if(authCallbackError){
+    const message="邮箱验证失败："+authCallbackError;
+    setMessage(message,true);setGlobalFeedback(message,true);
+   }else if(authCallbackType==="signup"||authCallbackType==="email"||(hasAuthCallback&&authCallbackType!=="recovery")){
+    const message=loggedIn()?"邮箱验证成功！账号已激活并自动登录，现在可以开始下棋。":"邮箱验证链接已打开。请进入账号中心查看状态；如果未自动登录，请使用注册邮箱登录。";
+    setMessage(message,!loggedIn());setGlobalFeedback(message,!loggedIn());
+   }
+  }catch(e){
+   if(!client)$("authInputs").disabled=true;
+   setMessage("账号服务暂不可用："+e.message+"。本地游戏不受影响，联网后可重试。",true);
+  }finally{
+   resolveAuthReady(true);
+   authInitPromise=null;
   }
- }catch(e){setMessage("登录模块加载失败："+e.message,true);}
- finally{resolveAuthReady(true);}
+ })();
+ return authInitPromise;
 }
+window.addEventListener("online",()=>{
+ if(cloudConfigured()&&(!client||!authListenerInstalled))void initAccount(onChange,onProfileChange);
+});
 async function authTask(task){
  if(!client){setMessage("请先配置认证服务",true);return;}
  try{
   const email=$("authEmail").value.trim(),password=$("authPassword").value;
   if(task==="register"){
    if(password.length<10)throw Error("密码至少 10 位");
-   const {error}=await client.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}});
+   const {error}=await client.auth.signUp({email,password,options:{emailRedirectTo:authRedirect()}});
    if(error)throw error;
    setMessage("注册请求已提交。如启用了邮箱验证，请先打开验证邮件再登录。");
   }else if(task==="login"){
@@ -220,7 +245,7 @@ async function authTask(task){
    // SIGNED_IN triggers the auth-state handler, which refreshes the server-verified role.
   }else if(task==="recover"){
    if(!email)throw Error("请输入邮箱");
-   const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+   const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:authRedirect()});
    if(error)throw error;
    setMessage("已发送密码重置请求；如邮箱存在，请查收邮件。");
   }else if(task==="change"){

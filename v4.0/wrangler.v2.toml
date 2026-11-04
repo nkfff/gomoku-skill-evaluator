@@ -7,6 +7,7 @@ binding = "AI"
 
 [vars]
 FRONTEND_ORIGIN = "https://nkfff.github.io"
+APP_ORIGINS = "capacitor://localhost,https://localhost,gomoku://app"
 
 [[d1_databases]]
 binding = "DB"
