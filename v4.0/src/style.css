@@ -461,3 +461,11 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
  .layout.review-mode>.board-panel,.layout.review-mode>.side-panel{min-height:0;height:auto}
  .layout.review-mode>.board-panel>.board-note{margin-top:12px;padding-top:0}
 }
+
+/* V4.0.12 PVP inactivity confirmation */
+.pvp-idle-modal .pvp-idle-card{gap:12px}
+.pvp-idle-countdown{display:block;text-align:center;margin:2px 0 4px;font-size:clamp(30px,8vw,42px);font-weight:750;letter-spacing:.08em;font-variant-numeric:tabular-nums;color:var(--v4-accent,#986076)}
+.pvp-idle-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.pvp-idle-actions button{min-height:44px}
+.pvp-idle-actions #pvpIdleExit{border-color:rgba(185,90,82,.28);color:#a64d49;background:rgba(185,90,82,.07)}
+@media(max-width:480px){.pvp-idle-actions{grid-template-columns:1fr}.pvp-idle-modal .pvp-idle-card{width:min(92vw,420px)}}
