@@ -126,3 +126,138 @@ html[data-edition="hybrid"] .hybrid-shortcuts button,html[data-edition="hybrid"]
 html[data-edition="hybrid"] .review-online-button{display:block!important;width:100%;min-height:48px;margin:12px 0;}
 html[data-edition="hybrid"] #panel-pvp .pvp-board{max-width:min(100%,600px);}
 @media(max-width:720px){html[data-edition="hybrid"] .tabs{grid-template-columns:repeat(5,minmax(0,1fr));}}
+
+
+/* Hybrid contrast pass: keep native shell readable regardless of selected board/piece skin. */
+html[data-edition="hybrid"] body[data-board-theme]{
+ --hybrid-ink:#352722;
+ --hybrid-heading:#352722;
+ --hybrid-muted:#5e4a42;
+ --hybrid-accent:#8f3e57;
+ --hybrid-accent-hover:#713146;
+ --hybrid-border:#dfcec2;
+ --hybrid-panel:#fffdfa;
+ --hybrid-surface:#f5ede6;
+ --hybrid-surface-2:#fff8f2;
+ --hybrid-soft:#f5e5e9;
+ --v4-ink:var(--hybrid-ink);
+ --v4-muted:var(--hybrid-muted);
+ --v4-accent:#8f3e57;
+ --v4-accent-deep:#7e354c;
+ --v4-line:#dfcec2;
+ --page-bg:#f7f1eb;
+ --page-glow:rgba(255,247,239,.92);
+ --text:var(--hybrid-ink);
+ --muted:var(--hybrid-muted);
+ --heading:var(--hybrid-heading);
+ --panel:var(--hybrid-panel);
+ --panel-border:#e1d2c7;
+ --surface:var(--hybrid-surface);
+ --surface-2:var(--hybrid-surface-2);
+ --border:var(--hybrid-border);
+ --input-bg:#fff;
+ --input-text:var(--hybrid-ink);
+ --link:#7e354c;
+ --hint-bg:#fff1e8;
+ --hint-border:#e5c6b8;
+ --hint-text:#553a32;
+ --board-frame:#d4bda7;
+ --shadow:0 10px 28px rgba(76,49,39,.09);
+ --accent:var(--hybrid-accent);
+ --accent-hover:var(--hybrid-accent-hover);
+ --accent-soft:var(--hybrid-soft);
+ --accent-contrast:#fff;
+ --accent-glow:rgba(143,62,87,.18);
+ --piece-glow:rgba(143,62,87,.09);
+ color:var(--hybrid-ink);
+}
+html[data-edition="hybrid"] body[data-board-theme] :is(h1,h2,h3,h4,h5,h6,.skin-name,.admin-stats-preview,.pvp-spectator-heading,.review-ai-result){
+ color:var(--hybrid-heading)!important;
+}
+html[data-edition="hybrid"] body[data-board-theme] :is(p,.muted,.note,label,small,.skin small,.stat small,.cloud-status small,.review-ai-step,.review-ai-quota-note,.review-report-head p,.review-card p,.review-toolbar-heading small,.review-range,.review-tick small,.review-stat small,.review-candidate small,.review-moment span,.review-moment small,.review-training-item p,.pvp-spectator-empty,.pvp-result-stats small,.pvp-rematch-invite-card>p,.pvp-result-card>p,.site-footer,.caption-note,.dice-stage-head,.dice-player small,.dice-vs,#pvpDiceStatus,th,td){
+ color:var(--hybrid-muted)!important;
+}
+html[data-edition="hybrid"] body[data-board-theme] a{
+ color:#7e354c!important;text-decoration:underline;text-decoration-color:rgba(126,53,76,.28);text-underline-offset:2px;
+}
+html[data-edition="hybrid"] body[data-board-theme] button:not(.primary):not(.active){
+ color:var(--hybrid-ink);
+}
+html[data-edition="hybrid"] body[data-board-theme] button.primary,
+html[data-edition="hybrid"] body[data-board-theme] button.active,
+html[data-edition="hybrid"] body[data-board-theme] .tabs button.active{
+ color:#fff!important;background:var(--hybrid-accent)!important;border-color:var(--hybrid-accent)!important;
+ box-shadow:0 4px 13px rgba(143,62,87,.2);
+}
+html[data-edition="hybrid"] body[data-board-theme] .tabs button.active{
+ font-weight:800;
+}
+html[data-edition="hybrid"] body[data-board-theme] button:disabled,
+html[data-edition="hybrid"] body[data-board-theme] input:disabled,
+html[data-edition="hybrid"] body[data-board-theme] select:disabled{
+ opacity:1!important;color:#74645d!important;background:#eee7e1!important;border-color:#d9ccc2!important;
+}
+html[data-edition="hybrid"] body[data-board-theme] :is(input,select,textarea){
+ color:var(--hybrid-ink);
+}
+html[data-edition="hybrid"] body[data-board-theme] :is(input,select,textarea)::placeholder{
+ color:#6b5951;opacity:1;
+}
+html[data-edition="hybrid"] body[data-board-theme] :is(input,select,textarea):focus-visible,
+html[data-edition="hybrid"] body[data-board-theme] button:focus-visible{
+ outline:3px solid #8f3e57;outline-offset:2px;
+}
+html[data-edition="hybrid"] body[data-board-theme] .point-pill{
+ color:#7e354c!important;background:#f8e8ed;
+}
+html[data-edition="hybrid"] body[data-board-theme] .live-pill{
+ color:#315e50!important;background:#e9f5ed;
+}
+html[data-edition="hybrid"] body[data-board-theme] .review-ai-chip{
+ color:#315e50!important;background:#e9f5ed;
+}
+html[data-edition="hybrid"] body[data-board-theme] .review-online-button{
+ color:#7e354c!important;border-color:#7e354c!important;background:#fffdfa;
+}
+html[data-edition="hybrid"] body[data-board-theme] .review-quota-number{
+ color:#7e354c!important;
+}
+html[data-edition="hybrid"] body[data-board-theme] .review-ai-quota-note.quota-warning{
+ color:#8b4934!important;
+}
+html[data-edition="hybrid"] body[data-board-theme] .admin-feedback.error{
+ color:#8b3027!important;background:#fff0ed;border-color:#d98479;
+}
+html[data-edition="hybrid"] body[data-board-theme] .pvp-idle-actions #pvpIdleExit{
+ color:#8b3027!important;background:#fff0ed;border-color:#d98479;
+}
+html[data-edition="hybrid"] body[data-board-theme] .review-verdict.error{
+ color:#8b3027!important;background:#fff0ed;
+}
+html[data-edition="hybrid"] body[data-board-theme] .review-verdict.warn{
+ color:#754b16!important;background:#fff5e5;
+}
+html[data-edition="hybrid"] body[data-board-theme] .review-verdict.good{
+ color:#285b43!important;background:#edf8f1;
+}
+html[data-edition="hybrid"] body[data-board-theme] .review-tick.is-error{
+ color:#8b3027!important;background:#fff0ef;
+}
+html[data-edition="hybrid"] body[data-board-theme] .review-tick.is-good{
+ color:#285b43!important;background:#edf8f1;
+}
+html[data-edition="hybrid"] body[data-board-theme] .rank-title{
+ color:#70451e!important;
+}
+html[data-edition="hybrid"] body[data-board-theme] .rank-title.rank-2{
+ color:#4b596c!important;
+}
+html[data-edition="hybrid"] body[data-board-theme] .rank-title.rank-3{
+ color:#704a2f!important;
+}
+html[data-edition="hybrid"] body[data-board-theme] .draw-egg-card>small,
+html[data-edition="hybrid"] body[data-board-theme] .draw-egg-card p,
+html[data-edition="hybrid"] body[data-board-theme] .pvp-rematch-invite-card>p,
+html[data-edition="hybrid"] body[data-board-theme] .pvp-result-card>p{
+ color:var(--hybrid-muted)!important;
+}
