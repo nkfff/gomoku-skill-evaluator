@@ -51,3 +51,7 @@ Capacitor 依赖固定在 8.6.0；生成目录暂不纳入 Git，避免改动在
 - [ ] macOS、Windows、Linux 安装包
 
 重点原则：**未完成真机验收，不宣称 Android/iOS 应用已正式发布。**
+
+## macOS / Windows / Linux 桌面版
+
+独立 Electron 安装包构建已在 `offline/desktop/` 中提供。使用 `gomoku://app` 安全源加载本地 Worker 与 WASM，复用 Android/iOS 同一套单机逻辑。参见 [desktop/README.md](desktop/README.md)。当前未签名，正式 Release 前仍需 CI 和目标机器验收。
