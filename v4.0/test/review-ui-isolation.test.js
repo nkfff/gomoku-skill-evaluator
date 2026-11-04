@@ -29,3 +29,15 @@ test("复盘双栏桌面布局上下对齐，窄屏恢复自然高度",()=>{
  assert.ok(css.includes(".layout.review-mode>.board-panel{display:flex;flex-direction:column}"));
  assert.ok(css.includes("@media(max-width:950px){\n .layout.review-mode{align-items:start}"));
 });
+
+test("AI 教练位于复盘右栏顶部，与棋盘同屏，并有额度提示",()=>{
+ const html=read("../index.html"),css=read("../src/style.css"),app=read("../src/app.js");
+ const replay=html.slice(html.indexOf('id="panel-replay"'),html.indexOf('id="panel-puzzle"'));
+ assert.ok(replay.indexOf('class="review-card review-ai-card"')<replay.indexOf('class="review-report-head"'));
+ for(const id of ["reviewAiStep","reviewQuotaRemaining","reviewQuotaProgress","reviewQuotaReset"])assert.match(replay,new RegExp('id="'+id+'"'));
+ assert.match(css,/#panel-replay>\.review-ai-card\{order:-1\}/);
+ assert.match(app,/api\("review\/coach\/quota"\)/);
+ assert.match(app,/btn\.disabled=!cloudMode\(\)/);
+ assert.match(app,/今日额度已用完/);
+ assert.match(app,/quotaSeq/);
+});
