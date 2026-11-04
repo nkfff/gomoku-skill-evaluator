@@ -19,7 +19,7 @@ const path=require("node:path");
   const boards=["classic","jade","night","cherry","catcafe","gold"];
   const pieces=["classic","crystal","ink","neon","pearl","cat"];
   const rgb=value=>{
-   const m=value.match(/rgba?\\(([^)]+)\\)/);if(!m)return null;
+   const m=value.match(/rgba?\(([^)]+)\)/);if(!m)return null;
    const p=m[1].split(",").map(x=>Number.parseFloat(x.trim()));
    return [p[0],p[1],p[2],p.length>3?p[3]:1];
   };
