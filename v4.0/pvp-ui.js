@@ -238,6 +238,17 @@ function handleMessage(message) {
     if (["STALE_REVISION","STALE_UNDO_REQUEST","NO_PENDING_UNDO_REQUEST","UNDO_REQUEST_EXPIRED","NO_PENDING_DRAW_REQUEST","NO_OPPONENT_DRAW_OFFER"].includes(message.code)) refreshRoomState().catch(() => {});
   } else if (message.type === "match_started") {
     notice("双方摇骰揭晓先手！点数较大的一方执黑先行。");
+  } else if (message.type === "game_abandoned") {
+    notice("双方均已断线，本局已中止，未结算 Elo。");
+    if (!spectatorMode) acknowledgePvpResult().catch(() => {});
+  } else if (message.type === "idle_prompt") {
+    notice(message.playerId === playerId
+      ? "你已超过 1 分钟没有落子，请在弹窗倒计时结束前确认继续。"
+      : "对手已超过 1 分钟没有落子，正在等待对方确认是否继续。", message.playerId === playerId);
+  } else if (message.type === "idle_dismissed") {
+    notice(message.playerId === playerId
+      ? "已确认继续对局，下一次空闲提醒将在 1 分钟后触发。"
+      : "对手已确认继续对局。");
   } else if (message.type === "game_over") {
     const match = message.room && message.room.match;
     const result = match ? match.result : "";
@@ -888,6 +899,7 @@ function renderRoom(room) {
  $("pvpLeaveSpectate").hidden=!isSpectator;
  $("pvpRatingStat").hidden=isSpectator;
  if (isSpectator) $("pvpResultModal").hidden = true;
+ syncIdleModal(room);
  if(room.match&&Array.isArray(room.match.diceRolls)&&room.match.diceRolls.length){
   $("pvpDiceStage").hidden=false;
   if(diceAnimationMatchId!==room.match.matchId) {
@@ -954,7 +966,16 @@ function renderRoom(room) {
   $("pvpMyRating").textContent=isSpectator?"观战模式":"1000 · 定级中";
  }
  renderClock();drawBoard();
- if (finished && !isSpectator) showPvpResult(room.match, room);
+ if (finished && !isSpectator) {
+   if (room.match.endReason === "both_disconnected") {
+     if (!room.resultSeenByPlayer?.[playerId]) {
+       notice("双方均已断线，本局已中止，未结算 Elo。");
+       acknowledgePvpResult().catch(() => {});
+     }
+   } else {
+     showPvpResult(room.match, room);
+   }
+ }
 }
 async function createRoom() {
   try {
@@ -1037,6 +1058,11 @@ async function watchRoom() {
 }
 
 function returnToPvpLobby() {
+  if (!spectatorMode && roomState && roomState.status === "finished" &&
+      socket && socket.readyState === WebSocket.OPEN) {
+    if (!roomState.resultSeenByPlayer?.[playerId]) acknowledgePvpResult().catch(() => {});
+    try { socket.send(JSON.stringify({type: "leave_room"})); } catch {}
+  }
   spectatorMode = false;
   intentionalClose = true;
   closeSocket();
@@ -1075,12 +1101,22 @@ async function refreshHistory() {
       const opponent = match.my_color === "black" ? match.white_name : match.black_name;
       const mine = match.my_color === "black" ? match.black_player_id : match.white_player_id;
       const won = (match.result === "black_win" && match.my_color === "black") || (match.result === "white_win" && match.my_color === "white");
-      const outcome = match.result === "draw" ? "和棋" : won ? "胜利" : "失利";
+      const outcome = match.result == null ? "中止" : match.result === "draw" ? "和棋" : won ? "胜利" : "失利";
+      const reasonLabels = {
+        five_in_row: "连成五子",
+        resign: "主动认输",
+        timeout: "棋钟超时",
+        idle_timeout: "长时间未行动",
+        disconnect_timeout: "单方断线超时",
+        both_disconnected: "双方断线，中止",
+        draw_agreement: "双方同意和棋",
+        board_full: "棋盘已满"
+      };
       const before = match.my_color === "black" ? match.initial_black_rating : match.initial_white_rating;
       const after = match.my_color === "black" ? match.final_black_rating : match.final_white_rating;
       const delta = after == null ? "—" : ((Number(after) - Number(before)) >= 0 ? "+" : "") + (Number(after) - Number(before));
       return "<tr><td>" + escapeText(match.started_at || "") + "</td><td>" + escapeText(opponent) +
-        "</td><td>" + outcome + "</td><td>" + escapeText(match.end_reason || "") +
+        "</td><td>" + outcome + "</td><td>" + escapeText(reasonLabels[match.end_reason] || match.end_reason || "") +
         "</td><td>" + delta + "</td></tr>";
     }).join("") : "<tr><td colspan='5'>暂时没有真人对局记录。</td></tr>";
   } catch (error) {
@@ -1104,6 +1140,7 @@ function sendAction(message) {
     return false;
   }
   const feedback = {
+    continue_idle: "已确认继续对局。",
     offer_draw: "已向对手发送和棋请求，等待回应。",
     accept_draw: "你已接受和棋请求，正在完成结算…",
     decline_draw: "已拒绝和棋请求，对局继续。",
@@ -1132,6 +1169,23 @@ $("pvpLeaveSpectate").onclick = returnToPvpLobby;
 $("pvpReady").onclick = () => sendAction({type: "ready"});
 $("pvpResultClose").onclick = closePvpResultModal;
 $("pvpResultContinue").onclick = closePvpResultModal;
+$("pvpIdleContinue").onclick = () => {
+  $("pvpIdleContinue").disabled = true;
+  $("pvpIdleExit").disabled = true;
+  if (!sendAction({type: "continue_idle"})) {
+    $("pvpIdleContinue").disabled = false;
+    $("pvpIdleExit").disabled = false;
+  }
+};
+$("pvpIdleExit").onclick = () => {
+  if (!confirm("确定退出并认输吗？本局将按失败结算真人 Elo。")) return;
+  $("pvpIdleContinue").disabled = true;
+  $("pvpIdleExit").disabled = true;
+  if (!sendAction({type: "resign"})) {
+    $("pvpIdleContinue").disabled = false;
+    $("pvpIdleExit").disabled = false;
+  }
+};
 $("pvpRematch").onclick = () => sendAction({type: "rematch"});
 $("pvpRematchInviteAccept").onclick = () => {
   $("pvpRematchInviteAccept").disabled = true;
@@ -1340,6 +1394,7 @@ waitForAuthReady().then(() => {
 refreshLeaderboard();
 setInterval(() => {
   renderClock();
+  syncIdleModal(roomState);
   if (!spectatorMode && roomState && roomState.match && roomState.match.status === "active") drawBoard();
 }, 250);
 
