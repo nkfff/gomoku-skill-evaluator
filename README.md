@@ -23,24 +23,22 @@
 
 ## 离线多端版 · Offline Edition
 
-<sub>当前开发版本：<strong>offline-v0.1.0-beta.1</strong> · Android / iOS / macOS / Windows / Linux / PWA</sub>
+**[猫猫棋局 offline-v0.1.0-beta.1：GitHub Release 正式下载](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.1)**
 
-**六个平台的 CI 测试构建已完成；正式 GitHub Release 尚未发布。** 先提供当前测试包下载入口。完成 Android/iPhone 真机验收并合并离线版 PR 后，再发布带长期下载资产的 Beta Release。
+> 2026-11-04 已发布 **Beta 预发布版（Pre-release）**，本次包含 6 个长期下载附件。维护者已确认 Beta 验收通过；正式签名、App Store/TestFlight 上架与更广泛机型兼容仍需单独处理。
 
-| 平台 | 当前测试包 / 下载入口 | 说明 |
+| 平台 | 直接下载 | 说明 |
 |---|---|---|
-| Android | [查看 APK 构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) | 可安装测试；非 Play Store 正式签名包 |
-| iOS | [查看模拟器包构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) | **仅 iOS 模拟器**，不是 iPhone IPA |
-| macOS | [查看 DMG 构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 未签名测试包 |
-| Windows | [查看 EXE 构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 未签名测试包 |
-| Linux | [查看 AppImage 构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 测试包 |
-| Web / PWA | [查看 PWA 构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819656) | 首次加载缓存完成后可断网使用 |
+| Android | [下载 APK](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.1/Gomoku_Offline_Android_Debug_offline-v0.1.0-beta.1.apk) | Debug 测试签名，非 Google Play 正式包 |
+| iOS | [下载模拟器版](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.1/Gomoku_Offline_iOS_Simulator_offline-v0.1.0-beta.1.zip) | **仅 iOS Simulator**，无法直接安装到普通 iPhone |
+| macOS | [下载 DMG](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.1/cat-gomoku-offline-0.1.0-beta.1-mac-arm64.dmg) | Apple Silicon (arm64)，未签名；当前无 Intel 安装包 |
+| Windows | [下载 EXE](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.1/cat-gomoku-offline-0.1.0-beta.1-win-x64.exe) | x64，未签名 |
+| Linux | [下载 AppImage](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.1/cat-gomoku-offline-0.1.0-beta.1-linux-x86_64.AppImage) | x86_64 |
+| Web / PWA | [下载 PWA ZIP](https://github.com/nkfff/gomoku-skill-evaluator/releases/download/offline-v0.1.0-beta.1/Gomoku_Offline_PWA_offline-v0.1.0-beta.1.zip) | 需通过 HTTPS 或本地服务器提供网页；首次缓存完成后可断网 |
 
-- **正式版本入口：** [GitHub Releases](https://github.com/nkfff/gomoku-skill-evaluator/releases)（当前尚无离线版 Release）
-- **构建记录：** [Web/PWA](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819656) · [Android/iOS](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) · [桌面三平台](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761)
-- **开发进度：** [离线版 PR #56](https://github.com/nkfff/gomoku-skill-evaluator/pull/56)
+离线版提供本地 AI / Gunuce 推理、残局、随机连珠、复盘和本地积分；不包含在线账号、好友 PVP 或云端排行榜。离线数据和在线账号积分相互独立。
 
-> Actions 测试产物有保留期限，不能替代正式 Release。离线单机版不包含云端登录、在线 PVP、观战或服务器排行榜；本地积分与在线账号独立。离线发行线与线上 V4.0.x、V4.1 AI 训练研究分支相互独立。
+[Release 发布说明](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.1) · [离线版安装与开发文档](offline/README.md) · [已合并 PR #56](https://github.com/nkfff/gomoku-skill-evaluator/pull/56) · [六平台构建记录](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41768864712)
 
 ## 版本更新记录
 
