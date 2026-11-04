@@ -333,13 +333,49 @@ function currentClock(match, color) {
 }
 
 
+function syncIdleModal(room = roomState) {
+  const modal = $("pvpIdleModal");
+  if (!modal) return;
+  const prompt = room && room.idlePrompt;
+  const isTarget = !spectatorMode && room && room.status === "active" &&
+    prompt && prompt.playerId === playerId;
+  if (!isTarget) {
+    modal.hidden = true;
+    return;
+  }
+  const remaining = Math.max(0, Math.ceil((Number(prompt.deadlineAt) - Date.now()) / 1000));
+  const minutes = Math.floor(remaining / 60);
+  const seconds = remaining % 60;
+  $("pvpIdleCountdown").textContent =
+    String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+  $("pvpIdleMessage").textContent =
+    "你已连续 1 分钟没有落子。请在倒计时结束前确认继续，否则本局将自动判负。棋钟仍会继续计时。";
+  const wasHidden = modal.hidden;
+  modal.hidden = false;
+  if (wasHidden) $("pvpIdleContinue").focus({preventScroll:true});
+}
+
+async function acknowledgePvpResult() {
+  if (spectatorMode || !roomId || !roomState || roomState.status !== "finished" ||
+      !roomState.match || !playerId || roomState.resultSeenByPlayer?.[playerId]) return;
+  const matchId = roomState.match.matchId;
+  await api("/api/pvp/rooms/" + encodeURIComponent(roomId) + "/ack-result", "POST", {});
+  if (roomState && roomState.status === "finished" && roomState.match?.matchId === matchId) {
+    roomState.resultSeenByPlayer = {...(roomState.resultSeenByPlayer || {}), [playerId]: true};
+  }
+}
+
 function closePvpResultModal() {
   const modal = $("pvpResultModal");
+  const wasVisible = modal && !modal.hidden;
   if (modal) modal.hidden = true;
+  if (wasVisible) acknowledgePvpResult().catch(error => notice("结果已关闭，但已读状态暂未同步：" + error.message, true));
 }
 
 function showPvpResult(match, room = roomState) {
-  if (spectatorMode || !match || match.status !== "finished" || !match.matchId || pvpResultMatchId === match.matchId) return;
+  if (spectatorMode || !match || match.status !== "finished" || !match.matchId ||
+      match.endReason === "both_disconnected" || room?.resultSeenByPlayer?.[playerId] ||
+      pvpResultMatchId === match.matchId) return;
   pvpResultMatchId = match.matchId;
   const isDraw = match.result === "draw";
   const won = !isDraw && match.winnerPlayerId === playerId;
@@ -350,6 +386,8 @@ function showPvpResult(match, room = roomState) {
   let message = "本局已结束，真人段位分已完成结算。";
   if (reason === "resign") {
     message = won ? opponentName + " 选择认输，你获得本局胜利。" : "你选择了认输，本局判负。";
+  } else if (reason === "idle_timeout") {
+    message = won ? opponentName + " 超过提醒期限仍未继续，本局由你获胜。" : "你在提醒倒计时内没有确认继续，本局判负。";
   } else if (reason === "timeout") {
     message = won ? opponentName + " 用时耗尽，你获得胜利。" : "你的剩余时间已耗尽，本局判负。";
   } else if (reason === "disconnect_timeout") {
