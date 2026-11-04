@@ -169,6 +169,7 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
  authInitPromise=(async()=>{
   try{
    if(!navigator.onLine){
+    $("authInputs").disabled=true;
     setMessage("当前离线：本地 AI、残局和复盘可正常使用；联网后自动恢复账号服务。");
     resolveAuthReady(true);return;
    }
@@ -216,6 +217,7 @@ export async function initAccount(onAuthChange,onRemoteProfileChange){
     setMessage(message,!loggedIn());setGlobalFeedback(message,!loggedIn());
    }
   }catch(e){
+   if(!client)$("authInputs").disabled=true;
    setMessage("账号服务暂不可用："+e.message+"。本地游戏不受影响，联网后可重试。",true);
   }finally{
    resolveAuthReady(true);
