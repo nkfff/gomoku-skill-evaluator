@@ -2,7 +2,8 @@ import {createRemoteJWKSet,jwtVerify} from "jose";
 import {LEVELS,CELLS,winLine,chooseAI,rankedMoves,coord} from "../src/engine.js";
 import {generateReviewCoachStream,getReviewCoachQuota} from "./review-coach.js";
 
-const award={easy:10,normal:30,hard:80};
+import {WIN_REWARDS as award,isRewardLevel,gameReward} from "../src/rewards.js";
+import {fastWins} from "../src/gunuce-search.js";
 const boards={classic:0,jade:60,night:150,cherry:260,catcafe:480,gold:500};
 const pieces={classic:0,crystal:45,ink:85,neon:140,pearl:220,cat:680};
 const reply=(x,status=200,cors={})=>new Response(JSON.stringify(x),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store",...cors}});
@@ -62,6 +63,7 @@ function validMoves(moves){
  return b;
 }
 export function validateSubmittedTimeline(events,level,reportedResult,reportedUndoCount,playerColor=1){
+ if(!isRewardLevel(level))throw invalid("未知难度");
  if(!Array.isArray(events)||events.length<2||events.length>500)throw invalid("终局事件数量不合法");
  if(![1,2].includes(playerColor))throw invalid("玩家棋子颜色不合法");
  const aiColor=3-playerColor,b=Array(CELLS).fill(0),moves=[];
@@ -71,7 +73,14 @@ export function validateSubmittedTimeline(events,level,reportedResult,reportedUn
   if(!event||typeof event!=="object"||seenEnd)throw invalid("终局事件顺序不合法",409);
   if(event.type==="move"){
    if(terminal||!Number.isInteger(event.i)||event.i<0||event.i>=CELLS||b[event.i]||event.p!==nextColor)throw invalid("棋谱包含非法落子或先后手顺序错误",409);
-   if(event.p===aiColor&&!rankedMoves(b,aiColor,LEVELS[level].width).includes(event.i))throw invalid("AI 落子不在当前难度的候选范围内",409);
+   if(event.p===aiColor){
+    if(level==="gunuce"){
+     // Validate local MCTS forced tactics; the heuristic engine cannot replay neural inference.
+     const wins=fastWins(b,aiColor),blocks=wins.length?[]:fastWins(b,playerColor);
+     if(wins.length&&!wins.includes(event.i))throw invalid("Gunuce 未执行必胜落子",409);
+     if(!wins.length&&blocks.length===1&&event.i!==blocks[0])throw invalid("Gunuce 未阻挡唯一直接威胁",409);
+    }else if(!rankedMoves(b,aiColor,LEVELS[level].width).includes(event.i))throw invalid("AI 落子不在当前难度的候选范围内",409);
+   }
    moves.push({i:event.i,p:event.p});b[event.i]=event.p;
    if(winLine(b,event.i,event.p).length)terminal=event.p===playerColor?1:2;
    else if(moves.length===CELLS)terminal=3;
@@ -102,8 +111,8 @@ function adminOrThrow(env,user){
 function corsFor(request,env){
  const origin=request.headers.get("Origin")||"";
  const allowed=(env.FRONTEND_ORIGIN||"https://nkfff.github.io").replace(/\/$/,"");
- const configuredApps=String(env.APP_ORIGINS||"").split(",").map(value=>value.trim().replace(/\/$/,"")).filter(Boolean);
- const allowedOrigins=new Set([allowed,env.DEV_ORIGIN||"",...configuredApps].filter(Boolean));
+ const appOrigins=String(env.APP_ORIGINS||"").split(",").map(value=>value.trim().replace(/\/$/,"")).filter(Boolean);
+ const allowedOrigins=new Set([allowed,env.DEV_ORIGIN||"",...appOrigins].filter(Boolean));
  return allowedOrigins.has(origin)?
  {"Access-Control-Allow-Origin":origin,"Access-Control-Allow-Headers":"Authorization, Content-Type","Access-Control-Allow-Methods":"GET,POST,OPTIONS","Vary":"Origin"}:{};
 }
@@ -114,7 +123,7 @@ export default {
   const origin=request.headers.get("Origin");
   if(origin&&!cors["Access-Control-Allow-Origin"])return reply({error:"Origin 不允许"},403,cors);
   const url=new URL(request.url);
-  if(url.pathname==="/api/health")return reply({ok:true,version:"4.0.0",configured:!!env.SUPABASE_URL,reviewAIConfigured:typeof env.AI?.run==="function"},200,cors);
+  if(url.pathname==="/api/health")return reply({ok:true,version:"4.0.0",configured:!!env.SUPABASE_URL,reviewAIConfigured:typeof env.AI?.run==="function",rewards:award},200,cors);
   try{
    if(url.pathname==="/api/leaderboard"&&request.method==="GET"){
     const {results}=await env.DB.prepare("WITH base AS (SELECT name,COALESCE(earned_points,0) AS earned_points,wins,losses,draws,(wins+losses+draws) AS games_played,ROUND(100.0*wins/(wins+losses+draws),1) AS win_rate,100.0*(wins+2.5)/(wins+losses+draws+5) AS adjusted_win_rate FROM players WHERE banned=0 AND (wins+losses+draws)>0) SELECT name,earned_points,wins,losses,draws,games_played,win_rate,ROUND(adjusted_win_rate,1) AS adjusted_win_rate,MAX(0,ROUND(earned_points+(adjusted_win_rate-50)*MIN(games_played,20)/10.0)) AS rank_points FROM base ORDER BY rank_points DESC,earned_points DESC,wins DESC,games_played DESC LIMIT 30").all();
@@ -209,7 +218,7 @@ export default {
    }
    if(url.pathname==="/api/submit"){
     const playerColor=body.playerColor===undefined?1:body.playerColor;
-    if(!uuid(body.gameId)||!LEVELS[body.level]||![1,2,3].includes(body.result)||!Number.isInteger(body.undoCount)||body.undoCount<0||body.undoCount>112||![1,2].includes(playerColor))throw invalid("对局提交参数不合法");
+    if(!uuid(body.gameId)||!isRewardLevel(body.level)||![1,2,3].includes(body.result)||!Number.isInteger(body.undoCount)||body.undoCount<0||body.undoCount>112||![1,2].includes(playerColor))throw invalid("对局提交参数不合法");
     const validated=validateSubmittedTimeline(body.events,body.level,body.result,body.undoCount,playerColor);
     const finalMoves=JSON.stringify(validated.moves),cleanEvents=body.events.map(event=>event.type==="move"?{type:"move",i:event.i,p:event.p}:event.type==="undo"?{type:"undo",removed:event.removed,paid:event.paid,cost:event.cost}:{type:"end",result:event.result}),eventJson=JSON.stringify(cleanEvents);
     const existing=await env.DB.prepare("SELECT player_id,level,player_color,moves,status,events,settled_at FROM games WHERE id=?").bind(body.gameId).first();
@@ -220,7 +229,7 @@ export default {
      return reply({alreadySubmitted:true,profile:await profile(env,user.id)},200,cors);
     if(existing.status!=="active")throw invalid("该对局已结束或状态异常",409);
     const undoCost=Math.max(0,validated.undoCount-3)*10;
-    const reward=validated.result===1?award[body.level]:validated.result===3?award[body.level]*5:0;
+    const reward=gameReward(body.level,validated.result);
     const netDelta=reward-undoCost,ledgerReason=validated.result===3?"draw_bonus":"win_reward";
     const statements=[
      env.DB.prepare("UPDATE games SET moves=?,turn=0,status='finished',revision=revision+1,ended_at=datetime('now'),undo_count=?,events=? WHERE id=? AND player_id=? AND level=? AND player_color=? AND status='active' AND (SELECT points FROM players WHERE id=?)>=?")
@@ -240,7 +249,7 @@ export default {
     return reply({alreadySubmitted:false,drawReward:validated.result===3?reward:0,profile:await profile(env,user.id)},200,cors);
    }
    if(url.pathname==="/api/start"){
-    if(!LEVELS[body.level])throw invalid("未知难度");
+    if(!isRewardLevel(body.level))throw invalid("未知难度");
     const playerColor=body.playerColor===undefined?1:body.playerColor;
     if(![1,2].includes(playerColor))throw invalid("先手设置无效");
     const gameId=body.gameId===undefined?crypto.randomUUID():body.gameId;
@@ -255,6 +264,7 @@ export default {
    if(!uuid(body.gameId)||!Number.isInteger(body.revision))throw invalid("对局 ID 或版本不合法");
    const game=await env.DB.prepare("SELECT * FROM games WHERE id=? AND player_id=?").bind(body.gameId,user.id).first();
    if(!game||game.status!=="active"||game.revision!==body.revision||game.turn!==1)throw invalid("对局状态已变化，请刷新",409);
+   if(game.level==="gunuce")throw invalid("Gunuce 在本地对弈，请通过终局棋谱结算",409);
    const moves=JSONparse(game.moves,[]),b=validMoves(moves);
    if(url.pathname==="/api/hint"){
     const suggestions=rankedMoves(b,1,3).slice(0,3).map((index,n)=>({index,rank:n+1,coord:coord(index)}));
