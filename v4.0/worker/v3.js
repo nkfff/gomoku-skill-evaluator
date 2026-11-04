@@ -10,7 +10,6 @@ const reply = (value, status = 200, headers = {}) => new Response(JSON.stringify
 });
 const fail = (message, status = 400) => Object.assign(new Error(message), {status});
 const uuid = value => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-const PERMANENT_ROOM_EXPIRY_MS = Date.parse("9999-12-31T23:59:59.000Z");
 const parseBody = async request => {
   try { return await request.json(); } catch { throw fail("请求内容不是有效 JSON"); }
 };
