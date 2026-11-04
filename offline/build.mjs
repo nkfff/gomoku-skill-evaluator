@@ -45,7 +45,7 @@ html=html.replace(/<meta name="theme-color" content="[^"]*">/,'<meta name="theme
 html=html.replace(/<meta name="description" content="[^"]*">/,'<meta name="description" content="猫猫棋局：本地 AI、联网账号、好友对战、AI 复盘与离线单机。">');
 html=html.replaceAll("V4.0.2","离线版").replace("GOMOKU CLUB · V4.0.8","GOMOKU CLUB · HYBRID");
 html=html.replace(/<p class="note board-note">[^<]*<\/p>/,'<p class="note board-note">本地 AI 与 Gunuce 可断网运行；联网后可登录账号、使用在线 AI 复盘、好友 PVP 与云端排行榜。</p>');
-html=html.replace(/<p id="puzzleRewardStatus" class="note">[^<]*<\/p>/,'<p id="puzzleRewardStatus" class="note">完成挑战后自动获得本地积分；与在线账号积分独立。</p>');
+html=html.replace(/<p id="puzzleRewardStatus" class="note">[^<]*<\/p>/,'<p id="puzzleRewardStatus" class="note">联网账号由服务器验证并结算奖励；离线游客奖励保存在本机。</p>');
 writeFileSync(path.join(out,"index.html"),html);
 
 const manifest={
@@ -78,7 +78,7 @@ const digest=createHash("sha256");
 for(const name of required)digest.update(name+"\n").update(readFileSync(path.join(out,name)));
 const cacheVersion=version+"-"+digest.digest("hex").slice(0,12);
 const worker=[
- "/* Standalone offline shell: no network API and no CDN dependencies. */",
+ "/* Local-first app shell: cache all game assets; online APIs are called only by explicit cloud features. */",
  "const VERSION="+JSON.stringify(cacheVersion)+";",
  "const ASSETS="+JSON.stringify(["./",...all])+";",
  "const PRELOAD="+JSON.stringify(["./",...required])+";",
