@@ -1072,10 +1072,12 @@ async function watchRoom() {
 }
 
 function returnToPvpLobby() {
-  if (!spectatorMode && roomState && roomState.status === "finished" &&
-      socket && socket.readyState === WebSocket.OPEN) {
+  if (!spectatorMode && roomId && roomState?.status === "finished") {
     if (!roomState.resultSeenByPlayer?.[playerId]) acknowledgePvpResult().catch(() => {});
-    try { socket.send(JSON.stringify({type: "leave_room"})); } catch {}
+    // HTTP acknowledgement survives an immediate WebSocket close, unlike
+    // sending "leave_room" immediately before closing the same socket.
+    api("/api/pvp/rooms/" + encodeURIComponent(roomId) + "/leave", "POST", {})
+      .catch(error => { if (![404, 409, 410].includes(error.status)) console.warn("PVP leave:", error.message); });
   }
   spectatorMode = false;
   intentionalClose = true;
