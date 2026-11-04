@@ -94,7 +94,7 @@ test("spectator move deltas update the board, move history and clocks without a 
 
   assert.equal(applySpectatorMovePatch(applied.match, {move:result.move,patch}).status, "duplicate");
   assert.equal(applySpectatorMovePatch(initial, {move:result.move,patch:{...patch,revision:3}}).status, "resync");
-  assert.equal(applySpectatorMovePatch(initial, {move:{...result.move,cellIndex:112},patch}).status, "resync");
+  assert.equal(applySpectatorMovePatch(initial, {move:{...result.move,cellIndex:999},patch}).status, "resync");
 });
 
 test("spectator presence is deduplicated and never counted as a player connection", () => {
@@ -231,6 +231,7 @@ test("PVP frontend restores each signed-in player's room and does not replay rev
   assert.match(pvpUi, /spectatorMode/);
   assert.match(pvpUi, /pvpSpectatorPanel/);
   assert.match(pvpUi, /pvpThinkClock/);
+  assert.match(pvpUi, /applySpectatorMovePatch/);
   assert.match(pvpUi, /if \(spectatorMode\) return;/);
   assert.match(pvpUi, /if \(!spectatorMode && roomState && roomState\.match/);
   assert.match(pvpUi, /api\("\/api\/pvp\/rooms\/spectate"/);
