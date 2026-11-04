@@ -1313,8 +1313,9 @@ const initialInvite = initialParams.get("invite");
 const initialPvpRoom = initialParams.get("pvpRoom");
 const initialWatch = initialParams.get("watch") === "1";
 if (initialInvite) $("pvpInviteCode").value = initialInvite.toUpperCase();
-if (!API) notice("PVP 后端尚未部署。当前分支先完成前端与服务端开发，部署后即可联调。", true);
-else notice("PVP 服务已配置。登录后创建房间或输入好友邀请码。");
+if (!API) notice("好友对战服务尚未配置。", true);
+else if (!navigator.onLine) notice("当前离线：本地 AI、复盘和残局仍可使用；联网后即可登录并加入好友对战。");
+else notice("好友对战服务已连接。登录后创建房间或输入好友邀请码。");
 
 let roomRestoreInProgress = false;
 let restoredPlayerId = "";
@@ -1414,7 +1415,20 @@ waitForAuthReady().then(() => {
     notice("检测到好友房间链接，请先登录；登录成功后会自动恢复房间。");
   }
 }).catch(error => notice("账号初始化失败：" + error.message, true));
-refreshLeaderboard();
+if (navigator.onLine) refreshLeaderboard();
+window.addEventListener("offline", () => {
+  intentionalClose = true;
+  closeSocket();
+  restoredPlayerId = "";
+  roomRestoreInProgress = false;
+  notice("网络已断开。单机对弈不受影响；当前房间会保留，网络恢复后自动尝试重连。");
+});
+window.addEventListener("online", () => {
+  intentionalClose = false;
+  notice("网络已恢复，正在检查好友房间…");
+  refreshLeaderboard();
+  if (loggedIn()) restorePvpRoomOnLoad();
+});
 setInterval(() => {
   renderClock();
   syncIdleModal(roomState);
@@ -1440,7 +1454,7 @@ document.addEventListener("visibilitychange", () => {
       lastPongAt = Date.now();
       try { socket.send(JSON.stringify({type: "ping"})); } catch {}
     }
-    if (roomId && roomState &&
+    if (navigator.onLine && roomId && roomState &&
         (roomState.status === "active" || roomState.status === "finished")) {
       refreshRoomState().catch(() => {});
     }
