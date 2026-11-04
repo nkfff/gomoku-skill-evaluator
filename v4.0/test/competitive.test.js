@@ -5,11 +5,12 @@ import { fileURLToPath } from "node:url";
 import { chooseAI, CELLS } from "../src/engine.js";
 import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
 import {
-  UNDO_REQUEST_TIMEOUT_MS, acceptPvpDraw, acceptPvpUndo, applyPvpMove, applySpectatorMovePatch,
-  cancelPvpDraw, cancelPvpUndo, createMatchState, declinePvpDraw, declinePvpUndo, expirePvpUndo,
-  finishByResign, finishByTimeout, offerPvpDraw, offerPvpUndo,
-  declinePvpRematch, getIncomingPvpRematchInvite, publicMatchState,
-  requestPvpRematch, shouldAnimatePvpDice
+  UNDO_REQUEST_TIMEOUT_MS, IDLE_REMINDER_MS, IDLE_CONFIRM_MS,
+  acceptPvpDraw, acceptPvpUndo, applyPvpMove, applySpectatorMovePatch,
+  cancelPvpDraw, cancelPvpUndo, createMatchState, createPvpIdlePrompt, declinePvpDraw, declinePvpUndo, expirePvpUndo,
+  finishByResign, finishByTimeout, isPvpIdlePromptExpired, offerPvpDraw, offerPvpUndo,
+  declinePvpRematch, getIncomingPvpRematchInvite, publicMatchState, pvpIdleReminderDeadline,
+  requestPvpRematch, resolvePvpDisconnectState, shouldAnimatePvpDice
 } from "../src/pvp.js";
 import {
   PvpRoom, getConnectedSpectators, hasOpenPlayerConnection, hasOpenSpectatorConnection, rollDice
@@ -340,6 +341,53 @@ test("PVP resignation assigns the win to the opponent", () => {
   assert.equal(state.status, "active", "the previous match snapshot must remain unchanged");
 });
 
+test("PVP inactivity reminders use a server-side 60s threshold and 30s response window", () => {
+  const match = createMatchState({
+    roomId:"idle-room", matchId:"idle-match", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:1000
+  });
+  assert.equal(IDLE_REMINDER_MS, 60_000);
+  assert.equal(IDLE_CONFIRM_MS, 30_000);
+  assert.equal(pvpIdleReminderDeadline(match), 61_000);
+  assert.equal(pvpIdleReminderDeadline(match, 70_000), 130_000);
+  const prompt = createPvpIdlePrompt("host-id", 61_000);
+  assert.deepEqual(prompt, {playerId:"host-id",startedAt:61_000,deadlineAt:91_000});
+  assert.equal(isPvpIdlePromptExpired(prompt, 90_999), false);
+  assert.equal(isPvpIdlePromptExpired(prompt, 91_000), true);
+});
+
+test("PVP disconnect grace distinguishes a single forfeit from a shared abandonment", () => {
+  const players = ["host-id", "guest-id"];
+  assert.deepEqual(resolvePvpDisconnectState(players, {}, 50_000), {type:"online"});
+  assert.deepEqual(resolvePvpDisconnectState(players, {"host-id":1000}, 60_999), {
+    type:"wait", deadline:61_000
+  });
+  assert.deepEqual(resolvePvpDisconnectState(players, {"host-id":1000}, 61_000), {
+    type:"forfeit", playerId:"host-id"
+  });
+  assert.deepEqual(resolvePvpDisconnectState(players, {"host-id":1000,"guest-id":2000}, 61_999), {
+    type:"wait", deadline:62_000, both:true
+  });
+  assert.deepEqual(resolvePvpDisconnectState(players, {"host-id":1000,"guest-id":2000}, 62_000), {
+    type:"abandon"
+  });
+  assert.deepEqual(resolvePvpDisconnectState(players, {"host-id":1000,"guest-id":30_000}, 61_000), {
+    type:"wait", deadline:90_000, both:true
+  });
+  assert.deepEqual(resolvePvpDisconnectState(players, {"host-id":1000,"guest-id":30_000}, 90_000), {
+    type:"abandon"
+  });
+});
+
+test("PVP migration persists specific lifecycle end reasons without widening legacy constraints", () => {
+  const migration = readFileSync(fileURLToPath(new URL("../migrations/0009_pvp_lifecycle.sql", import.meta.url)), "utf8");
+  const room = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
+  assert.match(migration, /ADD COLUMN end_reason_detail TEXT/);
+  assert.match(room, /end_reason_detail=\?/);
+  assert.match(room, /end_reason_detail='both_disconnected'/);
+  assert.match(room, /DELETE FROM pvp_active_players/);
+});
+
 test("PVP room reconnect remains online when an old socket closes after a new socket opens", () => {
   const closingSocket = {readyState: 3, deserializeAttachment: () => ({playerId:"host-id"})};
   const replacementSocket = {readyState: 1, deserializeAttachment: () => ({playerId:"host-id"})};
@@ -359,9 +407,10 @@ test("PVP join endpoint lets either existing member resume before active-match r
   assert.ok(pvpApi.includes('url.pathname === "/api/pvp/rooms/current"'));
   assert.ok(pvpApi.includes("invite_code_hash=?"));
   assert.ok(pvpApi.includes("ORDER BY created_at DESC LIMIT 1"));
-  assert.ok(pvpApi.includes("datetime('9999-12-31 23:59:59')"));
+  assert.ok(pvpApi.includes("datetime('now','+30 minutes')"));
+  assert.doesNotMatch(pvpApi, /9999-12-31/);
   const joinHandler = pvpApi.slice(pvpApi.indexOf("async function joinRoom"), pvpApi.indexOf("async function createTicket"));
-  assert.doesNotMatch(joinHandler, /expires_at|expiresAt/);
+  assert.match(joinHandler, /expires_at=datetime\('now','\+30 minutes'\)/);
   const currentRoomHandler = pvpApi.slice(pvpApi.indexOf("async function currentRoom"), pvpApi.indexOf("async function leaderboard"));
   assert.match(currentRoomHandler, /status IN \('waiting','ready','active','finished'\)/);
   assert.doesNotMatch(currentRoomHandler, /expires_at/);
@@ -475,16 +524,22 @@ test("PVP rematch rejects non-members and unfinished games", () => {
 });
 
 
-test("PVP rooms persist while members exist and only explicit cancellation closes a waiting room", () => {
+test("PVP rooms expire after inactivity and finished results remain recoverable", () => {
   const api = readFileSync(fileURLToPath(new URL("../worker/v3.js", import.meta.url)), "utf8");
   const room = readFileSync(fileURLToPath(new URL("../worker/pvp-room.js", import.meta.url)), "utf8");
-  assert.match(api, /datetime\('9999-12-31 23:59:59'\)/);
+  assert.match(api, /datetime\('now','\+30 minutes'\)/);
+  assert.doesNotMatch(api, /9999-12-31/);
   assert.match(api, /room\.host_player_id === user\.id \|\| room\.guest_player_id === user\.id/);
   assert.match(api, /resumed: true/);
-  assert.match(api, /invite_code_hash=\? AND status IN \('waiting','ready','active','finished'\)/);
-  assert.match(room, /PERMANENT_ROOM_EXPIRY_MS/);
-  assert.doesNotMatch(room, /now >= this\.room\.expiresAt/);
-  assert.doesNotMatch(room, /deadlines\.push\(this\.room\.expiresAt\)/);
+  assert.match(room, /WAITING_ROOM_IDLE_MS/);
+  assert.match(room, /FINISHED_ROOM_RETENTION_MS/);
+  assert.match(room, /await this\.expireRoom/);
+  assert.match(room, /finishAbandonedMatch/);
+  assert.match(room, /resultSeenByPlayer/);
+  assert.match(room, /acknowledgeResultForPlayer/);
+  assert.match(room, /resolvePvpDisconnectState/);
+  assert.match(room, /idlePrompt/);
+  assert.match(room, /deadlines\.push\(Number\(this\.room\.expiresAt\)\)/);
   assert.match(room, /只有房主可以取消房间/);
 });
 
