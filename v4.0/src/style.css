@@ -368,18 +368,30 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 #pvpLeaveSpectate[hidden],#pvpRatingStat[hidden]{display:none!important}
 
 
-/* V4.0.8 PVP undo consent modal. The live match clock keeps running while a request is pending. */
-.pvp-undo-modal[hidden]{display:none!important}
-.pvp-undo-modal{position:fixed;z-index:1400;inset:0;display:grid;place-items:center;padding:20px}
-.pvp-undo-backdrop{position:absolute;inset:0;background:rgba(43,31,35,.6);backdrop-filter:blur(10px);animation:pvpResultFade .2s ease}
-.pvp-undo-card{position:relative;width:min(100%,410px);padding:30px 26px 25px;border:1px solid rgba(255,255,255,.82);border-radius:25px;background:linear-gradient(155deg,#fffefa 0%,#fff3f5 100%);box-shadow:0 28px 90px rgba(35,22,25,.3);text-align:center;animation:pvpResultPop .36s cubic-bezier(.18,.78,.2,1)}
-.pvp-undo-mark{display:grid;place-items:center;width:58px;height:58px;margin:0 auto 13px;border:1px solid #efdae0;border-radius:19px;background:linear-gradient(145deg,#fff9f1,#f8e8ed);color:#986076;font-size:34px;box-shadow:0 9px 22px rgba(166,95,118,.13)}
-.pvp-undo-card h2{margin:8px 0 10px;color:#684351;font-size:23px;letter-spacing:-.035em}
-.pvp-undo-card>p{margin:0 auto 22px;color:#806c72;font-size:13px;line-height:1.85;overflow-wrap:anywhere}
-.pvp-undo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.pvp-undo-actions button{min-height:44px;border-radius:12px;font-weight:750}
-.pvp-undo-actions button:not(.primary){border:1px solid #e8d8dc;background:#fff;color:#805d68}
-.pvp-undo-actions button:disabled{opacity:.6;cursor:wait}
-.pvp-undo-actions #pvpUndoCancel[hidden]{display:none!important}
-@media(max-width:640px){.pvp-undo-card{padding:27px 20px 21px;border-radius:22px}.pvp-undo-card h2{font-size:21px}}
-@media(prefers-reduced-motion:reduce){.pvp-undo-backdrop,.pvp-undo-card{animation:none!important}}
+/* V4.0.8 — dedicated, read-only match review and offline coaching. */
+.review-toolbar[hidden],.review-timeline[hidden]{display:none!important}
+.layout.review-mode{grid-template-columns:minmax(0,1.12fr) minmax(330px,.88fr);align-items:start}
+.layout.review-mode .board-panel{display:flex;flex-direction:column;gap:12px}
+.layout.review-mode .game-controls,.layout.review-mode .action-row,.layout.review-mode .board-note{display:none!important}
+.layout.review-mode .board{cursor:default}
+.review-toolbar{display:grid;gap:12px;padding:14px;border:1px solid var(--border,var(--v4-line));border-radius:15px;background:var(--surface,#faf5f1)}
+.review-toolbar-heading{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.review-toolbar-heading .eyebrow{margin:0}
+.review-toolbar-heading strong{color:var(--heading,var(--v4-ink));font-size:16px}.review-toolbar-heading small{margin-left:auto;color:var(--muted,var(--v4-muted));font-size:11px}
+.review-toolbar-actions{display:flex;gap:7px;flex-wrap:wrap}.review-toolbar-actions button{padding:8px 10px;font-size:11px}
+.review-range{display:grid;grid-template-columns:auto minmax(80px,1fr) auto;gap:10px;align-items:center;margin:0;color:var(--muted,var(--v4-muted));font-size:11px}.review-range input{width:100%;accent-color:var(--v4-accent)}
+.review-timeline{display:flex;gap:6px;overflow-x:auto;padding:3px 1px 8px;scrollbar-width:thin}
+.review-tick{display:flex;flex:0 0 44px;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;border:1px solid var(--border,var(--v4-line));border-radius:9px;background:var(--surface,#fff);color:var(--heading,var(--v4-ink))}
+.review-tick strong{font-size:11px}.review-tick small{font-size:9px;color:var(--muted,var(--v4-muted))}.review-tick.is-error{border-color:#d98583;background:#fff0ef;color:#9c403d}.review-tick.is-good{border-color:#7dbb9c;background:#eef8f1;color:#34775b}.review-tick.selected{outline:2px solid var(--v4-accent);outline-offset:1px}
+.review-sidebar{display:flex;flex-direction:column;gap:12px}.review-report-head h2{margin:4px 0 7px}.review-report-head p{margin:0;color:var(--muted,var(--v4-muted));font-size:12px;line-height:1.7}
+.review-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.review-stat{padding:11px 12px;border:1px solid var(--border,var(--v4-line));border-radius:12px;background:var(--surface,#fff)}
+.review-stat small{display:block;margin-bottom:4px;color:var(--muted,var(--v4-muted));font-size:10px}.review-stat strong{color:var(--heading,var(--v4-ink));font-size:17px;font-variant-numeric:tabular-nums}
+.review-card{padding:13px;border:1px solid var(--border,var(--v4-line));border-radius:14px;background:var(--surface,#fff)}.review-card h3{margin:0 0 9px;color:var(--heading,var(--v4-ink));font-size:14px}.review-card h4{margin:12px 0 5px;color:var(--heading,var(--v4-ink));font-size:11px}.review-card p{margin:7px 0;color:var(--muted,var(--v4-muted));font-size:12px;line-height:1.75}
+.review-card-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.review-card-heading h3{margin:0}
+.review-verdict{display:inline-flex;align-items:center;padding:4px 8px;border-radius:20px;background:#f0edf1;color:#75606f;font-size:10px;font-weight:750}.review-verdict.error{background:#fff0ef;color:#a44640}.review-verdict.warn{background:#fff5e5;color:#956b2d}.review-verdict.good{background:#edf8f1;color:#34775b}
+.review-candidates{display:flex;gap:7px;flex-wrap:wrap}.review-candidate{display:flex;flex-direction:column;gap:3px;min-width:72px;padding:8px 10px;border:1px solid var(--border,var(--v4-line));border-radius:10px;background:var(--surface,#fff)}.review-candidate b{color:var(--heading,var(--v4-ink));font-size:12px}.review-candidate small{color:var(--muted,var(--v4-muted));font-size:10px}.review-candidate.empty{color:var(--muted,var(--v4-muted));font-size:11px}
+.review-moments,.review-training{display:grid;gap:7px}.review-moment{display:grid;gap:4px;width:100%;padding:9px 10px;border:1px solid var(--border,var(--v4-line));border-radius:10px;background:var(--surface,#fff);color:var(--heading,var(--v4-ink));text-align:left}
+.review-moment span{color:var(--muted,var(--v4-muted));font-size:10px}.review-moment strong{font-size:11px}.review-moment small{color:var(--muted,var(--v4-muted));font-size:10px;line-height:1.5}.review-moment.error{border-left:3px solid #cf7770}.review-moment.good{border-left:3px solid #70aa8a}
+.review-training-item{padding:9px 10px;border-radius:10px;background:var(--surface,#fff);border:1px solid var(--border,var(--v4-line))}.review-training-item strong{color:var(--heading,var(--v4-ink));font-size:11px}.review-training-item p{margin:4px 0 0;font-size:11px}
+.review-online-button{align-self:flex-start;background:transparent;color:var(--v4-accent);border-color:var(--v4-accent);font-size:11px}
+@media(max-width:950px){.layout.review-mode{grid-template-columns:1fr}.layout.review-mode .board-panel{order:0}.layout.review-mode .side-panel{order:1}}
+@media(max-width:640px){.review-toolbar{padding:11px}.review-toolbar-actions button{flex:1 1 28%;font-size:10px;padding:8px 6px}.review-toolbar-heading small{margin-left:0}.review-range{grid-template-columns:1fr auto}.review-range span:first-child{grid-column:1/-1}.review-stat-grid{gap:6px}.review-stat{padding:9px}.review-stat strong{font-size:15px}}
