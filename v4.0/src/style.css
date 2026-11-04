@@ -364,3 +364,5 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 #pvpThinkClock,#pvpLastThinkClock{font-variant-numeric:tabular-nums}
 #pvpLeaveSpectate{border-color:var(--border,var(--v4-line));background:var(--surface,var(--v4-surface));color:var(--heading,var(--v4-ink))}
 @media(max-width:640px){.pvp-room-topbar{gap:10px}.pvp-spectator-panel{flex:1 1 100%;min-width:0}.pvp-spectator-list{max-height:90px}}
+
+#pvpLeaveSpectate[hidden],#pvpRatingStat[hidden]{display:none!important}
