@@ -425,3 +425,7 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 .review-online-button{align-self:flex-start;background:transparent;color:var(--v4-accent);border-color:var(--v4-accent);font-size:11px}
 @media(max-width:950px){.layout.review-mode{grid-template-columns:1fr}.layout.review-mode .board-panel{order:0}.layout.review-mode .side-panel{order:1}}
 @media(max-width:640px){.review-toolbar{padding:11px}.review-toolbar-actions button{flex:1 1 28%;font-size:10px;padding:8px 6px}.review-toolbar-heading small{margin-left:0}.review-range{grid-template-columns:1fr auto}.review-range span:first-child{grid-column:1/-1}.review-stat-grid{gap:6px}.review-stat{padding:9px}.review-stat strong{font-size:15px}}
+
+/* V4.0.9: share the PVP consent popup styling for draw requests. */
+#pvpDrawCancel[hidden],#pvpDrawAccept[hidden],#pvpDrawDecline[hidden]{display:none!important}
+.pvp-draw-card .pvp-undo-mark{background:linear-gradient(145deg,#f6fbff,#eaf3fa);border-color:#d8e6ed;color:#557996}

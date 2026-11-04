@@ -124,8 +124,6 @@
 <div class="controls">
 <button id="pvpOfferDraw">提出和棋</button>
 <button id="pvpOfferUndo" hidden>申请悔棋</button>
-<button id="pvpAcceptDraw" hidden>接受和棋</button>
-<button id="pvpDeclineDraw" hidden>拒绝和棋</button>
 <button id="pvpResign">认输</button><button id="pvpRematch" class="primary" hidden>再来一局</button><button id="pvpNewMatch" hidden>重新匹配</button>
 </div>
 <p class="note">断线后系统会尝试自动重连，断线宽限期为 60 秒。对局结束后，双方可点击“再来一局”继续与同一好友对弈；“重新匹配”返回好友大厅，创建或加入新房间。当前版本使用邀请码房间，尚未提供随机匹配队列。</p>
@@ -160,6 +158,20 @@
   </div>
  </div>
 </div>
+<div id="pvpDrawModal" class="pvp-undo-modal pvp-draw-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pvpDrawTitle" aria-describedby="pvpDrawMessage">
+ <div class="pvp-undo-backdrop"></div>
+ <div class="pvp-undo-card pvp-draw-card">
+  <div class="pvp-undo-mark" aria-hidden="true">≋</div>
+  <span class="eyebrow">DRAW REQUEST</span>
+  <h2 id="pvpDrawTitle">收到和棋申请</h2>
+  <p id="pvpDrawMessage">对手提出和棋，是否同意？</p>
+  <div class="pvp-undo-actions">
+   <button id="pvpDrawCancel" type="button" hidden>撤回申请</button>
+   <button id="pvpDrawDecline" type="button">拒绝和棋</button>
+   <button id="pvpDrawAccept" class="primary" type="button">同意和棋</button>
+  </div>
+ </div>
+</div>
 <div id="pvpUndoModal" class="pvp-undo-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pvpUndoTitle" aria-describedby="pvpUndoMessage">
  <div class="pvp-undo-backdrop"></div>
  <div class="pvp-undo-card">
@@ -185,7 +197,7 @@
   <section id="panel-account" hidden><h2>账户中心</h2><p id="authNotice" class="note">正在检查账号服务…</p><fieldset id="authInputs"><div id="authForm"><label>邮箱 <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label><label>密码 <input id="authPassword" type="password" autocomplete="current-password" placeholder="至少 10 位"></label><div class="controls"><button id="register">注册账号</button><button id="login">登录</button><button id="recover">邮件找回密码</button></div></div><div id="loggedPanel" hidden><p>当前登录：<strong id="accountEmail"></strong></p><p id="identityStatus" class="note"></p><div class="nameEditor"><label>显示名称（2–24 个字符） <input id="accountDisplayName" maxlength="24" autocomplete="nickname" placeholder="输入你想显示的名称"></label><button id="saveDisplayName" type="button">保存显示名称</button><p class="note">名称会显示在棋盘顶部和排行榜中，不会公开你的邮箱。</p></div><label>设置新密码 <input id="newPassword" type="password" autocomplete="new-password" placeholder="新密码至少 10 位"></label><div class="controls"><button id="changePassword">修改密码</button><button id="logout">退出登录</button></div></div></fieldset><div id="adminPanel" hidden><h2>管理员后台</h2><div class="controls"><input id="adminSearch" placeholder="昵称 / 邮箱 / 用户 ID"><button id="adminFind" type="button">查询账号</button><button id="adminAudit" type="button">审计日志</button></div><div class="tableWrap"><table><thead><tr><th>账号</th><th>余额</th><th>竞技积分基数</th><th>综合积分</th><th>场次</th><th>胜局</th><th>胜率</th><th>排名</th><th>状态</th><th></th></tr></thead><tbody id="adminResults"></tbody></table></div><div id="adminActions" hidden><p id="selectedUser"></p><p id="adminFeedback" class="admin-feedback" hidden role="status" aria-live="polite"></p><section class="admin-stats-editor"><h3>战绩与排行榜管理</h3><div class="admin-stats-grid"><label>总对局场次 <input id="adminGames" type="number" min="0" step="1" value="0"></label><label>胜局数 <input id="adminWins" type="number" min="0" step="1" value="0"></label><label>竞技积分基数（影响排行榜） <input id="adminEarnedPoints" type="number" min="0" max="1000000" step="1" value="0"></label></div><p id="adminStatsPreview" class="admin-stats-preview" aria-live="polite">选择账号后自动预览胜率和排行榜综合积分。</p><p class="note">平局数保留当前记录；输局数自动按「总场次 − 胜局 − 平局」计算。原始胜率=胜局/场次；修正胜率=100×(胜局+2.5)/(场次+5)；综合积分=max(0,round(竞技积分基数+(修正胜率−50)×min(场次,20)/10))。保存后自动刷新名次。</p><div class="controls"><button id="adminSaveStats" type="button">保存战绩与竞技积分</button></div></section><label>账户余额增减（仅商店消费，不影响排行榜） <input id="adminDelta" type="number" value="10"></label><label>操作原因 <input id="adminReason" placeholder="可填写审计备注；不填则自动记录操作类型"></label><div class="controls"><button id="adminAdjust" type="button">确认余额调整</button><button id="adminBan" type="button">封禁 / 解封</button><button id="adminReset" type="button">清空 AI 游戏数据</button></div><p class="note">清空仅作用于 AI 对局：删除 AI 对局记录、清零 AI 胜负战绩、竞技积分和账户消费余额；账户皮肤与真人 PVP/Elo 记录保留。积分流水和管理员审计记录保留。</p></div><pre id="auditHistory" class="audit"></pre></div><p class="note">管理员身份在 Cloudflare Worker 端校验，不因页面显示管理员按钮而获得权限。</p></section>
  </aside>
 </div>
-<footer class="site-footer"><span>GOMOKU CLUB · V4.0.8</span><span>把每一手棋，下得漂亮。</span><a href="https://github.com/nkfff/gomoku-skill-evaluator">GitHub</a></footer>
+<footer class="site-footer"><span>GOMOKU CLUB · V4.0.9</span><span>把每一手棋，下得漂亮。</span><a href="https://github.com/nkfff/gomoku-skill-evaluator">GitHub</a></footer>
 </main>
 <div id="drawEasterEgg" class="draw-easter-egg" hidden role="dialog" aria-modal="true" aria-labelledby="drawEggTitle">
  <div class="draw-egg-backdrop"></div><div class="draw-egg-card"><button id="drawEggClose" class="draw-egg-close" aria-label="关闭">×</button>

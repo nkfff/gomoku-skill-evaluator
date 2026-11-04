@@ -14,6 +14,7 @@ let diceAnimationComplete = false;
 let diceAnimationRunId = 0;
 let pvpResultMatchId = "";
 let undoModalRequestKey = "";
+let drawModalRequestKey = "";
 let socket = null;
 let reconnectTimer = null;
 let intentionalClose = false;
@@ -204,8 +205,11 @@ function handleMessage(message) {
     $("pvpUndoAccept").disabled = false;
     $("pvpUndoDecline").disabled = false;
     $("pvpUndoCancel").disabled = false;
+    $("pvpDrawAccept").disabled = false;
+    $("pvpDrawDecline").disabled = false;
+    $("pvpDrawCancel").disabled = false;
     notice(message.message || "对局操作失败", true);
-    if (["STALE_REVISION","STALE_UNDO_REQUEST","NO_PENDING_UNDO_REQUEST","UNDO_REQUEST_EXPIRED"].includes(message.code)) refreshRoomState().catch(() => {});
+    if (["STALE_REVISION","STALE_UNDO_REQUEST","NO_PENDING_UNDO_REQUEST","UNDO_REQUEST_EXPIRED","NO_PENDING_DRAW_REQUEST","NO_OPPONENT_DRAW_OFFER"].includes(message.code)) refreshRoomState().catch(() => {});
   } else if (message.type === "match_started") {
     notice("双方摇骰揭晓先手！点数较大的一方执黑先行。");
   } else if (message.type === "game_over") {
@@ -252,11 +256,15 @@ function handleMessage(message) {
   } else if (message.type === "draw_offered") {
     notice(message.playerId === playerId
       ? "和棋请求已送达，等待对手回应。"
-      : "对手提出和棋，请选择「接受和棋」或「拒绝和棋」。");
+      : "对手提出和棋申请，请在弹窗中同意或拒绝。");
   } else if (message.type === "draw_declined") {
     notice(message.playerId === playerId
       ? "你已拒绝和棋，对局继续。"
       : "对手拒绝了和棋，继续战斗。");
+  } else if (message.type === "draw_cancelled") {
+    notice(message.playerId === playerId
+      ? "你已撤回和棋申请，对局继续。"
+      : "对手撤回了和棋申请，对局继续。");
   } else if (message.type === "undo_requested") {
     notice(message.playerId === playerId
       ? "悔棋申请已发送，等待对方同意。"
@@ -713,6 +721,44 @@ function renderSpectators(spectators = []) {
     : "<span class='pvp-spectator-empty'>暂无观战者</span>";
 }
 
+function syncDrawModal(room) {
+  const modal = $("pvpDrawModal");
+  const pendingBy = room?.match?.pendingDrawBy;
+  if (!modal) return;
+  if (spectatorMode || room?.status !== "active" || !pendingBy) {
+    modal.hidden = true;
+    drawModalRequestKey = "";
+    $("pvpDrawAccept").disabled = false;
+    $("pvpDrawDecline").disabled = false;
+    $("pvpDrawCancel").disabled = false;
+    return;
+  }
+  const requestKey = [room.match.matchId, pendingBy].join(":");
+  const isRequester = pendingBy === playerId;
+  const requesterName = pendingBy === room.hostPlayerId
+    ? room.hostName || "房主"
+    : room.guestName || "好友";
+  const opponentName = pendingBy === room.hostPlayerId
+    ? room.guestName || "好友"
+    : room.hostName || "房主";
+  const newRequest = drawModalRequestKey !== requestKey;
+  if (newRequest) {
+    drawModalRequestKey = requestKey;
+    $("pvpDrawAccept").disabled = false;
+    $("pvpDrawDecline").disabled = false;
+    $("pvpDrawCancel").disabled = false;
+  }
+  $("pvpDrawTitle").textContent = isRequester ? "等待对手同意和棋" : "收到和棋申请";
+  $("pvpDrawMessage").textContent = isRequester
+    ? "你已向" + opponentName + "提出和棋申请。对方同意后本局才会结束，你可以随时撤回。棋钟继续计时。"
+    : requesterName + "向你提出和棋申请。同意后双方将按和棋结算真人段位分，是否同意？棋钟继续计时。";
+  $("pvpDrawAccept").hidden = isRequester;
+  $("pvpDrawDecline").hidden = isRequester;
+  $("pvpDrawCancel").hidden = !isRequester;
+  modal.hidden = false;
+  if (newRequest && !isRequester) $("pvpDrawAccept").focus();
+}
+
 function syncUndoModal(room) {
   const modal = $("pvpUndoModal");
   const pending = room && room.match && room.match.pendingUndo;
@@ -797,6 +843,7 @@ function renderRoom(room) {
  const drawBy=room.match&&room.match.pendingDrawBy;
  const drawPending=Boolean(drawBy);
  const myDrawOffer=drawBy===playerId;
+ syncDrawModal(room);
  const pendingUndo=room.match&&room.match.pendingUndo;
  const undoPending=Boolean(pendingUndo);
  const myUndoRequest=undoPending&&pendingUndo.requesterPlayerId===playerId;
@@ -808,8 +855,6 @@ function renderRoom(room) {
  $("pvpOfferUndo").disabled=undoPending;
  $("pvpOfferUndo").textContent=myUndoRequest?"等待对手回应…":"申请悔棋";
  $("pvpResign").hidden=isSpectator||room.status!=="active";
- $("pvpAcceptDraw").hidden=isSpectator||room.status!=="active"||!drawBy||drawBy===playerId||undoPending;
- $("pvpDeclineDraw").hidden=isSpectator||room.status!=="active"||!drawBy||drawBy===playerId||undoPending;
  const finished = room.status === "finished" && room.match && room.match.status === "finished";
  const rematchByPlayer = room.rematchByPlayer || {};
  const opponentId = playerId === room.hostPlayerId ? room.guestPlayerId : room.hostPlayerId;
@@ -947,6 +992,8 @@ function returnToPvpLobby() {
   renderSpectators([]);
   $("pvpUndoModal").hidden = true;
   undoModalRequestKey = "";
+  $("pvpDrawModal").hidden = true;
+  drawModalRequestKey = "";
   notice("已返回好友对战大厅。可以创建新房间或输入其他好友的邀请码。");
 }
 
@@ -996,6 +1043,7 @@ function sendAction(message) {
     offer_draw: "已向对手发送和棋请求，等待回应。",
     accept_draw: "你已接受和棋请求，正在完成结算…",
     decline_draw: "已拒绝和棋请求，对局继续。",
+    cancel_draw: "已撤回和棋申请。",
     offer_undo: "已向对手发送悔棋申请，等待回应。",
     accept_undo: "已同意悔棋，正在撤回上一手…",
     decline_undo: "已拒绝悔棋申请。",
@@ -1039,6 +1087,26 @@ $("pvpRematchInviteDecline").onclick = () => {
 };
 $("pvpNewMatch").onclick = () => { if (roomState && roomState.status === "finished") returnToPvpLobby(); };
 $("pvpOfferDraw").onclick = () => sendAction({type: "offer_draw"});
+$("pvpDrawAccept").onclick = () => {
+  $("pvpDrawAccept").disabled = true;
+  $("pvpDrawDecline").disabled = true;
+  if (!sendAction({type: "accept_draw"})) {
+    $("pvpDrawAccept").disabled = false;
+    $("pvpDrawDecline").disabled = false;
+  }
+};
+$("pvpDrawDecline").onclick = () => {
+  $("pvpDrawAccept").disabled = true;
+  $("pvpDrawDecline").disabled = true;
+  if (!sendAction({type: "decline_draw"})) {
+    $("pvpDrawAccept").disabled = false;
+    $("pvpDrawDecline").disabled = false;
+  }
+};
+$("pvpDrawCancel").onclick = () => {
+  $("pvpDrawCancel").disabled = true;
+  if (!sendAction({type: "cancel_draw"})) $("pvpDrawCancel").disabled = false;
+};
 $("pvpOfferUndo").onclick = () => sendAction({type: "offer_undo"});
 $("pvpUndoAccept").onclick = () => {
   $("pvpUndoAccept").disabled = true;
@@ -1060,8 +1128,6 @@ $("pvpUndoCancel").onclick = () => {
   $("pvpUndoCancel").disabled = true;
   if (!sendAction({type: "cancel_undo"})) $("pvpUndoCancel").disabled = false;
 };
-$("pvpAcceptDraw").onclick = () => sendAction({type: "accept_draw"});
-$("pvpDeclineDraw").onclick = () => sendAction({type: "decline_draw"});
 $("pvpResign").onclick = () => {
   if (confirm("确定认输吗？本局将计入真人段位。")) sendAction({type: "resign"});
 };
