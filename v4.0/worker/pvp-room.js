@@ -375,6 +375,24 @@ export class PvpRoom {
     }
     if (this.room.status === "active" && this.room.match) {
       const match = this.room.match;
+      const disconnectState = resolvePvpDisconnectState(
+        [this.room.hostPlayerId, this.room.guestPlayerId],
+        this.room.disconnectedAt || {},
+        now,
+        DISCONNECT_GRACE_MS
+      );
+      if (disconnectState.type === "abandon") {
+        await this.finishAbandonedMatch();
+        return;
+      }
+      // When both players are offline, let the second player's full reconnect
+      // grace period elapse before deciding the match is abandoned. The chess
+      // clock and idle reminder must not award a win during this shared outage.
+      if (disconnectState.type === "wait" && disconnectState.both) {
+        await this.scheduleNextAlarm();
+        return;
+      }
+
       const currentColor = match.turnColor;
       const key = currentColor === 1 ? "black" : "white";
       const deadline = match.turnStartedAt + match.clocksMs[key];
@@ -393,21 +411,10 @@ export class PvpRoom {
         await this.ctx.storage.put("room", this.room);
         this.broadcast({type: "undo_expired", requesterPlayerId, room: true});
       }
-
-      const disconnectState = resolvePvpDisconnectState(
-        [this.room.hostPlayerId, this.room.guestPlayerId],
-        this.room.disconnectedAt || {},
-        now,
-        DISCONNECT_GRACE_MS
-      );
       if (disconnectState.type === "forfeit") {
         this.room.match = finishByTimeout(match, disconnectState.playerId, now);
         this.room.match.endReason = "disconnect_timeout";
         await this.finishMatch("disconnect_timeout");
-        return;
-      }
-      if (disconnectState.type === "abandon") {
-        await this.finishAbandonedMatch();
         return;
       }
 
