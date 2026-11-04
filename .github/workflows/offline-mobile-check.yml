@@ -1,0 +1,43 @@
+name: Offline Mobile Foundation
+on:
+  pull_request:
+    paths:
+      - 'offline/**'
+      - '.github/workflows/offline-mobile-check.yml'
+      - 'v4.0/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install offline icon renderer
+        run: python3 -m pip install -r offline/requirements.txt
+      - name: Generate full offline app
+        run: node offline/build.mjs
+      - name: Verify generated static assets and native configuration
+        run: node --test offline/tests/*.test.mjs
+      - name: Install existing Playwright browser test dependency
+        working-directory: v4.0/browser-tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Smoke test 320/390/768px and real offline reload
+        run: |
+          python3 -m http.server 8043 --bind 127.0.0.1 >/tmp/offline-static.log 2>&1 &
+          for i in $(seq 1 30); do curl --noproxy '*' -fsS http://127.0.0.1:8043/offline/dist/ >/dev/null && break; sleep 1; done
+          node offline/tests/mobile.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: offline-mobile-browser-screenshot
+          path: offline/.test-artifacts/
