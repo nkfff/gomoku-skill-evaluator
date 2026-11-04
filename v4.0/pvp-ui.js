@@ -15,6 +15,7 @@ let diceAnimationRunId = 0;
 let pvpResultMatchId = "";
 let undoModalRequestKey = "";
 let drawModalRequestKey = "";
+let idleModalRequestKey = "";
 let socket = null;
 let reconnectTimer = null;
 let heartbeatTimer = null;
@@ -240,7 +241,6 @@ function handleMessage(message) {
     notice("双方摇骰揭晓先手！点数较大的一方执黑先行。");
   } else if (message.type === "game_abandoned") {
     notice("双方均已断线，本局已中止，未结算 Elo。");
-    if (!spectatorMode) acknowledgePvpResult().catch(() => {});
   } else if (message.type === "idle_prompt") {
     notice(message.playerId === playerId
       ? "你已超过 1 分钟没有落子，请在弹窗倒计时结束前确认继续。"
@@ -352,7 +352,16 @@ function syncIdleModal(room = roomState) {
     prompt && prompt.playerId === playerId;
   if (!isTarget) {
     modal.hidden = true;
+    idleModalRequestKey = "";
+    $("pvpIdleContinue").disabled = false;
+    $("pvpIdleExit").disabled = false;
     return;
+  }
+  const requestKey = [room.match?.matchId || "", prompt.playerId, prompt.startedAt].join(":");
+  if (requestKey !== idleModalRequestKey) {
+    idleModalRequestKey = requestKey;
+    $("pvpIdleContinue").disabled = false;
+    $("pvpIdleExit").disabled = false;
   }
   const remaining = Math.max(0, Math.ceil((Number(prompt.deadlineAt) - Date.now()) / 1000));
   const minutes = Math.floor(remaining / 60);
@@ -876,6 +885,7 @@ function renderRoom(room) {
  const isSpectator = spectatorMode;
  if (room.status === "cancelled" || room.status === "expired") {
    const message = room.status === "cancelled" ? "这个房间已被取消。" : "这个房间已过期。";
+   roomState = room;
    returnToPvpLobby();
    notice(message, true);
    return;
