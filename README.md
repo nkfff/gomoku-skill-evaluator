@@ -29,12 +29,12 @@
 
 | 平台 | 当前测试包 / 下载入口 | 说明 |
 |---|---|---|
-| Android | [下载 Debug APK（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) | 可安装测试；非 Play Store 正式签名包 |
-| iOS | [下载 Simulator App（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) | **仅 iOS 模拟器**，不是 iPhone IPA |
-| macOS | [下载 DMG（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 未签名测试包 |
-| Windows | [下载 EXE（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 未签名测试包 |
-| Linux | [下载 AppImage（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 测试包 |
-| Web / PWA | [下载离线网页包（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819656) | 首次加载缓存完成后可断网使用 |
+| Android | [查看 APK 构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) | 可安装测试；非 Play Store 正式签名包 |
+| iOS | [查看模拟器包构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) | **仅 iOS 模拟器**，不是 iPhone IPA |
+| macOS | [查看 DMG 构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 未签名测试包 |
+| Windows | [查看 EXE 构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 未签名测试包 |
+| Linux | [查看 AppImage 构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761) | 测试包 |
+| Web / PWA | [查看 PWA 构建与下载（Actions）](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819656) | 首次加载缓存完成后可断网使用 |
 
 - **正式版本入口：** [GitHub Releases](https://github.com/nkfff/gomoku-skill-evaluator/releases)（当前尚无离线版 Release）
 - **构建记录：** [Web/PWA](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819656) · [Android/iOS](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819744) · [桌面三平台](https://github.com/nkfff/gomoku-skill-evaluator/actions/runs/41765819761)
