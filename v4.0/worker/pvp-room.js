@@ -88,6 +88,7 @@ export class PvpRoom {
         this.room.idleAcknowledgedAt = now;
       }
       await this.ctx.storage.put("room", this.room);
+      await this.scheduleNextAlarm();
     });
   }
 
