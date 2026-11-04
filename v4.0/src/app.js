@@ -43,6 +43,44 @@ function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&
 let profile=loadProfile(),game,task=null,turnToken=0,activeTab="game",endedAt=0,replayStep=0,lastResult=null,cloudEnabled=false;
 let reviewCandidates=[],currentReviewTopic="五子棋实战棋形";
 let reviewCoachAbort=null,reviewCoachRequest=0,reviewCoachContext="",reviewCoachCache=new Map();
+
+let reviewQuota=null,quotaLoading=false,quotaError="",quotaSeq=0,quotaFetchedAt=0;
+function showReviewQuota(){
+ const el=$("reviewQuotaRemaining"),bar=$("reviewQuotaProgress"),note=$("reviewQuotaReset"),btn=$("reviewOnlineSearch");
+ if(!el||!btn)return;
+ const remaining=reviewQuota?.user?.remaining;
+ el.textContent=remaining===undefined?"— / 8":remaining+" / "+reviewQuota.user.limit;
+ bar.style.width=remaining===undefined?"0%":Math.max(0,100*remaining/reviewQuota.user.limit)+"%";
+ const mine=reviewQuota?.reason==="user_exhausted",all=reviewQuota?.reason==="global_exhausted";
+ el.classList.toggle("quota-empty",!!reviewQuota&&!reviewQuota.canUse);
+ const text=!cloudMode()?"登录后显示个人剩余额度。":!navigator.onLine?"离线状态，联网后同步额度。":quotaLoading?"正在同步今日剩余额度…":quotaError?"额度读取失败："+quotaError:mine?"今日 8 次 AI 讲解已用完，明日 UTC 00:00 恢复。":all?"今日全站免费额度已用完，明日 UTC 00:00 恢复。":"每日 UTC 00:00 重置，按成功请求计数。";
+ note.textContent=text;note.classList.toggle("quota-warning",mine||all);
+ const cached=!!game&&reviewCoachCache.has(game.id+":"+replayStep);
+ if((mine||all)&&!cached&&!reviewCoachAbort)$("reviewOnlineStatus").textContent="今日 AI 额度已用完，仍可使用离线复盘。";
+ if(reviewCoachAbort){btn.disabled=true;btn.textContent="AI 正在分析…";return;}
+ if(cached){btn.disabled=false;btn.textContent="查看本步缓存讲解";return;}
+ btn.disabled=!cloudMode()||!navigator.onLine||quotaLoading||!!quotaError||!reviewQuota?.canUse;
+ btn.textContent=mine?"今日额度已用完":all?"全站今日额度已用完":quotaLoading?"查询额度中…":"在线 AI 解读当前局面";
+}
+async function loadReviewQuota(force=false){
+ if(activeTab!=="replay")return;
+ if(!cloudMode()||!navigator.onLine){quotaSeq++;reviewQuota=null;quotaLoading=false;quotaError="";showReviewQuota();return;}
+ const today=new Date().toISOString().slice(0,10);
+ if(!force&&(quotaLoading||reviewQuota?.dateUTC===today&&Date.now()-quotaFetchedAt<30000)){showReviewQuota();return;}
+ const seq=++quotaSeq;quotaLoading=true;quotaError="";showReviewQuota();
+ try{
+  const data=await api("review/coach/quota");
+  if(seq!==quotaSeq||activeTab!=="replay")return;
+  if(!Number.isInteger(data?.user?.remaining))throw Error("服务端额度数据不完整");
+  reviewQuota=data;quotaFetchedAt=Date.now();
+ }catch(error){
+  if(seq!==quotaSeq||activeTab!=="replay")return;
+  reviewQuota=null;quotaError=error.message||"服务器异常";
+ }finally{
+  if(seq===quotaSeq){quotaLoading=false;showReviewQuota();}
+ }
+}
+
 function resetReviewCoach(){
  reviewCoachAbort?.abort();reviewCoachAbort=null;reviewCoachRequest++;reviewCoachContext="";
 }
@@ -50,9 +88,11 @@ async function explainCurrentReview(){
  if(activeTab!=="replay"||!game)return;
  const key=game.id+":"+replayStep,button=$("reviewOnlineSearch"),status=$("reviewOnlineStatus"),output=$("reviewOnlineResult");
  if(reviewCoachCache.has(key)){output.textContent=reviewCoachCache.get(key);status.textContent="本次讲解已缓存，无需再次联网。";return;}
+ if(reviewQuota&&!reviewQuota.canUse){showReviewQuota();return;}
+ if(!reviewQuota){await loadReviewQuota(true);if(!reviewQuota?.canUse){showReviewQuota();return;}}
  if(!cloudMode()){status.textContent="免费在线 AI 讲解需要先登录；游客仍可使用全部离线复盘功能。";return;}
  if(!navigator.onLine){status.textContent="当前设备离线。上方本地棋形分析与训练建议仍然可用。";return;}
- resetReviewCoach();
+ resetReviewCoach();reviewCoachContext=key;
  const requestId=++reviewCoachRequest,controller=new AbortController();reviewCoachAbort=controller;
  button.disabled=true;button.textContent="AI 正在分析…";
  status.textContent="正在连接棋局教练，讲解将逐字显示。";status.classList.add("is-streaming");output.textContent="";
@@ -101,10 +141,10 @@ async function explainCurrentReview(){
   status.textContent=streamDone?"讲解完成 · 已针对当前棋局第 "+replayStep+" 手分析。":"讲解已接收 · 当前步 "+replayStep+"。";
  }catch(error){
   if(requestId!==reviewCoachRequest)return;
-  status.textContent=error.name==="AbortError"?"连接超过 60 秒仍未完成，请稍后重试；本地复盘不受影响。":"在线分析失败："+error.message+"。本次失败不会扣除 AI 次数。";
+  status.textContent=error.name==="AbortError"?"在线讲解超时，剩余额度以云端记录为准；离线复盘不受影响。":"在线分析失败："+error.message+"。请查看今日剩余额度。";
  }finally{
   if(timeout)clearTimeout(timeout);
-  if(requestId===reviewCoachRequest){status.classList.remove("is-streaming");reviewCoachAbort=null;button.disabled=false;button.textContent="在线 AI 解读当前局面";}
+  if(requestId===reviewCoachRequest){status.classList.remove("is-streaming");reviewCoachAbort=null;void loadReviewQuota(true);showReviewQuota();}
  }
 }
 
@@ -342,7 +382,7 @@ function activate(tab){
   hintRequest++;hintVisible=false;hints=[];$("hintPanel").hidden=true;
  }
  activeTab=tab;
- if(tab!=="replay")reviewCandidates=[];
+ if(tab!=="replay"){reviewCandidates=[];resetReviewCoach();quotaSeq++;}
  for(const name of ["game","replay","store","leaderboard","account","pvp","puzzle","random"]){
   const button=$("tab-"+name),panel=$("panel-"+name);
   if(button)button.classList.toggle("active",name===tab);
@@ -357,6 +397,7 @@ function activate(tab){
  const gamePanel=layout?.querySelector(":scope > section.panel");
  if(gamePanel)gamePanel.hidden=tab!=="game"&&tab!=="replay";
  render();
+ if(tab==="replay")void loadReviewQuota();
  window.dispatchEvent(new CustomEvent("gomoku:tab-change",{detail:{tab}}));
 }
 window.activateGomokuTab=activate;
@@ -523,12 +564,13 @@ function renderReviewPanel(frames,stats){
   $("reviewOnlineStatus").classList.remove("is-streaming");
   $("reviewOnlineStatus").textContent=cached?"这一步已有在线 AI 讲解缓存。":"点按下方按钮，可结合当前真实棋局获得更具体的 AI 讲解。";
   $("reviewOnlineResult").textContent=cached||"";
-  $("reviewOnlineSearch").disabled=false;$("reviewOnlineSearch").textContent="在线 AI 解读当前局面";
+  showReviewQuota();
  }
  const playerMoves=game.moves.filter(move=>move.p===game.humanColor);
  $("reviewScore").textContent=stats.score===null?"—":stats.score+" / 100";$("reviewCoverage").textContent=stats.ready+" / "+stats.total;
  const mistakes=playerMoves.filter(move=>move.quality&&(move.quality.severe||String(move.quality.category||"").includes("漏杀")||String(move.quality.category||"").includes("漏防"))).length;
  $("reviewMistakes").textContent=String(mistakes);$("reviewTactical").textContent=stats.tacticalRate===null?"暂无":(stats.tacticalRate*100).toFixed(0)+"%";$("reviewSummary").textContent=storyForGame(stats);
+ $("reviewAiStep").textContent=replayStep?"第 "+replayStep+" / "+game.moves.length+" 手 · "+game.moves[replayStep-1].coord:"开局前 · 全局布局";
  const selectedIndex=replayStep-1,insight=selectedIndex>=0?buildMoveInsight(game.moves,selectedIndex,game.humanColor):null;
  if(insight){$("reviewMoveTitle").textContent="第 "+replayStep+" 手 · "+insight.role+" · "+insight.coord;$("reviewMoveVerdict").textContent=insight.verdict;$("reviewMoveVerdict").className="review-verdict "+insight.kind;$("reviewMoveBody").textContent=insight.explanation;$("reviewMoveAdvice").textContent=insight.recommendation;$("reviewMoveMetrics").textContent=insight.metrics||"当前着法尚无完整搜索指标。";currentReviewTopic=insight.topic;}
  else{$("reviewMoveTitle").textContent="开局位置";$("reviewMoveVerdict").textContent="请选择棋谱中的一步";$("reviewMoveVerdict").className="review-verdict neutral";$("reviewMoveBody").textContent="从下方时间轴选择任意一步，查看落子方、棋形变化、搜索评估和可替代落点。";$("reviewMoveAdvice").textContent="复盘时先观察双方直接胜点，再判断进攻是否建立在安全的局面上。";$("reviewMoveMetrics").textContent="尚未选择具体着法。";currentReviewTopic="五子棋开局布局与中心控制";}
@@ -663,7 +705,9 @@ $("soundToggle").onclick=()=>{
  updateSoundToggle();if(soundEnabled)playMoveSound(1);
 };
 $("retrySync").onclick=()=>syncPendingSubmissions();
-window.addEventListener("online",()=>syncPendingSubmissions());
+window.addEventListener("online",()=>{syncPendingSubmissions();if(activeTab==="replay")void loadReviewQuota(true);});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&activeTab==="replay")void loadReviewQuota();});
+setInterval(()=>{if(activeTab==="replay"&&reviewQuota?.dateUTC!==new Date().toISOString().slice(0,10))void loadReviewQuota(true);},60000);
 $("undo").onclick=undo;
 $("hint").onclick=hintMove;
 $("review").onclick=()=>{if(!game?.moves.length)return;replayStep=game.moves.length;activate("replay");};
@@ -688,7 +732,9 @@ initAccount(async signedIn=>{
   try{const v=await api("profile",{});applyRemoteProfile(v.profile);$("cloudBanner").textContent="云端账号已连接";}
   catch(e){$("cloudBanner").textContent="云端身份验证失败："+e.message;}
  }else {profile=loadProfile();$("cloudBanner").textContent="游客模式 · 数据保存在此浏览器";}
+ reviewQuota=null;quotaError="";quotaFetchedAt=0;quotaSeq++;
  await newGame();await localRank();render();window.dispatchEvent(new Event("gomoku:profile-updated"));
+ if(activeTab==="replay")void loadReviewQuota(true);
  if(signedIn)await syncPendingSubmissions();
 },remoteProfile=>{applyRemoteProfile(remoteProfile);if(document.activeElement!==$("nickname"))$("nickname").value=remoteProfile.name||"";render();localRank();}).catch(e=>$("cloudBanner").textContent="账号组件错误："+e.message);
 localRank();setInterval(formatTime,150);
