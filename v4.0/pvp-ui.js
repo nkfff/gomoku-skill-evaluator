@@ -823,7 +823,19 @@ async function watchRoom() {
     await connectSocket(roomId, result.ticket);
     notice("已进入观战模式。你可以实时查看棋盘、双方剩余时间和当前思考时间。");
   } catch (error) {
-    spectatorMode = false;
+    if (spectatorMode) {
+      spectatorMode = false;
+      intentionalClose = true;
+      closeSocket();
+      roomId = "";
+      inviteCode = "";
+      roomState = null;
+      clearRoomSession();
+      syncRoomUrl("", "", false);
+      $("pvpRoom").hidden = true;
+      $("pvpLobby").hidden = false;
+      renderSpectators([]);
+    }
     notice(error.message, true);
   }
 }
@@ -1040,7 +1052,19 @@ async function restorePvpRoomOnLoad() {
     restoredPlayerId = playerId;
     notice("已恢复你此前的好友房间，棋盘和对局状态已同步。");
   } catch (error) {
-    if ([403, 404, 410].includes(error.status)) {
+    if (spectatorMode) {
+      spectatorMode = false;
+      intentionalClose = true;
+      closeSocket();
+      clearRoomSession();
+      roomId = "";
+      inviteCode = "";
+      roomState = null;
+      syncRoomUrl("", "", false);
+      $("pvpRoom").hidden = true;
+      $("pvpLobby").hidden = false;
+      renderSpectators([]);
+    } else if ([403, 404, 410].includes(error.status)) {
       clearRoomSession();
       roomId = "";
       inviteCode = "";
