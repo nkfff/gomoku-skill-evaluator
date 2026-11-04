@@ -24,7 +24,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - uses: android-actions/setup-android@v3
+      - name: Accept Android SDK licenses on hosted runner
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' || true
       - run: python3 -m pip install -r offline/requirements.txt
       - name: Install pinned Capacitor dependencies
         working-directory: offline
@@ -55,6 +58,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install Cairo for macOS icon rendering
+        run: |
+          brew install cairo
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix cairo)/lib:/opt/homebrew/lib" >> "$GITHUB_ENV"
       - run: python3 -m pip install -r offline/requirements.txt
       - name: Install pinned Capacitor dependencies
         working-directory: offline
