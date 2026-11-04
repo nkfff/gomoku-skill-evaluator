@@ -1,5 +1,5 @@
 import {bearer, loggedIn, waitForAuthReady} from "./src/account.js";
-import {getIncomingPvpRematchInvite, shouldAnimatePvpDice} from "./src/pvp.js";
+import {applySpectatorMovePatch, getIncomingPvpRematchInvite, shouldAnimatePvpDice} from "./src/pvp.js";
 
 const $ = id => document.getElementById(id);
 const API = String(window.GOMOKU_PVP_API_URL || "").replace(/\/$/, "");
@@ -172,7 +172,28 @@ async function connectSocket(id, suppliedTicket = "") {
   };
 }
 
+function applySpectatorMove(message) {
+  if (!spectatorMode || !roomState || !roomState.match) return;
+  const result = applySpectatorMovePatch(roomState.match, message);
+  if (result.status === "duplicate") return;
+  if (result.status !== "applied") {
+    notice("观战棋局正在重新同步，请稍候…");
+    connectSocket(roomId).catch(error => notice("观战重新连接失败：" + error.message, true));
+    return;
+  }
+  roomState = {
+    ...roomState,
+    status: result.roomStatus || roomState.status,
+    match: result.match
+  };
+  renderRoom(roomState);
+}
+
 function handleMessage(message) {
+  if (message.type === "spectator_move") {
+    applySpectatorMove(message);
+    return;
+  }
   if (message.room) renderRoom(message.room);
   if (message.type === "spectators_updated") {
     renderSpectators(message.spectators || []);
