@@ -142,15 +142,16 @@ async function createRoom(request, env, user, headers) {
   const roomId = crypto.randomUUID();
   const inviteCode = randomCode();
   const inviteHash = await sha256(inviteCode);
+  const expiresAt = Date.now() + 30 * 60_000;
   await env.DB.prepare(
-    "INSERT INTO pvp_rooms(id,host_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,'waiting',?,1,datetime('9999-12-31 23:59:59'))"
+    "INSERT INTO pvp_rooms(id,host_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,'waiting',?,1,datetime('now','+30 minutes'))"
   ).bind(roomId, user.id, inviteHash, DEFAULT_TIME_CONTROL_MS).run();
   try {
     await callRoom(env, roomId, "/internal/init", {
       method: "POST",
       body: {
         roomId, hostPlayerId: user.id, hostName: player.name || "棋手",
-        timeControlMs: DEFAULT_TIME_CONTROL_MS, expiresAt: PERMANENT_ROOM_EXPIRY_MS
+        timeControlMs: DEFAULT_TIME_CONTROL_MS, expiresAt
       }
     });
   } catch (error) {
@@ -160,7 +161,7 @@ async function createRoom(request, env, user, headers) {
   return reply({
     room: {id: roomId, status: "waiting", hostPlayerId: user.id, hostName: player.name, timeControlMs: DEFAULT_TIME_CONTROL_MS},
     inviteCode,
-    message: "房间不会因刷新或暂时离线自动关闭；只有房主主动取消才会关闭。邀请码请妥善保存并分享给好友。"
+    message: "等待中的房间 30 分钟无活动自动关闭；正常对局不会因刷新或短暂断线直接结束。邀请码请妥善保存并分享给好友。"
   }, 201, headers);
 }
 
@@ -192,7 +193,7 @@ async function joinRoom(request, env, user, headers) {
   await assertNoActiveMatch(env, user.id);
   if (room.status !== "waiting" || room.guest_player_id) throw fail("房间已满或已开始", 409);
   const updated = await env.DB.prepare(
-    "UPDATE pvp_rooms SET guest_player_id=?,status='ready' WHERE id=? AND status='waiting' AND guest_player_id IS NULL"
+    "UPDATE pvp_rooms SET guest_player_id=?,status='ready',expires_at=datetime('now','+30 minutes') WHERE id=? AND status='waiting' AND guest_player_id IS NULL"
   ).bind(user.id, room.id).run();
   if (updated.meta.changes !== 1) throw fail("房间刚刚被其他玩家加入，请重新尝试", 409);
   try {
@@ -280,7 +281,7 @@ async function leaderboard(env, headers) {
 
 async function history(env, playerId, headers) {
   const {results} = await env.DB.prepare(
-    "SELECT m.id,m.room_id,m.black_player_id,m.white_player_id,b.name AS black_name,w.name AS white_name,m.result,m.end_reason,m.move_count,m.initial_black_rating,m.initial_white_rating,m.final_black_rating,m.final_white_rating,m.started_at,m.ended_at,CASE WHEN m.black_player_id=? THEN 'black' ELSE 'white' END AS my_color FROM pvp_matches m JOIN players b ON b.id=m.black_player_id JOIN players w ON w.id=m.white_player_id WHERE m.black_player_id=? OR m.white_player_id=? ORDER BY m.started_at DESC LIMIT 50"
+    "SELECT m.id,m.room_id,m.black_player_id,m.white_player_id,b.name AS black_name,w.name AS white_name,m.result,COALESCE(m.end_reason_detail,m.end_reason) AS end_reason,m.move_count,m.initial_black_rating,m.initial_white_rating,m.final_black_rating,m.final_white_rating,m.started_at,m.ended_at,CASE WHEN m.black_player_id=? THEN 'black' ELSE 'white' END AS my_color FROM pvp_matches m JOIN players b ON b.id=m.black_player_id JOIN players w ON w.id=m.white_player_id WHERE m.black_player_id=? OR m.white_player_id=? ORDER BY m.started_at DESC LIMIT 50"
   ).bind(playerId, playerId, playerId).all();
   return reply({matches: results}, 200, headers);
 }
@@ -524,6 +525,13 @@ export default {
       if (ticketMatch && request.method === "POST") {
         await ensurePlayer(env, user);
         return await createTicket(env, ticketMatch[1], user.id, headers);
+      }
+
+      const ackResultMatch = url.pathname.match(/^\\/api\\/pvp\\/rooms\\/([0-9a-f-]+)\\/ack-result$/i);
+      if (ackResultMatch && request.method === "POST") {
+        await ensurePlayer(env, user);
+        const room = await roomForPlayer(env, ackResultMatch[1], user.id);
+        return reply(await callRoom(env, room.id, "/internal/ack-result", {method: "POST", playerId: user.id}), 200, headers);
       }
 
       const cancelMatch = url.pathname.match(/^\/api\/pvp\/rooms\/([0-9a-f-]+)\/cancel$/i);
