@@ -241,9 +241,12 @@ export class PvpRoom {
     server.serializeAttachment({playerId, role, displayName});
 
     if (role === "player") {
+      const wasDisconnected = Boolean(this.room.disconnectedAt[playerId]);
       this.room.connectedByPlayer[playerId] = true;
       delete this.room.disconnectedAt[playerId];
-      if (this.room.status === "active") {
+      if (this.room.status === "active" &&
+          (this.room.idlePrompt?.playerId === playerId ||
+           (wasDisconnected && this.room.match?.turnPlayerId === playerId))) {
         this.room.idlePrompt = null;
         this.room.idleAcknowledgedAt = nowMs();
       } else if (["waiting", "ready"].includes(this.room.status)) {
