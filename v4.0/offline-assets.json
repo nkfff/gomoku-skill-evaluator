@@ -1,11 +1,11 @@
 {
   "version": "4.0.12",
-  "cacheVersion": "v4012lifecycle12",
+  "cacheVersion": "v4012lifecycle13",
   "onnxruntime": "1.31.1",
   "files": {
     "index.html": "c390f43eb0d866eaa15238d7ae5614440e16e503b4ace449d572556d22ef6023",
     "config.js": "a912311267c2dac8e20aa8e21c8617e19964ac21404b9c1c607073f10ed53bda",
-    "pvp-ui.js": "af0740f965fb74732e2bc1a35cee5b8fe7772b33eaacfd7914825d8351e62620",
+    "pvp-ui.js": "ccd2952df51807695f00d2ea1e4ce440c9e16624c9a44cabb1eeb57b48f3b486",
     "special-modes-ui.js": "69e47e04a88705bf707b85c2ab1d0fee93f9a30cb3e30a871f127bef7bdbfcea",
     "models/model.json": "8122383ea13ad0c3dad69a5b73b2b23a4073a07284a138322aa38d38ec9564f6",
     "models/gunuce.onnx": "97f40318e9a839eec55b386708a9da77f58cb718f1f8cd53042b2fb29e3e6191",
@@ -31,6 +31,6 @@
     "vendor/ort/ort.wasm.min.mjs": "c21d9c326d453a4a61398270c804d5979e118540597cb0c07f7b3d64e6098234",
     "vendor/ort/ort.webgpu.min.mjs": "329cd956772397a1aedd668e911195d39afefb182f6fc14aafa4f08ac8d8f379"
   },
-  "totalAssetBytes": 48598994,
+  "totalAssetBytes": 48599205,
   "note": "Browser shell and offline review cached eagerly; Gunuce model/runtime cached on first use. Online AI coach is optional."
 }
