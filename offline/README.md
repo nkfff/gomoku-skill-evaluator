@@ -2,6 +2,16 @@
 
 > 本目录是独立于在线 V4 的单机发行工程。**[offline-v0.1.0-beta.1 已发布 GitHub Beta 预发布版](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.1)**，含六个平台的下载附件。维护者已确认本次 Beta 验收通过。在线 Pages、PVP、Supabase、Cloudflare 的服务逻辑保持独立。
 
+## macOS DMG 修复和 Intel 适配（beta.2）
+
+旧版 DMG 曾出现 `codesign --verify --deep --strict` 报错 `code has no resources but signature indicates they must be present`，说明应用签名资源封装不完整。当前开发分支增加 Electron `afterSign` 修复与 CI 检查：DMG 挂载、`Contents/_CodeSignature/CodeResources`、`codesign` 完整校验、`lipo` 架构验证。
+
+macOS 现在提供两个独立 DMG 构建：Apple Silicon arm64 和 Intel x86_64。未配置 Developer ID 的公开 Beta 会使用 ad-hoc 签名；这能修复签名封装错误，**但仍不是 Apple Developer ID 签名/公证**。为避免 Gatekeeper 弹出其他阻止提示，维护者可在仓库 Actions 手动执行 [Offline macOS Developer ID signed and notarized DMG](../.github/workflows/offline-macos-notarized.yml)，需要将 `MAC_CSC_LINK`（Developer ID Application P12 的 base64）、`MAC_CSC_KEY_PASSWORD`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID` 配置为 GitHub Actions Secrets。签名与公证通过后可选择把经过 Gatekeeper 验证的 DMG 附加到 Release。
+
+## iPhone 真机版（beta.2）
+
+新增 [iPhone 设备构建与 Ad Hoc 签名](ios-sign/README.md)。CI 可自动验证 iOS arm64 真机目标；真正可安装的 `.ipa` 只有在 Apple Developer Distribution 证书、密码、Ad Hoc Profile、Team ID 均被配置为 GitHub Secrets 后才能导出。**Ad Hoc IPA 只可安装到描述文件中预先登记 UDID 的 iPhone**；对所有玩家分发仍需 TestFlight/App Store。没有凭据时不得把模拟器 ZIP 声称为 iPhone 可安装版。
+
 ## 支持范围与当前边界
 
 - Web/PWA：AI 三档、Gunuce 本地 ONNX+WASM/WebGPU、残局、随机连珠、复盘、皮肤与本地积分，均复用 V4 引擎。
