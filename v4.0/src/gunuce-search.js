@@ -20,7 +20,7 @@ export function validatePosition(board,player,last){
 }
 export function encode(board,player,last){const state=new Float32Array(4*CELLS);for(let i=0;i<CELLS;i++){if(board[i]===player)state[i]=1;if(board[i]===3-player)state[CELLS+i]=1;if(player===1)state[3*CELLS+i]=1}if(last>=0)state[2*CELLS+last]=1;return state}
 export class Node{
- constructor(board,player,last=-1,winner=0){this.board=Int8Array.from(board);this.player=player;this.last=last;this.winner=winner;this.actions=null;this.children=new Map()}
+ constructor(board,player,last=-1,winner=0){this.board=Int8Array.from(board);this.player=player;this.last=last;this.winner=winner;this.value=0;this.actions=null;this.children=new Map()}
  expand(logits,tactical=true){
   let actions=[];for(let i=0;i<CELLS;i++)if(!this.board[i])actions.push(i);
   const own=tactical?fastWins(this.board,this.player):[],threat=tactical&&!own.length?fastWins(this.board,3-this.player):[];
@@ -31,16 +31,16 @@ export class Node{
  child(index){if(!this.children.has(index)){const a=this.actions[index],board=this.board.slice();board[a]=this.player;this.children.set(index,new Node(board,3-this.player,a,won(board,a,this.player)?this.player:0))}return this.children.get(index)}
 }
 export function backup(path,value){for(let i=path.length-1;i>=0;i--){value=-value;const [node,index]=path[i];node.n[index]++;node.w[index]+=value}}
-export function select(root,cPuct=1.5){let node=root;const path=[];while(node.actions!==null&&!node.winner&&node.board.includes(0)){let total=1;for(const n of node.n)total+=n;const scale=Math.sqrt(total);let best=-Infinity,index=0;for(let i=0;i<node.actions.length;i++){const q=node.n[i]?node.w[i]/node.n[i]:0,score=q+cPuct*node.prior[i]*scale/(1+node.n[i]);if(score>best){best=score;index=i}}path.push([node,index]);node=node.child(index)}return [node,path]}
-export async function search(root,infer,{simulations=128,tactical=true,cPuct=1.5,onProgress=()=>{},isCancelled=()=>false,yieldEvery=8}={}){
- if(!Number.isInteger(simulations)||simulations<1)throw Error('搜索次数无效');if(root.winner||!root.board.includes(0))throw Error('不能搜索终局');
- async function evaluate(node){const output=await infer(encode(node.board,node.player,node.last));const proof=node.expand(output.policy,tactical);return proof===null?Number(output.value):proof}
+export function select(root,cPuct=1.5,fpuReduction=.2){let node=root;const path=[];while(node.actions!==null&&!node.winner&&node.board.includes(0)){let total=1;for(const n of node.n)total+=n;const scale=Math.sqrt(total);let best=-Infinity,index=0;for(let i=0;i<node.actions.length;i++){const q=node.n[i]?node.w[i]/node.n[i]:(fpuReduction===null?0:Math.max(-1,node.value-fpuReduction)),score=q+cPuct*node.prior[i]*scale/(1+node.n[i]);if(score>best){best=score;index=i}}path.push([node,index]);node=node.child(index)}return [node,path]}
+export async function search(root,infer,{simulations=128,tactical=true,cPuct=1.5,fpuReduction=.2,onProgress=()=>{},isCancelled=()=>false,yieldEvery=8}={}){
+ if(!Number.isInteger(simulations)||simulations<1)throw Error('搜索次数无效');if(fpuReduction!==null&&(!Number.isFinite(fpuReduction)||fpuReduction<0))throw Error('FPU参数无效');if(root.winner||!root.board.includes(0))throw Error('不能搜索终局');
+ async function evaluate(node){const output=await infer(encode(node.board,node.player,node.last));const proof=node.expand(output.policy,tactical);node.value=proof===null?Number(output.value):proof;return node.value}
  if(root.actions===null)await evaluate(root);
  for(let i=0;i<simulations;i++){
-  if(isCancelled())throw Error('Gunuce任务已取消');const [node,path]=select(root,cPuct);
+  if(isCancelled())throw Error('Gunuce任务已取消');const [node,path]=select(root,cPuct,fpuReduction);
   const value=node.winner?(node.winner===node.player?1:-1):!node.board.includes(0)?0:await evaluate(node);backup(path,value);
   if((i+1)%yieldEvery===0||i+1===simulations){onProgress(i+1,simulations);await new Promise(resolve=>setTimeout(resolve,0))}
  }
- const policy=new Float32Array(CELLS);let total=0,index=0;for(let i=0;i<root.n.length;i++){total+=root.n[i];if(root.n[i]>root.n[index])index=i}for(let i=0;i<root.n.length;i++)policy[root.actions[i]]=root.n[i]/total;
+ const policy=new Float32Array(CELLS);let total=0,index=0;for(let i=0;i<root.n.length;i++){total+=root.n[i];if(root.n[i]>root.n[index]||(root.n[i]===root.n[index]&&(root.prior[i]>root.prior[index]||(root.prior[i]===root.prior[index]&&root.n[i]>0&&root.w[i]/root.n[i]>root.w[index]/root.n[index]))))index=i}for(let i=0;i<root.n.length;i++)policy[root.actions[i]]=root.n[i]/total;
  return {index:root.actions[index],policy,visits:root.n,simulations};
 }

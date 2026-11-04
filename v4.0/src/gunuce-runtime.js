@@ -26,7 +26,7 @@ export async function loadRuntime({backend='auto',onProgress=()=>{}}={}){
 }
 export async function chooseLocal(board,player,last,{backend='auto',onProgress=()=>{},isCancelled=()=>false,simulations=128}={}){
  validatePosition(board,player,last);const runtime=await loadRuntime({backend,onProgress});if(isCancelled())throw Error('Gunuce任务已取消');const started=performance.now(),root=new Node(board,player,last);
- const result=await search(root,runtime.infer,{simulations,isCancelled,onProgress:(completed,total)=>onProgress({stage:'search',completed,total,message:'Gunuce正在思考（'+completed+'/'+total+'）'})});
+ const result=await search(root,runtime.infer,{simulations,fpuReduction:runtime.manifest.search?.fpuReduction??.2,isCancelled,onProgress:(completed,total)=>onProgress({stage:'search',completed,total,message:'Gunuce正在思考（'+completed+'/'+total+'）'})});
  function tree(node){let nodes=1,depth=0;for(const child of node.children.values()){const info=tree(child);nodes+=info.nodes;depth=Math.max(depth,info.depth+1)}return {nodes,depth}}
- return {index:result.index,reason:'Gunuce',...tree(root),simulations:result.simulations,elapsedMs:performance.now()-started,backend:runtime.provider,modelVersion:runtime.manifest.sha256,version:'4.0.1',local:true};
+ return {index:result.index,reason:'Gunuce',...tree(root),simulations:result.simulations,elapsedMs:performance.now()-started,backend:runtime.provider,modelVersion:runtime.manifest.sha256,version:runtime.manifest.version,local:true};
 }

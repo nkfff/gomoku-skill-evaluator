@@ -2,9 +2,9 @@
   "version": "4.0.1",
   "format": "gunuce-fp32-batch1",
   "file": "gunuce.onnx",
-  "sha256": "9cc91391167c3fc94534208aa0d38fe911d3055da4558b8c6067ec44eeee042e",
+  "sha256": "97f40318e9a839eec55b386708a9da77f58cb718f1f8cd53042b2fb29e3e6191",
   "bytes": 4494348,
-  "sourceCheckpointSha256": "07ca51f73ca52b54fb1f60d918ab4d3331617d5e542bc069139bab656d3307be",
+  "sourceCheckpointSha256": "e4b45b6d362b4e8961adae7a1f3f2266cdc9e217a3f7ee0b9adb64029c96f26f",
   "channels": 64,
   "blocks": 12,
   "input": "state",
@@ -19,9 +19,18 @@
     15
   ],
   "simulations": 128,
+  "modelId": "opening-repair-001-fit-3",
+  "search": {
+    "fpuReduction": 0.2,
+    "finalTieBreak": [
+      "visits",
+      "prior",
+      "q"
+    ]
+  },
   "verification": {
     "positions": 12,
-    "maxPolicyAbsError": 2.86102294921875e-05,
-    "maxValueAbsError": 4.172325134277344e-07
+    "maxPolicyAbsError": 2.6702880859375e-05,
+    "maxValueAbsError": 1.2665987014770508e-06
   }
 }

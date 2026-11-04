@@ -14,7 +14,7 @@ def main():
     shell=['./']+[name for name in files if not name.startswith('vendor/') and not name.endswith('.onnx')]
     source=(ROOT/'tools/offline-sw.template.js').read_text().replace('__VERSION__',version).replace('__ASSETS__',json.dumps(['./']+files)).replace('__SHELL__',json.dumps(shell)).replace('__GROUPS__',json.dumps([['vendor/ort/'+f for f in group] for group in GROUPS]))
     (WEB/'sw.js').write_text(source)
-    manifest={'version':'4.0.1','cacheVersion':version,'onnxruntime':package['version'],'files':hashes,'totalAssetBytes':sum((WEB/f).stat().st_size for f in files),'note':'Runtime/model cached lazily on first Gunuce use. No inference endpoint.'};(WEB/'offline-assets.json').write_text(json.dumps(manifest,indent=2)+'\n')
+    manifest={'version':json.loads((WEB/'package.json').read_text())['version'],'cacheVersion':version,'onnxruntime':package['version'],'files':hashes,'totalAssetBytes':sum((WEB/f).stat().st_size for f in files),'note':'Runtime/model cached lazily on first Gunuce use. No inference endpoint.'};(WEB/'offline-assets.json').write_text(json.dumps(manifest,indent=2)+'\n')
     print('Prepared static offline assets:',manifest['totalAssetBytes'],'bytes; cache',version)
 
 if __name__=='__main__':main()
