@@ -104,6 +104,11 @@ export class PvpRoom {
       if (request.method === "POST" && url.pathname === "/internal/init-rematch") return await this.initializeRematch(request);
       if (request.method === "POST" && url.pathname === "/internal/join") return await this.join(request);
       if (request.method === "POST" && url.pathname === "/internal/cancel") return await this.cancel(request);
+      if (request.method === "POST" && url.pathname === "/internal/leave") {
+        const playerId = request.headers.get("x-player-id") || "";
+        await this.leaveRoom(playerId);
+        return json({ok: true, status: this.room?.status || "expired"});
+      }
       if (request.method === "POST" && url.pathname === "/internal/ack-result") return await this.acknowledgeResult(request);
       if (request.method === "GET" && url.pathname === "/internal/state") {
         const playerId = request.headers.get("x-player-id") || "";
@@ -956,11 +961,20 @@ export class PvpRoom {
     if (this.room.settlementPending) deadlines.push(nowMs() + 5000);
     if (this.room.status === "active" && this.room.match) {
       const match = this.room.match;
-      const key = match.turnColor === 1 ? "black" : "white";
-      deadlines.push(match.turnStartedAt + match.clocksMs[key]);
-      if (match.pendingUndo) deadlines.push(match.pendingUndo.requestedAt + UNDO_REQUEST_TIMEOUT_MS);
-      const disconnectedAt = Object.values(this.room.disconnectedAt || {}).filter(Boolean);
-      for (const timestamp of disconnectedAt) deadlines.push(timestamp + DISCONNECT_GRACE_MS);
+      const disconnectedAt = [
+        this.room.disconnectedAt?.[this.room.hostPlayerId],
+        this.room.disconnectedAt?.[this.room.guestPlayerId]
+      ].filter(timestamp => typeof timestamp === "number" && Number.isFinite(timestamp));
+      if (disconnectedAt.length === 2) {
+        // The shared disconnect window is authoritative. Do not wake repeatedly
+        // on a chess clock that has already expired while both players are away.
+        deadlines.push(Math.max(...disconnectedAt) + DISCONNECT_GRACE_MS);
+      } else {
+        const key = match.turnColor === 1 ? "black" : "white";
+        deadlines.push(match.turnStartedAt + match.clocksMs[key]);
+        if (match.pendingUndo) deadlines.push(match.pendingUndo.requestedAt + UNDO_REQUEST_TIMEOUT_MS);
+        for (const timestamp of disconnectedAt) deadlines.push(timestamp + DISCONNECT_GRACE_MS);
+      }
       if (!disconnectedAt.length && !match.pendingUndo && !match.pendingDrawBy) {
         if (this.room.idlePrompt) deadlines.push(Number(this.room.idlePrompt.deadlineAt));
         else {
