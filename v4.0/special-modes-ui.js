@@ -194,6 +194,12 @@ async function claimPuzzleReward(){
         $("puzzleStatus").textContent="这道残局已经领取过奖励。再生成一道新题继续挑战吧。";
         renderPuzzle();return;
       }
+      if(loggedIn()&&cloudConfigured()&&!navigator.onLine){
+        saveClaim(puzzleState.id);
+        puzzleState.claimed=true;
+        $("puzzleStatus").textContent="离线通关已在本机记录，但暂不能计入云端积分。联网后生成新的云端验证残局即可领取奖励。";
+        renderPuzzle();return;
+      }
       const awarded=window.gomokuAwardLocalModePoints&&window.gomokuAwardLocalModePoints(puzzleState.reward);
       if(!awarded)throw new Error("本地积分模块暂不可用，请刷新页面后重试");
       saveClaim(puzzleState.id);
