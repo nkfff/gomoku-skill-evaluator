@@ -61,7 +61,19 @@ if(accountPanel){
  const install=document.createElement("section");install.className="offline-install";
  const heading=document.createElement("strong");heading.textContent="🐱 猫猫棋局 · 原生 App";
  const message=document.createElement("p");message.textContent="联网时登录账号、使用 AI 教练和好友 PVP；断网时继续本地 AI、残局与复盘。";
- install.append(heading,message);accountPanel.append(install);
+ const installButton=document.createElement("button");installButton.type="button";installButton.textContent="安装到设备";
+ install.append(heading,message,installButton);accountPanel.append(install);
+ let installPrompt=null;
+ window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();installPrompt=event;installButton.disabled=false;});
+ installButton.addEventListener("click",async()=>{
+  if(installPrompt){const prompt=installPrompt;installPrompt=null;await prompt.prompt();await prompt.userChoice;return;}
+  const apple=/iPad|iPhone|iPod/.test(navigator.userAgent);
+  message.textContent=apple?"iPhone/iPad：使用 Safari 打开后，点分享 → 添加到主屏幕。":"使用浏览器菜单中的「安装应用」或「添加到主屏幕」。";
+ });
+ if(globalThis.Capacitor?.isNativePlatform?.()){
+  installButton.hidden=true;
+  message.textContent="已安装猫猫棋局 App。联网与离线玩法共用同一套游戏界面。";
+ }
 }
 for(const panelId of ["panel-leaderboard","panel-store"]){
  const panel=$(panelId);if(!panel)continue;
