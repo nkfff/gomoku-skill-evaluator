@@ -5,22 +5,22 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 const root=fileURLToPath(new URL("../",import.meta.url)),dist=path.join(root,"dist");
 const read=name=>readFileSync(path.join(dist,name),"utf8");
-test("offline HTML is isolated from cloud and online PVP",()=>{
+test("hybrid HTML keeps online accounts, AI coach and PVP while remaining local-first",()=>{
  const html=read("index.html");
  assert.match(html,/offline-config\.js/);
  assert.match(html,/experience\.js/);
  assert.match(html,/manifest\.webmanifest/);
- assert.doesNotMatch(html,/<script[^>]+src="\.\/pvp-ui\.js"/);
+ assert.match(html,/<script type="module" src="\.\/pvp-ui\.js"><\/script>/);
  assert.doesNotMatch(html,/<script[^>]+src="\.\/config\.js"/);
  assert.match(html,/viewport-fit=cover/);
- assert.match(html,/猫猫棋局 · 离线版/);
+ assert.match(html,/猫猫棋局 · 联网与离线版/);
  const config=read("offline-config.js");
  assert.match(config,/GOMOKU_API_URL\s*=\s*""/);
  assert.match(config,/GOMOKU_SUPABASE_URL\s*=\s*""/);
  assert.match(config,/GOMOKU_PVP_API_URL\s*=\s*""/);
 });
 test("standalone offline shell includes all local JS, engines and runtime",()=>{
- for(const name of ["src/app.js","src/review.js","src/engine.js","src/special-modes.js","src/ai.worker.js","src/gunuce.worker.js","src/gunuce-runtime.js","models/gunuce.onnx","special-modes-ui.js","src/offline-cache.js","vendor/ort/ort.wasm.min.mjs"]){
+ for(const name of ["src/app.js","src/account.js","src/review.js","src/engine.js","src/pvp.js","src/special-modes.js","src/ai.worker.js","src/gunuce.worker.js","src/gunuce-runtime.js","models/gunuce.onnx","special-modes-ui.js","pvp-ui.js","src/offline-cache.js","vendor/ort/ort.wasm.min.mjs"]){
   assert(existsSync(path.join(dist,name)),name);
  }
  const sw=read("sw.js");
