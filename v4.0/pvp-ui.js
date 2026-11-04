@@ -171,13 +171,13 @@ async function connectSocket(id, suppliedTicket = "") {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     heartbeatTimer = setInterval(() => {
       if (socket !== ws || ws.readyState !== WebSocket.OPEN) return;
-      if (Date.now() - lastPongAt > 45_000) {
+      if (Date.now() - lastPongAt >= 20_000) {
         try { ws.close(4000, "heartbeat timeout"); } catch {}
         return;
       }
       try { ws.send(JSON.stringify({type: "ping"})); }
       catch { try { ws.close(4000, "heartbeat send failed"); } catch {} }
-    }, 15_000);
+    }, 10_000);
     notice(spectatorMode
       ? "已进入观战模式，正在同步实时棋局。"
       : "已连接好友房间，正在同步对局状态。");
