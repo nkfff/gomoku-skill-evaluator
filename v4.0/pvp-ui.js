@@ -17,6 +17,8 @@ let undoModalRequestKey = "";
 let drawModalRequestKey = "";
 let socket = null;
 let reconnectTimer = null;
+let heartbeatTimer = null;
+let lastPongAt = 0;
 let intentionalClose = false;
 
 function notice(text, bad = false) {
@@ -133,12 +135,15 @@ async function api(path, method = "GET", body = null, auth = true) {
 function closeSocket() {
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = null;
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = null;
   if (socket) {
     socket.onclose = null;
     socket.onerror = null;
     try { socket.close(); } catch {}
   }
   socket = null;
+  lastPongAt = 0;
 }
 
 async function connectSocket(id, suppliedTicket = "") {
@@ -156,9 +161,22 @@ async function connectSocket(id, suppliedTicket = "") {
   const wsBase = API.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
   const ws = new WebSocket(wsBase + "/api/pvp/rooms/" + encodeURIComponent(id) + "/ws?ticket=" + encodeURIComponent(ticketResult.ticket));
   socket = ws;
-  ws.onopen = () => notice(spectatorMode
-    ? "已进入观战模式，正在同步实时棋局。"
-    : "已连接好友房间，正在同步对局状态。");
+  ws.onopen = () => {
+    lastPongAt = Date.now();
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(() => {
+      if (socket !== ws || ws.readyState !== WebSocket.OPEN) return;
+      if (Date.now() - lastPongAt > 45_000) {
+        try { ws.close(4000, "heartbeat timeout"); } catch {}
+        return;
+      }
+      try { ws.send(JSON.stringify({type: "ping"})); }
+      catch { try { ws.close(4000, "heartbeat send failed"); } catch {} }
+    }, 15_000);
+    notice(spectatorMode
+      ? "已进入观战模式，正在同步实时棋局。"
+      : "已连接好友房间，正在同步对局状态。");
+  };
   ws.onmessage = event => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
@@ -166,7 +184,11 @@ async function connectSocket(id, suppliedTicket = "") {
   };
   ws.onerror = () => notice("实时连接出现问题，正在尝试恢复…", true);
   ws.onclose = () => {
-    if (socket === ws) socket = null;
+    if (socket === ws) {
+      socket = null;
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
     if (!intentionalClose && roomId) {
       notice("连接中断，正在自动重连；已确认的棋盘状态不会丢失。", true);
       reconnectTimer = setTimeout(() => connectSocket(roomId).catch(error => notice(error.message, true)), 1500);
@@ -192,6 +214,10 @@ function applySpectatorMove(message) {
 }
 
 function handleMessage(message) {
+  if (message.type === "pong") {
+    lastPongAt = Date.now();
+    return;
+  }
   if (message.type === "spectator_move") {
     applySpectatorMove(message);
     return;
