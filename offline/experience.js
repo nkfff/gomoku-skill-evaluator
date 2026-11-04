@@ -70,7 +70,7 @@ if(accountPanel){
   const apple=/iPad|iPhone|iPod/.test(navigator.userAgent);
   message.textContent=apple?"iPhone/iPad：使用 Safari 打开后，点分享 → 添加到主屏幕。":"使用浏览器菜单中的「安装应用」或「添加到主屏幕」。";
  });
- if(globalThis.Capacitor?.isNativePlatform?.()){
+ if(location.protocol==="capacitor:"||location.protocol==="gomoku:"||globalThis.Capacitor?.isNativePlatform?.()){
   installButton.hidden=true;
   message.textContent="已安装猫猫棋局 App。联网与离线玩法共用同一套游戏界面。";
  }
