@@ -2,7 +2,7 @@
 let installation=null;
 const KEY="gomoku-offline-update-seen";
 const status=()=>document.getElementById("offlineStatus");
-function nativeApp(){return location.protocol==="capacitor:"||globalThis.Capacitor?.isNativePlatform?.()===true;}
+function nativeApp(){return location.protocol==="capacitor:"||location.protocol==="gomoku:"||globalThis.Capacitor?.isNativePlatform?.()===true;}
 export function installOfflineCache(){
  if(installation)return installation;
  installation=(async()=>{
