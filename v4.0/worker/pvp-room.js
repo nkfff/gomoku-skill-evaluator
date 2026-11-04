@@ -570,7 +570,13 @@ export class PvpRoom {
     const request = requestPvpRematch(this.room, playerId);
     if (!request.acceptedByBoth) {
       this.room = request.room;
+      if (this.room.status === "finished") {
+        this.room.expiresAt = nowMs() + FINISHED_ROOM_RETENTION_MS;
+        await this.env.DB.prepare("UPDATE pvp_rooms SET expires_at=datetime('now','+10 minutes') WHERE id=? AND status='finished'")
+          .bind(this.room.roomId).run();
+      }
       await this.ctx.storage.put("room", this.room);
+      await this.scheduleNextAlarm();
       if (this.room.status === "finished" && !this.room.rematchRoomId) {
         this.broadcast({type: "rematch_requested", playerId, room: this.snapshot(playerId)});
       }
@@ -579,8 +585,11 @@ export class PvpRoom {
 
     const otherPlayerId = playerId === this.room.hostPlayerId ? this.room.guestPlayerId : this.room.hostPlayerId;
     this.room.rematchByPlayer = {...(this.room.rematchByPlayer || {}), [playerId]: true};
+    this.room.expiresAt = nowMs() + FINISHED_ROOM_RETENTION_MS;
     this.room.rematchStarting = true;
     this.room.rematchStartingAt = nowMs();
+    await this.env.DB.prepare("UPDATE pvp_rooms SET expires_at=datetime('now','+10 minutes') WHERE id=? AND status='finished'")
+      .bind(this.room.roomId).run();
     await this.ctx.storage.put("room", this.room);
     this.broadcast({type: "rematch_starting", playerId, room: this.snapshot(playerId)});
 
@@ -588,9 +597,9 @@ export class PvpRoom {
     try {
       const randomBytes = crypto.getRandomValues(new Uint8Array(32));
       const inviteCodeHash = [...randomBytes].map(byte => byte.toString(16).padStart(2, "0")).join("");
-      const expiresAt = PERMANENT_ROOM_EXPIRY_MS;
+      const expiresAt = nowMs() + WAITING_ROOM_IDLE_MS;
       await this.env.DB.prepare(
-        "INSERT INTO pvp_rooms(id,host_player_id,guest_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,?,'ready',?,1,datetime('9999-12-31 23:59:59'))"
+        "INSERT INTO pvp_rooms(id,host_player_id,guest_player_id,invite_code_hash,status,time_control_ms,rated,expires_at) VALUES(?,?,?,?,'ready',?,1,datetime('now','+30 minutes'))"
       ).bind(
         newRoomId, this.room.hostPlayerId, this.room.guestPlayerId,
         inviteCodeHash, this.room.timeControlMs
@@ -934,9 +943,18 @@ export class PvpRoom {
       const key = match.turnColor === 1 ? "black" : "white";
       deadlines.push(match.turnStartedAt + match.clocksMs[key]);
       if (match.pendingUndo) deadlines.push(match.pendingUndo.requestedAt + UNDO_REQUEST_TIMEOUT_MS);
-      for (const disconnectedAt of Object.values(this.room.disconnectedAt)) {
-        if (disconnectedAt) deadlines.push(disconnectedAt + DISCONNECT_GRACE_MS);
+      const disconnectedAt = Object.values(this.room.disconnectedAt || {}).filter(Boolean);
+      for (const timestamp of disconnectedAt) deadlines.push(timestamp + DISCONNECT_GRACE_MS);
+      if (!disconnectedAt.length && !match.pendingUndo && !match.pendingDrawBy) {
+        if (this.room.idlePrompt) deadlines.push(Number(this.room.idlePrompt.deadlineAt));
+        else {
+          const reminderAt = pvpIdleReminderDeadline(match, this.room.idleAcknowledgedAt);
+          if (reminderAt !== null) deadlines.push(reminderAt);
+        }
       }
+    } else if (["waiting", "ready", "finished", "cancelled"].includes(this.room.status) &&
+               Number.isFinite(Number(this.room.expiresAt))) {
+      deadlines.push(Number(this.room.expiresAt));
     }
     if (deadlines.length) await this.ctx.storage.setAlarm(Math.max(nowMs() + 100, Math.min(...deadlines)));
     else await this.ctx.storage.deleteAlarm();
@@ -981,6 +999,9 @@ export class PvpRoom {
       rematchRoomId: this.room.rematchRoomId || null,
       rematchStarting: Boolean(this.room.rematchStarting),
       connectedByPlayer: this.room.connectedByPlayer,
+      idlePrompt: this.room.idlePrompt || null,
+      resultSeenByPlayer: this.room.resultSeenByPlayer || {},
+      leftByPlayer: this.room.leftByPlayer || {},
       spectators,
       spectatorCount: spectators.length,
       match
