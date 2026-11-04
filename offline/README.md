@@ -1,80 +1,100 @@
 # 猫猫棋局 · Hybrid Edition
 
- > 本目录是独立原生 App 发行工程：游戏资源随 App 安装，联网时使用现有账号、云端 AI 与 PVP 服务，断网时继续本地单机。它不是把网页地址装进壳，而是由 Electron / Capacitor 加载内置资源并通过 API 连接云端。**[offline-v0.1.0-beta.2 已发布 GitHub Beta 预发布版](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2)**，含六个平台的下载附件。维护者已确认本次 Beta 验收通过。在线 Pages、PVP、Supabase、Cloudflare 的服务逻辑保持独立。
+> **目标：一个真正安装在设备上的 App，同时支持联网和离线。** 游戏界面、AI、模型、棋谱与本地数据随安装包内置；联网时调用现有 Supabase / Cloudflare 服务，断网时保留单机能力。它不是把网页地址放进壳里，也不要求玩家通过浏览器打开游戏。
 
-## macOS DMG 修复和 Intel 适配（beta.2）
+## Hybrid 运行模式
 
-旧版 DMG 曾出现 `codesign --verify --deep --strict` 报错 `code has no resources but signature indicates they must be present`，说明应用签名资源封装不完整。当前开发分支增加 Electron `afterSign` 修复与 CI 检查：DMG 挂载、`Contents/_CodeSignature/CodeResources`、`codesign` 完整校验、`lipo` 架构验证。
+| 能力 | 联网 | 离线 |
+|---|---|---|
+| 标准 AI 对弈、Gunuce 本地模型 | 本地运行 | 本地运行 |
+| 残局挑战、随机连珠 | 本地生成/运行；登录后可走云端验证与奖励 | 本地生成与本地奖励 |
+| 逐手复盘、关键转折、训练建议 | 可用 | 可用 |
+| 在线 AI 棋局教练 | 登录后调用 Cloudflare Workers AI | 不可用；保留本地复盘 |
+| Supabase 账号登录、云端积分与排行榜 | 可用 | 暂不可用，恢复网络后重新连接 |
+| 好友 PVP、观战、悔棋/和棋申请、真人 Elo | 可用，需登录 | 不可用；房间会话保留，联网后尝试恢复 |
+| 终局成绩同步 | 直接提交 | 先进入本地待同步队列，联网后重试 |
 
-macOS 现在提供两个独立 DMG 构建：Apple Silicon arm64 和 Intel x86_64。未配置 Developer ID 的公开 Beta 会使用 ad-hoc 签名；这能修复签名封装错误，**但仍不是 Apple Developer ID 签名/公证**。为避免 Gatekeeper 弹出其他阻止提示，维护者可在仓库 Actions 手动执行 [Offline macOS Developer ID signed and notarized DMG](../.github/workflows/offline-macos-notarized.yml)，需要将 `MAC_CSC_LINK`（Developer ID Application P12 的 base64）、`MAC_CSC_KEY_PASSWORD`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID` 配置为 GitHub Actions Secrets。签名与公证通过后可选择把经过 Gatekeeper 验证的 DMG 附加到 Release。
+**核心原则：** 网络不是开始一局游戏的前置条件。AI 推理、棋盘交互和本地复盘不依赖服务器；PVP 和在线 AI 教练则明确要求联网。
 
-## iPhone 真机版（beta.2）
+## 当前原生架构
 
-新增 [iPhone 设备构建与 Ad Hoc 签名](ios-sign/README.md)。CI 可自动验证 iOS arm64 真机目标；真正可安装的 `.ipa` 只有在 Apple Developer Distribution 证书、密码、Ad Hoc Profile、Team ID 均被配置为 GitHub Secrets 后才能导出。**Ad Hoc IPA 只可安装到描述文件中预先登记 UDID 的 iPhone**；对所有玩家分发仍需 TestFlight/App Store。没有凭据时不得把模拟器 ZIP 声称为 iPhone 可安装版。
+- **Android / iOS：** Capacitor 8，游戏资源和 ONNX 模型打包进 App。App 使用 https://localhost（Android）和 capacitor://localhost（iOS）安全源。
+- **macOS / Windows / Linux：** Electron，使用 gomoku://app 安全源加载本地文件、Worker 和 WASM。
+- **账号：** 复用当前 Supabase Auth，不创建第二套用户系统。
+- **AI / 积分：** 复用 V4.0 V2 Worker、D1 数据库和 Workers AI。
+- **好友对战：** 复用 V4.0 V3 Worker、Durable Objects 和现有 PVP 房间生命周期。
+- **断网缓存：** 原生 App 直接读取包内资源；PWA 首次下载完成后使用 Service Worker 缓存。
 
-## 支持范围与当前边界
+## 原生联网配置
 
-- Web/PWA：AI 三档、Gunuce 本地 ONNX+WASM/WebGPU、残局、随机连珠、复盘、皮肤与本地积分，均复用 V4 引擎。
-- Android/iOS：采用 Capacitor 8，将静态资源随 App 内置，首次启动不需要网络。已完成原生 CI 编译。**当前公开 iOS 附件仅为 Simulator 应用，并非可供普通 iPhone 安装的签名 IPA**。
-- macOS/Windows/Linux：Electron 的独立打包流程已接入，CI 已构建并上传未签名安装包，当前同时提供 Apple Silicon arm64 和 Intel x64 DMG，均已通过完整 CodeResources 资源签名与架构验证；尚未经过 Apple Developer ID 公证。
-- 不提供在线登录、PVP、观战、云端积分或服务器排行榜。本地积分独立；卸载或清理数据可能丢失。
-- PWA 第一次打开需联网下载包括 Gunuce 模型与 WASM 的离线资源，直到显示“可断网使用”。原生 Android/iOS 将资源打入安装包。
+V2 与 V3 Worker 的 APP_ORIGINS 允许以下固定 Origin：
 
-## 本地 PWA 构建
+- capacitor://localhost：iOS Capacitor
+- https://localhost：Android Capacitor
+- gomoku://app：Electron 桌面 App
 
-需要 Node.js >=22、Python >=3.10。安装图标渲染依赖并构建（macOS 需先执行 `brew install cairo`）：
+CORS 只决定请求能否从这些 App Origin 到达 Worker；每个账号接口仍由服务端校验 Supabase JWT，PVP 的房间、落子、观战与 Elo 仍由 Worker / Durable Object 权威处理。不要把 service-role、Cloudflare API Token 或任何服务端密钥放进客户端。
 
-```bash
-python3 -m pip install -r offline/requirements.txt
-node offline/build.mjs
-python3 -m http.server 8043 --bind 127.0.0.1
-```
+Supabase 邮箱验证和密码找回使用现有 GitHub Pages V4 回调地址：
 
-打开 `http://127.0.0.1:8043/offline/dist/`；不要用 `file://` 双击 HTML 测试模块 Worker / Service Worker。
-静态验证：`node --test offline/tests/*.test.mjs`。
+https://nkfff.github.io/gomoku-skill-evaluator/v4.0/
 
-手机 UI 优先适配 320/390/768px、44px 触控目标与 safe-area；底部五个主入口为对弈、复盘、挑战、好友、我的。随机连珠从挑战页面进入，排行榜与皮肤收藏从「我的」进入。在线 AI 教练位于复盘面板；未登录或离线时保留入口并明确显示不可用原因。
-统一图标源文件 `icons/cat-gomoku.svg`，构建生成 PWA 192/512 与原生 1024 PNG。
+若 Supabase Auth 的 Redirect URL allowlist 启用了严格模式，确保包含该 URL。用户完成邮箱验证后，打开 App 使用邮箱密码登录。登录 SDK 在网络可用时加载；如果 App 冷启动时没有网络，会自动保持游客单机模式，并在网络恢复后重试初始化。
 
-## Android / iOS 原生工程
+## AI 复盘入口
 
-```bash
-cd offline
-npm install
-npm run native:android  # 需要 Android SDK
-npm run native:ios      # 需要 macOS + Xcode
-```
+- 对局操作区的「AI 复盘」按钮进入复盘面板。
+- 手机底部导航保留「复盘」入口，不再隐藏。
+- 复盘面板始终显示本地棋形分析、关键转折与训练建议。
+- 「在线 AI 解读当前局面」按钮保留显示；未登录、离线或额度用尽时会明确说明原因，不会把本地复盘一起禁用。
+- 在线讲解按 V4.0 规则计入每日免费额度；讲解结果在当前棋局/棋步缓存。
 
-脚本先构建离线 Web，然后执行 `cap add` / `cap sync` 和 `capacitor-assets generate`。Android 可在 `offline/android` 目录运行 `./gradlew assembleDebug` 获取用于测试安装的 APK。iOS 需 Xcode 真机签名，TestFlight/App Store 需要 Apple Developer 账号。
-Capacitor 依赖固定在 8.6.0；生成目录暂不纳入 Git，避免改动在线版。正式发布前需要锁定 native 依赖、签名包、真实设备兼容性测试与升级测试。
+## 手机导航与 UI
 
-## GitHub Release 下载与发布流程
+手机底部五个主入口：**对弈、复盘、挑战、好友、我的**。随机连珠从「挑战」页面进入；在线排行榜和皮肤收藏从「我的」页面进入。桌面仍保留完整导航。布局回归覆盖 320 / 390 / 768 px、44 px 触控目标和 safe-area。
 
-**当前 Beta Release：** [offline-v0.1.0-beta.2](https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2)，包含 Android Debug APK、iOS Simulator ZIP、macOS arm64 DMG、**macOS Intel x64 DMG**、Windows x64 EXE、Linux x86_64 AppImage、Web/PWA ZIP。永久附件链接见仓库首页 [README](../README.md#离线多端版--offline-edition)。
+## 本地构建
 
-自动发布工作流为 [Offline Beta Release](../.github/workflows/offline-release.yml)。在未来发布新版本时，修改版本号并推送新 `offline-v*` 标签，或使用 GitHub Actions 的 `workflow_dispatch` 指定新标签；所有平台构建成功才创建新的 Pre-release。**不要重复发布已有标签，避免覆盖已经分发的安装包。**
+需要 Node.js >=22、Python >=3.10。macOS 图标生成需先执行 brew install cairo。
 
-GitHub Beta 发行不等于 Google Play、TestFlight 或 App Store 上架。面向这些商店时仍需要 Android 正式签名/AAB、Apple Developer 证书和签名 IPA、应用审核以及必要的机型兼容记录。
+    python3 -m pip install -r offline/requirements.txt
+    node offline/build.mjs
+    node --test offline/tests/*.test.mjs
 
-## 尚未满足的正式发布门槛
+本地浏览器测试：
 
-- [x] 独立构建、离线云功能隔离、复用本地四类玩法
-- [x] PWA manifest、可爱猫猫矢量图与可生成图标
-- [x] Mobile-first 布局与离线导航
-- [x] Capacitor Android / iOS 配置及工程生成命令
-- [x] CI 浏览器功能、离线启动和横向溢出测试通过
-- [x] 维护者已确认 Beta 验收通过
-- [ ] 补齐公开可追溯的 Android/iPhone 设备与系统版本测试矩阵
-- [ ] WKWebView / Web Worker / WASM、后台恢复、冷启动和低内存压力测试
-- [x] GitHub Release 自动化构建与上传工作流
-- [ ] 签名 APK/AAB/IPA 与正式商店发布
-- [x] macOS、Windows、Linux 未签名安装包构建成功
-- [ ] 三套桌面安装包的实体设备安装与稳定性验证
+    python3 -m http.server 8043 --bind 127.0.0.1
 
-重点原则：**未完成真机验收，不宣称 Android/iOS 应用已正式发布。**
+打开 http://127.0.0.1:8043/offline/dist/。不要用 file:// 双击 HTML 测试模块 Worker / Service Worker。
 
-## macOS / Windows / Linux 桌面版
+Android / iOS 原生工程：
 
-独立 Electron 安装包构建已在 `offline/desktop/` 中提供。使用 `gomoku://app` 安全源加载本地 Worker 与 WASM，复用 Android/iOS 同一套单机逻辑。参见 [desktop/README.md](desktop/README.md)。当前为未签名 Beta 预发布，CI 构建已经成功；正式签名及广泛兼容性支持尚待完善。
+    cd offline
+    npm install
+    npm run native:android
+    npm run native:ios
 
-**版本命名**：离线版从 `offline-v0.1.0-beta.1` 起步，目前发行 `offline-v0.1.0-beta.2`；线上版本继续为 V4.0.x，训练研究分支 V4.1.x 保持独立。已在 GitHub 发布 Beta，安装包仍为测试版本。
+## 发布附件与签名边界
+
+- Android 当前为 Debug APK，适合测试安装，不是 Play Store 正式签名包。
+- iOS 当前公开附件仍是 Simulator ZIP，不是 iPhone 可安装 IPA。真机 Ad Hoc IPA 需要 Apple Distribution 证书、已登记设备 UDID 的描述文件与 Team ID；所有 iPhone 用户分发应使用 TestFlight / App Store。
+- macOS Apple Silicon arm64 与 Intel x64 DMG 已通过 CodeResources、签名结构及架构验证；当前 ad-hoc 签名未经过 Apple Developer ID 公证，Gatekeeper 仍可能提示风险。免提示发行需要 Developer ID + Apple Notarization。
+- Windows / Linux 当前为测试安装包，正式签名与实体设备验收仍待完成。
+
+**beta.2**：https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2  
+**beta.3**：Hybrid 联网/离线版本通过构建与回归后发布：https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.3
+
+## 正式发布门槛
+
+- [x] 游戏资源、AI 与模型内置，断网可启动
+- [x] 在线账号、AI 教练、好友 PVP 与原有服务端复用
+- [x] Capacitor / Electron 原生 Origin 的 Worker CORS 白名单
+- [x] 离线冷启动、网络恢复后的账号初始化重试
+- [x] PVP 离线暂停轮询、恢复网络后尝试重连
+- [x] 手机复盘与好友入口可见
+- [ ] Android / iPhone 实体设备上的账号注册、登录、邮箱验证及 PVP 联调
+- [ ] iPhone Ad Hoc / TestFlight 签名分发
+- [ ] macOS Developer ID 公证
+- [ ] Windows / Linux 签名与实体设备安装验收
+- [ ] 后台恢复、弱网、断线重连、低内存和升级测试矩阵
+
