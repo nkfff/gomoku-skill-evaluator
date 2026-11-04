@@ -271,10 +271,12 @@ async function hintMove(){
  finally{render();}
 }
 function activate(tab){
+ if(tab==="replay"&&(!game||!game.moves.length))tab="game";
  if(tab!=="game"&&activeTab==="game"){
   hintRequest++;hintVisible=false;hints=[];$("hintPanel").hidden=true;
  }
  activeTab=tab;
+ if(tab!=="replay")reviewCandidates=[];
  for(const name of ["game","replay","store","leaderboard","account","pvp","puzzle","random"]){
   const button=$("tab-"+name),panel=$("panel-"+name);
   if(button)button.classList.toggle("active",name===tab);
@@ -370,7 +372,10 @@ function draw(b,last=-1){
 }
 function render(){
  if(!game)return;
- $("aiRuntime").textContent=game.level==="gunuce"?"Gunuce":"本地即时对弈";
+ const reviewing=activeTab==="replay";
+ $("aiRuntime").textContent=reviewing?"复盘 · 本地只读分析":game.level==="gunuce"?"Gunuce":"本地即时对弈";
+ $("boardTitle").textContent=reviewing?"棋局复盘":"AI 对弈";
+ $("boardSubtitle").textContent=reviewing?"逐手回放 · 当前棋盘只读，分析与建议均可离线查看":"选择你的先手，剩下的交给棋局。";
  $("identity").textContent=profile.name+" · "+profile.id.slice(0,8);
  $("points").textContent=profile.points;
  $("scoreboard").textContent="胜 "+profile.wins+" / 负 "+profile.losses+" / 平 "+profile.draws;
@@ -384,6 +389,8 @@ function render(){
  if(game.level==="gunuce"&&game.result)$("status").textContent=({1:"你赢了",2:"Gunuce获胜",3:"棋盘下满，平局"}[game.result])+" · Gunuce";
  if(game.aiProgress&&!game.result)$("status").textContent=game.aiProgress;
  if(game.aiError&&!game.result)$("status").textContent="Gunuce暂未落子："+game.aiError;
+ if(reviewing){const selected=game.moves[replayStep-1];$("status").textContent=selected?"第 "+replayStep+" 手 · "+(selected.p===1?"黑棋":"白棋")+" · "+(selected.p===game.humanColor?"你":"AI")+" 落子 "+selected.coord:"开局前 · 黑棋先手";}
+ $("gameControls").hidden=reviewing;$("actionRow").hidden=reviewing;$("reviewToolbar").hidden=!reviewing;$("reviewTimeline").hidden=!reviewing;
  $("retryAI").hidden=!(game.level==="gunuce"&&game.aiError&&!game.result);
  $("startGame").disabled=reviewing||!!game.result||game.startedGame;
  $("startGame").textContent=game.result?"本局已结束":game.startedGame?"计时已开始":"开始下棋";
@@ -392,8 +399,10 @@ function render(){
  const left=Math.max(0,3-game.undo);
  $("undo").textContent=left?"悔棋（剩 "+left+" 次免费）":"悔棋（10 积分/次）";
  $("hint").disabled=reviewing||!game.startedGame||!!game.result||game.turn!==game.humanColor||remoteBusy;
- $("review").disabled=!game.moves.length;
- const display=activeTab==="replay"?replay(game.moves)[replayStep]:game.b;
+ $("review").disabled=!game.moves.length;$("tab-replay").disabled=!game.moves.length;
+ const stats=summarizeQuality(game.moves,game.humanColor);
+ const frames=reviewing?replay(game.moves):null;if(reviewing)renderReviewPanel(frames,stats);
+ const display=reviewing?frames[replayStep]:game.b;
  draw(display,activeTab==="replay"?(replayStep?game.moves[replayStep-1].i:-1):game.moves.at(-1)?.i??-1);
  $("history").innerHTML=game.moves.map((m,j)=>"<button class='move "+(activeTab==="replay"&&replayStep===j+1?"selected":"")+"' data-step='"+(j+1)+"'>"+(j+1)+". "+(m.p===1?"●":"○")+" "+m.coord+" · "+m.seconds.toFixed(1)+"s</button>").join("");
  $("history").querySelectorAll("[data-step]").forEach(x=>x.onclick=()=>{replayStep=Number(x.dataset.step);activate("replay");});
@@ -414,7 +423,7 @@ function render(){
   "。推荐："+q.alternatives.map(coord).join("、")+
   "。搜索深度 "+q.depth+" 层；非职业引擎结论。";
  } else $("analysis").textContent=m.analysisError||"正在后台搜索评估这一步……";
- const stats=summarizeQuality(game.moves,game.humanColor),completed=stats.ready===stats.total&&stats.total>0;
+ const completed=stats.ready===stats.total&&stats.total>0;
  const formatRatio=x=>x===null?"未测得":(x*100).toFixed(1)+"%";
  $("qualityScore").textContent=stats.score===null?"—":stats.score+" / 100"+(game.result&&completed?"":" · 临时");
  $("top1Rate").textContent=stats.scored?formatRatio(stats.top1):"—";
@@ -440,8 +449,8 @@ function render(){
   "最近玩家着 "+latest.coord+"：正在后台计算搜索建议。"):"第一手请落子，系统随后分析。";
  renderShop();
 }
-function renderReviewPanel(frames){
- const stats=summarizeQuality(game.moves,game.humanColor),playerMoves=game.moves.filter(move=>move.p===game.humanColor);
+function renderReviewPanel(frames,stats){
+ const playerMoves=game.moves.filter(move=>move.p===game.humanColor);
  $("reviewScore").textContent=stats.score===null?"—":stats.score+" / 100";$("reviewCoverage").textContent=stats.ready+" / "+stats.total;
  const mistakes=playerMoves.filter(move=>move.quality&&(move.quality.severe||String(move.quality.category||"").includes("漏杀")||String(move.quality.category||"").includes("漏防"))).length;
  $("reviewMistakes").textContent=String(mistakes);$("reviewTactical").textContent=stats.tacticalRate===null?"暂无":(stats.tacticalRate*100).toFixed(0)+"%";$("reviewSummary").textContent=storyForGame(stats);
