@@ -19,8 +19,9 @@ let jwks;
 function corsHeaders(request, env) {
   const origin = request.headers.get("Origin") || "";
   const allowed = (env.FRONTEND_ORIGIN || "https://nkfff.github.io").replace(/\/$/, "");
-  const devOrigin = env.DEV_ORIGIN || "";
-  if (origin && (origin === allowed || origin === devOrigin)) {
+  const appOrigins = String(env.APP_ORIGINS || "").split(",").map(value => value.trim().replace(/\/$/, "")).filter(Boolean);
+  const allowedOrigins = new Set([allowed, env.DEV_ORIGIN || "", ...appOrigins].filter(Boolean));
+  if (origin && allowedOrigins.has(origin)) {
     return {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Headers": "Authorization, Content-Type",
