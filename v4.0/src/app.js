@@ -1,6 +1,7 @@
 import {installOfflineCache} from "./offline-cache.js";
 import {requestGunuce,cancelGunuce} from "./gunuce.js";
-const LEVELS={...BASE_LEVELS,gunuce:{label:"Gunuce",reward:0}};
+import {WIN_REWARDS,gameReward} from "./rewards.js";
+const LEVELS={...BASE_LEVELS,gunuce:{label:"Gunuce",reward:WIN_REWARDS.gunuce}};
 import {SIZE,CELLS,LEVELS as BASE_LEVELS,coord,inside,spot,winLine,chooseAI,advice,replay,rankedMoves} from "./engine.js";
 import {initAccount,bearer,loggedIn,cloudConfigured} from "./account.js";
 import {summarizeQuality} from "./assessment.js";
@@ -280,7 +281,7 @@ function startGame(){
  if(activeTab!=="game"||!game||game.startedGame||game.result)return;
  const selectedLevel=$("difficulty").value;game.level=LEVELS[selectedLevel]?selectedLevel:"normal";
  game.humanColor=Number($("firstMoveChoice").value)===2?2:1;game.aiColor=3-game.humanColor;
- const now=performance.now();game.cloudSession=game.level!=="gunuce"&&cloudMode();game.playerId=game.cloudSession?profile.id:null;game.syncState="idle";
+ const now=performance.now();game.cloudSession=cloudMode();game.playerId=game.cloudSession?profile.id:null;game.syncState="idle";
  game.aiProgress=null;game.aiError=null;game.started=now;game.turnStart=now;game.startedGame=true;game.turn=1;remoteGame=null;remoteBusy=false;$("firstMoveChoice").disabled=true;
  $("cloudBanner").textContent=game.level==="gunuce"?"Gunuce":game.cloudSession?"本地即时对局 · 云端会话后台准备中":"游客模式 · 对局在本地运行";
  if(game.cloudSession){const gameId=game.id,level=game.level,playerColor=game.humanColor;api("start",{level,gameId,playerColor}).catch(e=>{if(game&&game.id===gameId){game.startSyncError=e.message;$("cloudBanner").textContent="本地对局不受网络影响；终局同步时将重试云端会话。";}});}
@@ -303,11 +304,9 @@ function setDrawEggState(reward,{pending=false,error=""}={}){
 }
 function finish(result){
  game.result=result;game.turn=0;game.ended=performance.now();endedAt=game.ended;clearTimeout(task);task=null;
- game.drawReward=result===3?LEVELS[game.level].reward*5:0;game.events.push({type:"end",result,at:new Date().toISOString()});
+ game.drawReward=result===3?gameReward(game.level,result):0;game.events.push({type:"end",result,at:new Date().toISOString()});
  $("undo").disabled=true;$("review").disabled=false;
- if(game.level==="gunuce"){
-  game.drawReward=0;$("cloudBanner").textContent="Gunuce对局已结束，可导出棋谱";
- }else if(!game.cloudSession){
+ if(!game.cloudSession){
   if(result===1){profile.wins++;profile.points+=LEVELS[game.level].reward;profile.earnedPoints+=LEVELS[game.level].reward;}
   else if(result===2)profile.losses++;
   else{profile.draws++;profile.points+=game.drawReward;profile.earnedPoints+=game.drawReward;}
@@ -493,7 +492,6 @@ function render(){
     ?(game.syncState==="synced"?({1:"胜利！成绩已验证，获得 "+LEVELS[game.level].reward+" 积分",2:"AI 获胜 · 成绩已同步",3:"平局彩蛋 · "+game.drawReward+" 积分已到账"}[game.result]):game.syncState==="failed"?"本局已结束 · 成绩待同步":"本局已结束 · 正在验证成绩")
     :({1:"胜利！获得 "+LEVELS[game.level].reward+" 积分",2:"AI 获胜",3:"平局彩蛋 · 获得 "+game.drawReward+" 积分"}[game.result]))
   :!game.startedGame?"准备就绪 · 你执"+humanStone+"，AI执"+aiStone:game.turn===game.humanColor?"轮到你（"+humanStone+"）":"AI 思考中（"+aiStone+"）";
- if(game.level==="gunuce"&&game.result)$("status").textContent=({1:"你赢了",2:"Gunuce获胜",3:"棋盘下满，平局"}[game.result])+" · Gunuce";
  if(game.aiProgress&&!game.result)$("status").textContent=game.aiProgress;
  if(game.aiError&&!game.result)$("status").textContent="Gunuce暂未落子："+game.aiError;
  if(reviewing){const selected=game.moves[replayStep-1];$("status").textContent=selected?"第 "+replayStep+" 手 · "+(selected.p===1?"黑棋":"白棋")+" · "+(selected.p===game.humanColor?"你":"AI")+" 落子 "+selected.coord:"开局前 · 黑棋先手";}
