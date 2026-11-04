@@ -42,6 +42,42 @@ const freshProfile=()=>({id:crypto.randomUUID(),name:"匿名棋手",points:0,ear
 function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&&typeof s.id==="string"&&Array.isArray(s.owned))return {...freshProfile(),...s,boardSkin:s.boardSkin||s.skin||"classic",pieceSkin:s.pieceSkin||"classic"};}catch{}return freshProfile();}
 let profile=loadProfile(),game,task=null,turnToken=0,activeTab="game",endedAt=0,replayStep=0,lastResult=null,cloudEnabled=false;
 let reviewCandidates=[],currentReviewTopic="五子棋实战棋形";
+let reviewCoachAbort=null,reviewCoachRequest=0,reviewCoachContext="",reviewCoachCache=new Map();
+function resetReviewCoach(){
+ reviewCoachAbort?.abort();reviewCoachAbort=null;reviewCoachRequest++;reviewCoachContext="";
+}
+async function explainCurrentReview(){
+ if(activeTab!=="replay"||!game)return;
+ const key=game.id+":"+replayStep,button=$("reviewOnlineSearch"),status=$("reviewOnlineStatus"),output=$("reviewOnlineResult");
+ if(reviewCoachCache.has(key)){output.textContent=reviewCoachCache.get(key);status.textContent="本次讲解已缓存，无需再次联网。";return;}
+ if(!cloudMode()){status.textContent="免费在线 AI 讲解需要先登录；游客仍可使用全部离线复盘功能。";return;}
+ if(!navigator.onLine){status.textContent="当前设备离线。上方本地棋形分析与训练建议仍然可用。";return;}
+ resetReviewCoach();reviewCoachContext=key;
+ const requestId=++reviewCoachRequest,controller=new AbortController();reviewCoachAbort=controller;
+ button.disabled=true;button.textContent="AI 分析中…";status.textContent="正在根据这盘棋的真实落子生成讲解，不影响离线复盘。";output.textContent="";
+ const timeout=setTimeout(()=>controller.abort(),14000);
+ try{
+  const token=await bearer();
+  if(!token)throw new Error("登录已过期，请重新登录");
+  const moves=game.moves.slice(0,replayStep).map(({i,p})=>({i,p}));
+  const response=await fetch(API_URL+"/api/review/coach",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:JSON.stringify({moves,step:replayStep,playerColor:game.humanColor}),signal:controller.signal});
+  const result=await response.json();
+  if(!response.ok)throw new Error(result.error||"在线 AI 服务暂不可用");
+  if(requestId!==reviewCoachRequest||activeTab!=="replay"||key!==game.id+":"+replayStep)return;
+  const text=String(result.text||"").trim();
+  if(!text)throw new Error("在线 AI 没有返回有效内容");
+  reviewCoachCache.set(key,text);
+  if(reviewCoachCache.size>24)reviewCoachCache.delete(reviewCoachCache.keys().next().value);
+  output.textContent=text;status.textContent="已分析第 "+replayStep+" 手 · AI 负责解释，本地规则引擎负责落点事实。";
+ }catch(error){
+  if(requestId!==reviewCoachRequest)return;
+  status.textContent=error.name==="AbortError"?"在线分析超时，建议稍后再试；离线复盘正常。":"在线分析失败："+error.message+"。可继续使用离线复盘。";
+ }finally{
+  clearTimeout(timeout);
+  if(requestId===reviewCoachRequest){reviewCoachAbort=null;button.disabled=false;button.textContent="在线 AI 解读当前局面";}
+ }
+}
+
 let hints=[],hintVisible=false,hintRequest=0,previewBoard="classic",previewPiece="classic";
 
 const aiWorker = typeof Worker !== "undefined" ? new Worker(new URL("./ai.worker.js", import.meta.url), {type:"module"}) : null;
@@ -450,6 +486,14 @@ function render(){
  renderShop();
 }
 function renderReviewPanel(frames,stats){
+ const key=game.id+":"+replayStep;
+ if(key!==reviewCoachContext){
+  resetReviewCoach();reviewCoachContext=key;
+  const cached=reviewCoachCache.get(key);
+  $("reviewOnlineStatus").textContent=cached?"这一步已有在线 AI 讲解缓存。":"点按下方按钮，可结合当前真实棋局获得更具体的 AI 讲解。";
+  $("reviewOnlineResult").textContent=cached||"";
+  $("reviewOnlineSearch").disabled=false;$("reviewOnlineSearch").textContent="在线 AI 解读当前局面";
+ }
  const playerMoves=game.moves.filter(move=>move.p===game.humanColor);
  $("reviewScore").textContent=stats.score===null?"—":stats.score+" / 100";$("reviewCoverage").textContent=stats.ready+" / "+stats.total;
  const mistakes=playerMoves.filter(move=>move.quality&&(move.quality.severe||String(move.quality.category||"").includes("漏杀")||String(move.quality.category||"").includes("漏防"))).length;
@@ -599,7 +643,7 @@ $("end").onclick=()=>{replayStep=game.moves.length;render();};
 $("reviewSeek").oninput=event=>{replayStep=Number(event.target.value);render();};
 $("reviewExit").onclick=()=>activate("game");
 $("reviewExport").onclick=download;
-$("reviewOnlineSearch").onclick=()=>{const query="五子棋 "+currentReviewTopic+" 实战教学";window.open("https://www.google.com/search?q="+encodeURIComponent(query),"_blank","noopener,noreferrer");};
+$("reviewOnlineSearch").onclick=explainCurrentReview;
 $("export").onclick=download;
 $("firstMoveChoice").onchange=()=>{if(game&&!game.startedGame){game.humanColor=Number($("firstMoveChoice").value)===2?2:1;game.aiColor=3-game.humanColor;render();}};
 $("drawEggClose").onclick=()=>{$("drawEasterEgg").hidden=true;};

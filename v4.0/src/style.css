@@ -429,3 +429,14 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 /* V4.0.9: share the PVP consent popup styling for draw requests. */
 #pvpDrawCancel[hidden],#pvpDrawAccept[hidden],#pvpDrawDecline[hidden]{display:none!important}
 .pvp-draw-card .pvp-undo-mark{background:linear-gradient(145deg,#f6fbff,#eaf3fa);border-color:#d8e6ed;color:#557996}
+
+
+/* V4.0.10 — [hidden] must win over flex/grid layouts on every tab. */
+.side-panel > section[hidden],#panel-replay[hidden],.layout > .board-panel[hidden]{display:none!important}
+.review-ai-card{display:grid;gap:8px}
+.review-ai-card .review-card-heading h3{margin:0}
+.review-ai-chip{font-size:10px;font-weight:700;color:#537c70;background:#e9f5ed;padding:4px 8px;border-radius:99px}
+.review-ai-result{white-space:pre-line;overflow-wrap:anywhere;font-size:12px;line-height:1.85;color:var(--heading,var(--v4-ink));}
+.review-ai-result:not(:empty){padding:12px;border-radius:11px;background:rgba(139,178,154,.1);border:1px solid var(--border,var(--v4-line))}
+.review-ai-card .review-online-button[disabled]{opacity:.65;cursor:progress}
+@media(max-width:640px){.review-ai-card{gap:7px}.review-ai-card .review-online-button{width:100%}}
