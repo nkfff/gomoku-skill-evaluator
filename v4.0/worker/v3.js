@@ -527,7 +527,7 @@ export default {
         return await createTicket(env, ticketMatch[1], user.id, headers);
       }
 
-      const ackResultMatch = url.pathname.match(/^\\/api\\/pvp\\/rooms\\/([0-9a-f-]+)\\/ack-result$/i);
+      const ackResultMatch = url.pathname.match(new RegExp("^/api/pvp/rooms/([0-9a-f-]+)/ack-result$", "i"));
       if (ackResultMatch && request.method === "POST") {
         await ensurePlayer(env, user);
         const room = await roomForPlayer(env, ackResultMatch[1], user.id);
