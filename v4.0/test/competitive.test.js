@@ -91,6 +91,7 @@ test("PVP spectator tickets are invite-code scoped and cannot acquire player pri
   assert.match(room, /MAX_SPECTATORS/);
   assert.match(room, /SPECTATOR_READ_ONLY/);
   assert.match(room, /type: "spectators_updated"/);
+  assert.match(room, /const encodedPayloads = new Map\(\)/);
   assert.match(room, /publicMatchState\(this\.room\.match, viewerPlayerId, \{spectator: !isPlayer\}\)/);
 });
 
@@ -192,6 +193,7 @@ test("PVP frontend restores each signed-in player's room and does not replay rev
   assert.match(pvpUi, /pvpSpectatorPanel/);
   assert.match(pvpUi, /pvpThinkClock/);
   assert.match(pvpUi, /if \(spectatorMode\) return;/);
+  assert.match(pvpUi, /if \(!spectatorMode && roomState && roomState\.match/);
   assert.match(pvpUi, /api\("\/api\/pvp\/rooms\/spectate"/);
   const account = readFileSync(fileURLToPath(new URL("../src/account.js", import.meta.url)), "utf8");
   assert.match(account, /export function waitForAuthReady/);

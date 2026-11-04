@@ -655,18 +655,21 @@ export class PvpRoom {
     const sockets = this.ctx.getWebSockets();
     const spectators = this.spectatorList(sockets);
     const snapshots = new Map();
+    const encodedPayloads = new Map();
     for (const socket of sockets) {
       const attachment = socket.deserializeAttachment() || {};
       let payload = message;
+      let cacheKey = "shared";
       if (message.room && attachment.playerId) {
         const role = attachment.role === "spectator" ? "spectator" : "player";
-        const key = role === "spectator" ? "spectator" : "player:" + attachment.playerId;
-        if (!snapshots.has(key)) {
-          snapshots.set(key, this.snapshot(attachment.playerId, role, spectators));
+        cacheKey = role === "spectator" ? "spectator" : "player:" + attachment.playerId;
+        if (!snapshots.has(cacheKey)) {
+          snapshots.set(cacheKey, this.snapshot(attachment.playerId, role, spectators));
         }
-        payload = {...message, room: snapshots.get(key)};
+        payload = {...message, room: snapshots.get(cacheKey)};
       }
-      this.sendTo(socket, payload);
+      if (!encodedPayloads.has(cacheKey)) encodedPayloads.set(cacheKey, JSON.stringify(payload));
+      try { socket.send(encodedPayloads.get(cacheKey)); } catch {}
     }
   }
 

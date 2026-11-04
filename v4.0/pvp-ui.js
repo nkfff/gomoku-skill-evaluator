@@ -1072,7 +1072,7 @@ waitForAuthReady().then(() => {
 refreshLeaderboard();
 setInterval(() => {
   renderClock();
-  if (roomState && roomState.match && roomState.match.status === "active") drawBoard();
+  if (!spectatorMode && roomState && roomState.match && roomState.match.status === "active") drawBoard();
 }, 250);
 
 let finishedRoomSyncInFlight = false;
