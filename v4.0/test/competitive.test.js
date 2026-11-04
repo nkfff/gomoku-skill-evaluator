@@ -457,7 +457,7 @@ test("PVP frontend restores each signed-in player's room and does not replay rev
   assert.match(pvpUi, /lastPongAt/);
   assert.match(pvpUi, /ack-result/);
   assert.match(pvpUi, /resultSeenByPlayer/);
-  assert.match(pvpUi, /type: "leave_room"/);
+  assert.match(pvpUi, /"\/leave", "POST", \{\}/);
   assert.match(pvpUi, /applySpectatorMovePatch/);
   assert.match(pvpUi, /if \(spectatorMode\) return;/);
   assert.match(pvpUi, /if \(!spectatorMode && roomState && roomState\.match/);
