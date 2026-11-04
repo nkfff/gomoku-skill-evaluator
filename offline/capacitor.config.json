@@ -1,0 +1,11 @@
+{
+  "appId": "io.github.nkfff.gomoku.offline",
+  "appName": "猫猫棋局",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always"
+  }
+}
