@@ -1,6 +1,6 @@
 import {createRemoteJWKSet,jwtVerify} from "jose";
 import {LEVELS,CELLS,winLine,chooseAI,rankedMoves,coord} from "../src/engine.js";
-import {generateReviewCoachStream} from "./review-coach.js";
+import {generateReviewCoachStream,getReviewCoachQuota} from "./review-coach.js";
 
 const award={easy:10,normal:30,hard:80};
 const boards={classic:0,jade:60,night:150,cherry:260,catcafe:480,gold:500};
@@ -121,6 +121,7 @@ export default {
    }
    const user=await authenticate(request,env);
    await ensure(env,user);
+   if(url.pathname==="/api/review/coach/quota"&&request.method==="GET")return reply(await getReviewCoachQuota(env.DB,user.id),200,cors);
    if(url.pathname.startsWith("/api/admin/")){
     adminOrThrow(env,user);
     if(url.pathname==="/api/admin/users"&&request.method==="GET"){
