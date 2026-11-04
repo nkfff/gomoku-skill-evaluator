@@ -248,10 +248,10 @@ export function shouldAnimatePvpDice(match) {
   );
 }
 
-export function publicMatchState(state, viewerPlayerId) {
+export function publicMatchState(state, viewerPlayerId, {spectator = false} = {}) {
   if (!state) return null;
   const isPlayer = viewerPlayerId === state.blackPlayerId || viewerPlayerId === state.whitePlayerId;
-  if (!isPlayer) throw new Error("NOT_A_MATCH_PLAYER");
+  if (!isPlayer && !spectator) throw new Error("NOT_A_MATCH_PLAYER");
   return {
     roomId: state.roomId,
     matchId: state.matchId,
@@ -276,6 +276,6 @@ export function publicMatchState(state, viewerPlayerId) {
     diceWinnerPlayerId: state.diceWinnerPlayerId || state.blackPlayerId,
     finalRatings: state.finalRatings,
     pendingDrawBy: state.pendingDrawBy,
-    viewerPlayerId
+    viewerPlayerId: isPlayer ? viewerPlayerId : null
   };
 }
