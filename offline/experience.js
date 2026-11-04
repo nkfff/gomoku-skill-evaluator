@@ -1,7 +1,7 @@
 // Offline-only presentation and touch navigation; core gameplay remains in v4.0.
 const $=id=>document.getElementById(id);
 const links=[
- ["game","🐾","对弈"],["puzzle","🎯","挑战"],["store","🎨","装扮"],["leaderboard","🏡","我的"]
+ ["game","🐾","对弈"],["replay","🧠","复盘"],["puzzle","🎯","挑战"],["pvp","♟","好友"],["account","🐱","我的"]
 ];
 for(const [id,emoji,label] of links){
  const button=$("tab-"+id);
@@ -18,7 +18,7 @@ if(mark){
  mark.replaceChildren(picture);
 }
 const title=document.querySelector(".brand-lockup h1");
-if(title)title.innerHTML='猫猫棋局 <sup>离线版</sup>';
+if(title)title.innerHTML='猫猫棋局 <sup>联网 · 离线</sup>';
 const identity=$("cloudBanner");
 if(identity)identity.textContent=navigator.onLine?"联网可用 · 本地 AI 不依赖服务器":"当前离线 · 单机功能正常，联网功能等待恢复";
 const cloudStatus=document.querySelector(".cloud-status");
@@ -51,7 +51,7 @@ if(randomPanel){
 const playerPanel=$("panel-leaderboard");
 if(playerPanel){
  const h2=playerPanel.querySelector("h2");
- if(h2)h2.textContent="我的本地战绩";
+ if(h2)h2.textContent="在线排行榜";
  const install=document.createElement("section");install.className="offline-install";
  const heading=document.createElement("strong");heading.textContent="🐱 把猫猫棋局装进口袋";
  const message=document.createElement("p");message.textContent="联网时登录账号、与好友对战；断网时继续本地 AI、残局和复盘。";
@@ -78,6 +78,10 @@ if(accountPanel){
   button.addEventListener("click",()=>$("tab-"+id)?.click());shortcuts.append(button);
  }
  accountPanel.querySelector("h2")?.after(shortcuts);
+ const install=document.createElement("section");install.className="offline-install";
+ const heading=document.createElement("strong");heading.textContent="🐱 猫猫棋局 · 原生 App";
+ const message=document.createElement("p");message.textContent="联网时登录账号、使用 AI 教练和好友 PVP；断网时继续本地 AI、残局与复盘。";
+ install.append(heading,message);accountPanel.append(install);
 }
 for(const panelId of ["panel-leaderboard","panel-store"]){
  const panel=$(panelId);if(!panel)continue;
