@@ -55,7 +55,7 @@ async function explainCurrentReview(){
  resetReviewCoach();
  const requestId=++reviewCoachRequest,controller=new AbortController();reviewCoachAbort=controller;
  button.disabled=true;button.textContent="AI 正在分析…";
- status.textContent="正在连接棋局教练，讲解将逐字显示。";output.textContent="";
+ status.textContent="正在连接棋局教练，讲解将逐字显示。";status.classList.add("is-streaming");output.textContent="";
  let timeout=null;
  try{
   const token=await bearer();
@@ -104,7 +104,7 @@ async function explainCurrentReview(){
   status.textContent=error.name==="AbortError"?"连接超过 60 秒仍未完成，请稍后重试；本地复盘不受影响。":"在线分析失败："+error.message+"。本次失败不会扣除 AI 次数。";
  }finally{
   if(timeout)clearTimeout(timeout);
-  if(requestId===reviewCoachRequest){reviewCoachAbort=null;button.disabled=false;button.textContent="在线 AI 解读当前局面";}
+  if(requestId===reviewCoachRequest){status.classList.remove("is-streaming");reviewCoachAbort=null;button.disabled=false;button.textContent="在线 AI 解读当前局面";}
  }
 }
 
@@ -520,6 +520,7 @@ function renderReviewPanel(frames,stats){
  if(key!==reviewCoachContext){
   resetReviewCoach();reviewCoachContext=key;
   const cached=reviewCoachCache.get(key);
+  $("reviewOnlineStatus").classList.remove("is-streaming");
   $("reviewOnlineStatus").textContent=cached?"这一步已有在线 AI 讲解缓存。":"点按下方按钮，可结合当前真实棋局获得更具体的 AI 讲解。";
   $("reviewOnlineResult").textContent=cached||"";
   $("reviewOnlineSearch").disabled=false;$("reviewOnlineSearch").textContent="在线 AI 解读当前局面";
