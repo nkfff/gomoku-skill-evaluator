@@ -2,9 +2,9 @@
   "version": "4.0.1",
   "format": "gunuce-fp32-batch1",
   "file": "gunuce.onnx",
-  "sha256": "97f40318e9a839eec55b386708a9da77f58cb718f1f8cd53042b2fb29e3e6191",
+  "sha256": "23d38cef34cb63ebd537a3b34be3f5042f05a24688c98a840b55c4e1a9ee0602",
   "bytes": 4494348,
-  "sourceCheckpointSha256": "e4b45b6d362b4e8961adae7a1f3f2266cdc9e217a3f7ee0b9adb64029c96f26f",
+  "sourceCheckpointSha256": "bd009681037c481e80e3302e36ac43f3513b4ad72247f706eeae71d3c8b4f08b",
   "channels": 64,
   "blocks": 12,
   "input": "state",
@@ -19,7 +19,7 @@
     15
   ],
   "simulations": 128,
-  "modelId": "opening-repair-001-fit-3",
+  "modelId": "white-rl-pilot-001-fit7-update4000",
   "search": {
     "fpuReduction": 0.2,
     "finalTieBreak": [
@@ -30,7 +30,7 @@
   },
   "verification": {
     "positions": 12,
-    "maxPolicyAbsError": 2.6702880859375e-05,
-    "maxValueAbsError": 1.2665987014770508e-06
+    "maxPolicyAbsError": 3.4332275390625e-05,
+    "maxValueAbsError": 8.344650268554688e-07
   }
 }
