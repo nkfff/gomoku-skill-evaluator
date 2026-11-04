@@ -52,29 +52,59 @@ async function explainCurrentReview(){
  if(reviewCoachCache.has(key)){output.textContent=reviewCoachCache.get(key);status.textContent="本次讲解已缓存，无需再次联网。";return;}
  if(!cloudMode()){status.textContent="免费在线 AI 讲解需要先登录；游客仍可使用全部离线复盘功能。";return;}
  if(!navigator.onLine){status.textContent="当前设备离线。上方本地棋形分析与训练建议仍然可用。";return;}
- resetReviewCoach();reviewCoachContext=key;
+ resetReviewCoach();
  const requestId=++reviewCoachRequest,controller=new AbortController();reviewCoachAbort=controller;
- button.disabled=true;button.textContent="AI 分析中…";status.textContent="正在根据这盘棋的真实落子生成讲解，不影响离线复盘。";output.textContent="";
- const timeout=setTimeout(()=>controller.abort(),14000);
+ button.disabled=true;button.textContent="AI 正在分析…";
+ status.textContent="正在连接棋局教练，讲解将逐字显示。";status.classList.add("is-streaming");output.textContent="";
+ let timeout=null;
  try{
   const token=await bearer();
+  if(requestId!==reviewCoachRequest)return;
   if(!token)throw new Error("登录已过期，请重新登录");
   const moves=game.moves.slice(0,replayStep).map(({i,p})=>({i,p}));
-  const response=await fetch(API_URL+"/api/review/coach",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:JSON.stringify({moves,step:replayStep,playerColor:game.humanColor}),signal:controller.signal});
-  const result=await response.json();
-  if(!response.ok)throw new Error(result.error||"在线 AI 服务暂不可用");
+  timeout=setTimeout(()=>controller.abort(),60000);
+  const response=await fetch(API_URL+"/api/review/coach",{method:"POST",headers:{"Content-Type":"application/json",Accept:"text/event-stream",Authorization:"Bearer "+token},body:JSON.stringify({moves,step:replayStep,playerColor:game.humanColor}),signal:controller.signal});
+  if(!response.ok){
+   let detail={};try{detail=await response.json();}catch{}
+   throw new Error(detail.error||("在线 AI 请求失败（HTTP "+response.status+"）"));
+  }
+  if(!response.body)throw new Error("浏览器未能建立流式连接，请刷新后重试");
+  const reader=response.body.getReader(),decoder=new TextDecoder();
+  let buffer="",fullText="",streamDone=false;
+  const consume=frame=>{
+   const lines=frame.split(/\r?\n/);
+   const event=lines.find(line=>line.startsWith("event:"))?.slice(6).trim()||"message";
+   const data=lines.filter(line=>line.startsWith("data:")).map(line=>line.slice(5).trim()).join("\n");
+   if(!data)return;
+   let payload;try{payload=JSON.parse(data);}catch{return;}
+   if(event==="delta"&&typeof payload.text==="string"){
+    fullText+=payload.text;output.textContent=fullText;
+    status.textContent="AI 正在生成讲解… 已收到 "+fullText.length+" 个字符。";
+   }else if(event==="error")throw new Error(payload.error||"模型返回错误");
+   else if(event==="done")streamDone=true;
+  };
+  while(true){
+   const {done,value}=await reader.read();
+   if(done)break;
+   buffer+=decoder.decode(value,{stream:true});
+   let boundary;
+   while((boundary=buffer.search(/\r?\n\r?\n/))>=0){
+    const frame=buffer.slice(0,boundary),separator=buffer.slice(boundary).match(/^\r?\n\r?\n/)[0];
+    buffer=buffer.slice(boundary+separator.length);consume(frame);
+   }
+  }
+  buffer+=decoder.decode();if(buffer.trim())consume(buffer);
   if(requestId!==reviewCoachRequest||activeTab!=="replay"||key!==game.id+":"+replayStep)return;
-  const text=String(result.text||"").trim();
-  if(!text)throw new Error("在线 AI 没有返回有效内容");
-  reviewCoachCache.set(key,text);
+  if(!fullText.trim())throw new Error("模型没有返回有效讲解，请稍后重试");
+  reviewCoachCache.set(key,fullText.trim());
   if(reviewCoachCache.size>24)reviewCoachCache.delete(reviewCoachCache.keys().next().value);
-  output.textContent=text;status.textContent="已分析第 "+replayStep+" 手 · AI 负责解释，本地规则引擎负责落点事实。";
+  status.textContent=streamDone?"讲解完成 · 已针对当前棋局第 "+replayStep+" 手分析。":"讲解已接收 · 当前步 "+replayStep+"。";
  }catch(error){
   if(requestId!==reviewCoachRequest)return;
-  status.textContent=error.name==="AbortError"?"在线分析超时，建议稍后再试；离线复盘正常。":"在线分析失败："+error.message+"。可继续使用离线复盘。";
+  status.textContent=error.name==="AbortError"?"连接超过 60 秒仍未完成，请稍后重试；本地复盘不受影响。":"在线分析失败："+error.message+"。本次失败不会扣除 AI 次数。";
  }finally{
-  clearTimeout(timeout);
-  if(requestId===reviewCoachRequest){reviewCoachAbort=null;button.disabled=false;button.textContent="在线 AI 解读当前局面";}
+  if(timeout)clearTimeout(timeout);
+  if(requestId===reviewCoachRequest){status.classList.remove("is-streaming");reviewCoachAbort=null;button.disabled=false;button.textContent="在线 AI 解读当前局面";}
  }
 }
 
@@ -490,6 +520,7 @@ function renderReviewPanel(frames,stats){
  if(key!==reviewCoachContext){
   resetReviewCoach();reviewCoachContext=key;
   const cached=reviewCoachCache.get(key);
+  $("reviewOnlineStatus").classList.remove("is-streaming");
   $("reviewOnlineStatus").textContent=cached?"这一步已有在线 AI 讲解缓存。":"点按下方按钮，可结合当前真实棋局获得更具体的 AI 讲解。";
   $("reviewOnlineResult").textContent=cached||"";
   $("reviewOnlineSearch").disabled=false;$("reviewOnlineSearch").textContent="在线 AI 解读当前局面";

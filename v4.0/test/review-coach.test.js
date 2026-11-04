@@ -1,13 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {buildReviewCoachContext,buildReviewCoachMessages,generateReviewCoach,reserveReviewCoachQuota} from "../worker/review-coach.js";
+import {buildReviewCoachContext,buildReviewCoachMessages,generateReviewCoachStream,reserveReviewCoachQuota} from "../worker/review-coach.js";
+function mockDb(){
+ const used=new Map();
+ const db={prepare(sql){return {bind(...args){return {
+  async run(){
+   if(sql.includes("INSERT OR IGNORE")){const key=args[0]+":"+args[1];if(!used.has(key))used.set(key,0);}
+   else if(sql.includes("MAX(0,used-1)")){const key=args[0]+":"+args[1];used.set(key,Math.max(0,(used.get(key)||0)-1));}
+   return {meta:{changes:1}};
+  },
+  async first(){const key=args[0]+":"+args[1],value=used.get(key)||0,limit=args[2];if(value>=limit)return null;used.set(key,value+1);return {used:value+1};}
+ };}};}};
+ return {db,used};
+}
+const sample={moves:[{i:112,p:1},{i:113,p:2},{i:97,p:1}],step:3,playerColor:1};
 test("根据真实棋谱生成当前局面事实",()=>{
- const moves=[{i:112,p:1},{i:113,p:2},{i:97,p:1}];
- const ctx=buildReviewCoachContext({moves,step:3,playerColor:1});
- assert.equal(ctx.selected.coord,"H7");assert.equal(ctx.nextColor,2);
- assert.equal(ctx.recentMoves.length,3);
- const messages=buildReviewCoachMessages(ctx);
- assert.match(messages[1].content,/H7/);assert.match(messages[0].content,/不能编造胜率/);
+ const ctx=buildReviewCoachContext(sample);
+ assert.equal(ctx.selected.coord,"H7");assert.equal(ctx.nextColor,2);assert.equal(ctx.recentMoves.length,3);
+ const messages=buildReviewCoachMessages(ctx);assert.match(messages[1].content,/H7/);assert.match(messages[0].content,/不能编造胜率/);
 });
 test("拦截非法、重复落子或步数不匹配的棋谱",()=>{
  assert.throws(()=>buildReviewCoachContext({moves:[{i:112,p:2}],step:1,playerColor:1}));
@@ -15,29 +25,42 @@ test("拦截非法、重复落子或步数不匹配的棋谱",()=>{
  assert.throws(()=>buildReviewCoachContext({moves:[{i:112,p:1}],step:0,playerColor:1}));
  assert.throws(()=>buildReviewCoachContext({moves:[],step:0,playerColor:3}));
 });
-test("在线模型缺失时回退离线而非抛出未处理异常",async()=>{
- await assert.rejects(generateReviewCoach({AI:null},{id:"test"},{moves:[],step:0,playerColor:1}),e=>e.status===503);
+test("在线模型缺失时返回明确降级错误",async()=>{
+ await assert.rejects(generateReviewCoachStream({AI:null,DB:mockDb().db},{id:"test"},sample),e=>e.status===503);
 });
-test("局面分析不修改原棋谱",()=>{const moves=[{i:112,p:1},{i:113,p:2}],serialized=JSON.stringify(moves);buildReviewCoachContext({moves,step:2,playerColor:2});assert.equal(JSON.stringify(moves),serialized);});
-
-test("每人每天免费调用次数限制为 8，使用原子 SQL 扣减",async()=>{
- const used=new Map();
- const db={prepare(sql){return {bind(...args){return {
-  async run(){if(sql.includes("INSERT OR IGNORE")){const key=args[0]+":"+args[1];if(!used.has(key))used.set(key,0);}return {meta:{changes:1}};},
-  async first(){const key=args[0]+":"+args[1],value=used.get(key);if(value>=args[2])return null;used.set(key,value+1);return {used:value+1};}
- };}};}};
- for(let i=0;i<8;i++)await reserveReviewCoachQuota(db,"user-a","2026-11-04");
+test("局面分析不修改原棋谱",()=>{const moves=sample.moves,serialized=JSON.stringify(moves);buildReviewCoachContext({moves,step:3,playerColor:2});assert.equal(JSON.stringify(moves),serialized);});
+test("每人每天免费调用次数限制为 8",async()=>{
+ const {db,used}=mockDb();for(let i=0;i<8;i++)await reserveReviewCoachQuota(db,"user-a","2026-11-04");
  await assert.rejects(reserveReviewCoachQuota(db,"user-a","2026-11-04"),e=>e.status===429);
- assert.equal(used.get("user:user-a:2026-11-04"),8);
- assert.equal(used.get("global:2026-11-04"),8);
+ assert.equal(used.get("user:user-a:2026-11-04"),8);assert.equal(used.get("global:2026-11-04"),8);
 });
-test("全站每日免费推理上限 120 次，不能通过换账号突破",async()=>{
- const used=new Map();
- const db={prepare(sql){return {bind(...args){return {
-  async run(){if(sql.includes("INSERT OR IGNORE")){const key=args[0]+":"+args[1];if(!used.has(key))used.set(key,0);}},
-  async first(){const key=args[0]+":"+args[1],value=used.get(key);if(value>=args[2])return null;used.set(key,value+1);return {used:value+1};}
- };}};}};
- for(let i=0;i<120;i++)await reserveReviewCoachQuota(db,"user-"+i,"2026-11-04");
+test("全站每日免费推理上限 120 次，超限时回滚用户额度",async()=>{
+ const {db,used}=mockDb();for(let i=0;i<120;i++)await reserveReviewCoachQuota(db,"user-"+i,"2026-11-04");
  await assert.rejects(reserveReviewCoachQuota(db,"user-overflow","2026-11-04"),e=>e.status===429);
- assert.equal(used.get("global:2026-11-04"),120);
+ assert.equal(used.get("global:2026-11-04"),120);assert.equal(used.get("user:user-overflow:2026-11-04"),0);
+});
+test("流式输出、关闭 GLM 思考模式并在完成后保留一次额度",async()=>{
+ const {db,used}=mockDb(),encoder=new TextEncoder();let options;
+ const upstream=new ReadableStream({start(c){
+  c.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"【局面判断】"}}]}\n\n'));
+  c.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":" 当前一步是 H7。"}}]}\n\n'));
+  c.enqueue(encoder.encode("data: [DONE]\n\n"));c.close();
+ }});
+ const response=await generateReviewCoachStream({DB:db,AI:{async run(model,input){options={model,...input};return upstream;}}},{id:"user-stream"},sample,{"Access-Control-Allow-Origin":"https://nkfff.github.io"});
+ assert.equal(response.status,200);assert.match(response.headers.get("content-type"),/text\/event-stream/);
+ assert.equal(options.stream,true);assert.equal(options.chat_template_kwargs.enable_thinking,false);assert.equal(options.reasoning_effort,"low");assert.equal(options.max_completion_tokens,360);
+ const body=await response.text();assert.match(body,/event: delta/);assert.match(body,/【局面判断】/);assert.match(body,/event: done/);
+ const day=new Date().toISOString().slice(0,10);assert.equal(used.get("user:user-stream:"+day),1);
+});
+test("模型启动失败时释放用户和全站额度",async()=>{
+ const {db,used}=mockDb();
+ await assert.rejects(generateReviewCoachStream({DB:db,AI:{async run(){throw new Error("429 capacity exceeded");}}},{id:"user-fail"},sample),e=>e.status===503&&/繁忙/.test(e.error));
+ const day=new Date().toISOString().slice(0,10);assert.equal(used.get("user:user-fail:"+day),0);assert.equal(used.get("global:"+day),0);
+});
+test("流式模型无有效内容时释放额度并发出错误事件",async()=>{
+ const {db,used}=mockDb(),encoder=new TextEncoder();
+ const upstream=new ReadableStream({start(c){c.enqueue(encoder.encode("data: [DONE]\n\n"));c.close();}});
+ const response=await generateReviewCoachStream({DB:db,AI:{async run(){return upstream;}}},{id:"user-empty"},sample);
+ const body=await response.text(),day=new Date().toISOString().slice(0,10);
+ assert.match(body,/event: error/);assert.equal(used.get("user:user-empty:"+day),0);assert.equal(used.get("global:"+day),0);
 });
