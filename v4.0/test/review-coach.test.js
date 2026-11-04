@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {buildReviewCoachContext,buildReviewCoachMessages,generateReviewCoachStream,reserveReviewCoachQuota} from "../worker/review-coach.js";
+import {buildReviewCoachContext,buildReviewCoachMessages,generateReviewCoachStream,reserveReviewCoachQuota,getReviewCoachQuota,reviewCoachQuotaSnapshot} from "../worker/review-coach.js";
 function mockDb(){
  const used=new Map();
  const db={prepare(sql){return {bind(...args){return {
@@ -9,7 +9,12 @@ function mockDb(){
    else if(sql.includes("MAX(0,used-1)")){const key=args[0]+":"+args[1];used.set(key,Math.max(0,(used.get(key)||0)-1));}
    return {meta:{changes:1}};
   },
-  async first(){const key=args[0]+":"+args[1],value=used.get(key)||0,limit=args[2];if(value>=limit)return null;used.set(key,value+1);return {used:value+1};}
+  async first(){
+   const key=args[0]+":"+args[1],value=used.get(key)||0;
+   if(sql.includes("SELECT used FROM"))return value?{used:value}:null;
+   const limit=args[2];if(value>=limit)return null;
+   used.set(key,value+1);return {used:value+1};
+  }
  };}};}};
  return {db,used};
 }
@@ -63,4 +68,38 @@ test("流式模型无有效内容时释放额度并发出错误事件",async()=>
  const response=await generateReviewCoachStream({DB:db,AI:{async run(){return upstream;}}},{id:"user-empty"},sample);
  const body=await response.text(),day=new Date().toISOString().slice(0,10);
  assert.match(body,/event: error/);assert.equal(used.get("user:user-empty:"+day),0);assert.equal(used.get("global:"+day),0);
+});
+
+test("查询额度：新用户每日8次，可用额度归零时禁用且给出UTC重置时间",async()=>{
+ const {db}=mockDb();
+ const date="2026-11-04";
+ const fresh=await getReviewCoachQuota(db,"guest-1",date);
+ assert.equal(fresh.user.remaining,8);
+ assert.equal(fresh.global.remaining,120);
+ assert.equal(fresh.canUse,true);
+ assert.equal(fresh.resetAtUTC,"2026-11-05T00:00:00.000Z");
+ for(let i=0;i<8;i++)await reserveReviewCoachQuota(db,"guest-1",date);
+ const empty=await getReviewCoachQuota(db,"guest-1",date);
+ assert.equal(empty.user.used,8);
+ assert.equal(empty.user.remaining,0);
+ assert.equal(empty.canUse,false);
+ assert.equal(empty.reason,"user_exhausted");
+ const tomorrow=await getReviewCoachQuota(db,"guest-1","2026-11-05");
+ assert.equal(tomorrow.user.remaining,8);
+ assert.equal(tomorrow.global.remaining,120);
+});
+test("全站额度不足时每个人即使尚有次数也无法调用",()=>{
+ const state=reviewCoachQuotaSnapshot(1,120,"2026-11-04");
+ assert.equal(state.user.remaining,7);
+ assert.equal(state.global.remaining,0);
+ assert.equal(state.canUse,false);
+ assert.equal(state.reason,"global_exhausted");
+});
+test("查询额度只读取服务端记录，不因页面刷新而清零",async()=>{
+ const {db}=mockDb();
+ await reserveReviewCoachQuota(db,"persistent","2026-11-04");
+ const first=await getReviewCoachQuota(db,"persistent","2026-11-04");
+ const second=await getReviewCoachQuota(db,"persistent","2026-11-04");
+ assert.deepEqual(first,second);
+ assert.equal(second.user.remaining,7);
 });
