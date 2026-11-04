@@ -383,3 +383,7 @@ a{color:var(--v4-accent-deep);text-decoration:none}.app-shell{max-width:1440px;m
 .pvp-undo-actions #pvpUndoCancel[hidden]{display:none!important}
 @media(max-width:640px){.pvp-undo-card{padding:27px 20px 21px;border-radius:22px}.pvp-undo-card h2{font-size:21px}}
 @media(prefers-reduced-motion:reduce){.pvp-undo-backdrop,.pvp-undo-card{animation:none!important}}
+
+/* V4.0.9: share the PVP consent popup styling for draw requests. */
+#pvpDrawCancel[hidden],#pvpDrawAccept[hidden],#pvpDrawDecline[hidden]{display:none!important}
+.pvp-draw-card .pvp-undo-mark{background:linear-gradient(145deg,#f6fbff,#eaf3fa);border-color:#d8e6ed;color:#557996}
