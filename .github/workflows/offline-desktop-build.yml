@@ -1,0 +1,105 @@
+name: Offline Desktop Installers
+on:
+  pull_request:
+    paths:
+      - 'offline/**'
+      - '.github/workflows/offline-desktop-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop-linux:
+    name: Desktop installer - linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GOMOKU_ICON_RENDERER: resvg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install standalone desktop dependencies
+        working-directory: offline/desktop
+        run: npm install --no-audit --no-fund
+      - name: Generate offline game bundle and cute system icons
+        run: node offline/build.mjs
+      - name: Verify local app scripts
+        run: |
+          node --check offline/desktop/main.cjs
+          node --check offline/desktop/generate-icons.mjs
+          node --test offline/tests/*.test.mjs
+      - name: Build installer
+        working-directory: offline/desktop
+        run: npm run pack:linux
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: gomoku-offline-linux-installer
+          path: offline/desktop/dist-installers/*
+          if-no-files-found: error
+
+  desktop-windows:
+    name: Desktop installer - windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      GOMOKU_ICON_RENDERER: resvg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install standalone desktop dependencies
+        working-directory: offline/desktop
+        run: npm install --no-audit --no-fund
+      - name: Generate offline game bundle and cute system icons
+        run: node offline/build.mjs
+      - name: Verify local app scripts
+        run: |
+          node --check offline/desktop/main.cjs
+          node --check offline/desktop/generate-icons.mjs
+          node --test offline/tests/*.test.mjs
+      - name: Build installer
+        working-directory: offline/desktop
+        run: npm run pack:win
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: gomoku-offline-windows-installer
+          path: offline/desktop/dist-installers/*
+          if-no-files-found: error
+
+  desktop-macos:
+    name: Desktop installer - macos
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      GOMOKU_ICON_RENDERER: resvg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install standalone desktop dependencies
+        working-directory: offline/desktop
+        run: npm install --no-audit --no-fund
+      - name: Generate offline game bundle and cute system icons
+        run: node offline/build.mjs
+      - name: Verify local app scripts
+        run: |
+          node --check offline/desktop/main.cjs
+          node --check offline/desktop/generate-icons.mjs
+          node --test offline/tests/*.test.mjs
+      - name: Build installer
+        working-directory: offline/desktop
+        run: npm run pack:mac
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: gomoku-offline-macos-installer
+          path: offline/desktop/dist-installers/*
+          if-no-files-found: error
