@@ -3,6 +3,10 @@ on:
   push:
     tags:
       - 'offline-v*'
+    branches:
+      - main
+    paths:
+      - '.github/workflows/offline-release.yml'
   workflow_dispatch:
     inputs:
       release_tag:
@@ -12,8 +16,11 @@ on:
         default: "offline-v0.1.0-beta.1"
 permissions:
   contents: read
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || (github.ref_type == 'tag' && github.ref_name) || 'offline-v0.1.0-beta.1' }}
 jobs:
   web-pwa:
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
     name: Build offline PWA archive
     runs-on: ubuntu-latest
     steps:
@@ -30,7 +37,7 @@ jobs:
         run: |
           mkdir -p release-assets
           cd offline
-          zip -qr "../release-assets/Gomoku_Offline_PWA_${GITHUB_REF_NAME}.zip" dist
+          zip -qr "../release-assets/Gomoku_Offline_PWA_${RELEASE_TAG}.zip" dist
       - uses: actions/upload-artifact@v4
         with:
           name: release-web-pwa
@@ -39,6 +46,7 @@ jobs:
           retention-days: 7
 
   android:
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
     name: Build Android debug APK
     runs-on: ubuntu-latest
     steps:
@@ -72,7 +80,7 @@ jobs:
       - name: Stage APK
         run: |
           mkdir -p release-assets
-          cp offline/android/app/build/outputs/apk/debug/*.apk "release-assets/Gomoku_Offline_Android_Debug_${GITHUB_REF_NAME}.apk"
+          cp offline/android/app/build/outputs/apk/debug/*.apk "release-assets/Gomoku_Offline_Android_Debug_${RELEASE_TAG}.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: release-android
@@ -81,6 +89,7 @@ jobs:
           retention-days: 7
 
   ios-simulator:
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
     name: Build iOS Simulator app (not IPA)
     runs-on: macos-15
     steps:
@@ -110,7 +119,7 @@ jobs:
         run: |
           mkdir -p release-assets
           cd "$RUNNER_TEMP/gomoku-ios-build/Build/Products/Debug-iphonesimulator"
-          ditto -c -k --sequesterRsrc --keepParent App.app "$GITHUB_WORKSPACE/release-assets/Gomoku_Offline_iOS_Simulator_${GITHUB_REF_NAME}.zip"
+          ditto -c -k --sequesterRsrc --keepParent App.app "$GITHUB_WORKSPACE/release-assets/Gomoku_Offline_iOS_Simulator_${RELEASE_TAG}.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: release-ios-simulator
@@ -119,6 +128,7 @@ jobs:
           retention-days: 7
 
   desktop-linux:
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
     name: Build Linux AppImage
     runs-on: ubuntu-latest
     env:
@@ -149,6 +159,7 @@ jobs:
           retention-days: 7
 
   desktop-windows:
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
     name: Build Windows installer
     runs-on: windows-latest
     env:
@@ -180,6 +191,7 @@ jobs:
           retention-days: 7
 
   desktop-macos:
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
     name: Build macOS DMG
     runs-on: macos-15
     env:
@@ -210,6 +222,7 @@ jobs:
           retention-days: 7
 
   publish-release:
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: offline-v0.1.0-beta.1')) }}
     name: Publish GitHub prerelease
     runs-on: ubuntu-latest
     needs:
@@ -253,9 +266,9 @@ jobs:
       - name: Create GitHub prerelease and attach all installers
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
           target_commitish: ${{ github.sha }}
-          name: 猫猫棋局离线版 ${{ inputs.release_tag || github.ref_name }}
+          name: 猫猫棋局离线版 ${{ env.RELEASE_TAG }}
           body_path: release-notes.md
           draft: false
           prerelease: true
