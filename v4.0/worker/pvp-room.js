@@ -509,7 +509,7 @@ export class PvpRoom {
     }
     if (this.room.match.status === "finished") await this.finishMatch(this.room.match.endReason || "five_in_row");
     else await this.scheduleNextAlarm();
-    this.broadcast({type: "move_accepted", move: result.move, winningLine: result.winningLine, room: this.snapshot(playerId)});
+    this.broadcast({type: "move_accepted", move: result.move, winningLine: result.winningLine, room: true});
   }
 
   async resign(playerId) {
@@ -660,7 +660,29 @@ export class PvpRoom {
       const attachment = socket.deserializeAttachment() || {};
       let payload = message;
       let cacheKey = "shared";
-      if (message.room && attachment.playerId) {
+      if (message.type === "move_accepted" && attachment.role === "spectator" && this.room?.match) {
+        const match = this.room.match;
+        cacheKey = "spectator";
+        payload = {
+          type: "spectator_move",
+          move: message.move,
+          patch: {
+            roomStatus: this.room.status,
+            matchId: match.matchId,
+            status: match.status,
+            revision: match.revision,
+            turnPlayerId: match.turnPlayerId,
+            turnColor: match.turnColor,
+            turnStartedAt: match.turnStartedAt,
+            clocksMs: match.clocksMs,
+            pendingDrawBy: match.pendingDrawBy,
+            result: match.result,
+            winnerPlayerId: match.winnerPlayerId,
+            endReason: match.endReason,
+            endedAt: match.endedAt
+          }
+        };
+      } else if (message.room && attachment.playerId) {
         const role = attachment.role === "spectator" ? "spectator" : "player";
         cacheKey = role === "spectator" ? "spectator" : "player:" + attachment.playerId;
         if (!snapshots.has(cacheKey)) {

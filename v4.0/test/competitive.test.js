@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { chooseAI, CELLS } from "../src/engine.js";
 import { validateSubmittedTimeline, isAdminUser } from "../worker/index.js";
 import {
-  acceptPvpDraw, createMatchState, declinePvpDraw, finishByResign, offerPvpDraw,
+  acceptPvpDraw, applyPvpMove, applySpectatorMovePatch, createMatchState, declinePvpDraw, finishByResign, offerPvpDraw,
   declinePvpRematch, getIncomingPvpRematchInvite, publicMatchState,
   requestPvpRematch, shouldAnimatePvpDice
 } from "../src/pvp.js";
@@ -60,6 +60,43 @@ test("spectator match snapshots are public but remain read-only", () => {
   assert.deepEqual(spectatorView.clocksMs, state.clocksMs);
 });
 
+test("spectator move deltas update the board, move history and clocks without a full snapshot", () => {
+  const initial = createMatchState({
+    roomId:"room-watch", matchId:"match-watch", blackPlayerId:"host-id",
+    whitePlayerId:"guest-id", now:1000
+  });
+  const result = applyPvpMove(initial, {
+    playerId:"host-id", cellIndex:112, actionId:"watchmove0001", now:2500
+  });
+  const patch = {
+    roomStatus:"active",
+    matchId:result.state.matchId,
+    status:result.state.status,
+    revision:result.state.revision,
+    turnPlayerId:result.state.turnPlayerId,
+    turnColor:result.state.turnColor,
+    turnStartedAt:result.state.turnStartedAt,
+    clocksMs:result.state.clocksMs,
+    pendingDrawBy:result.state.pendingDrawBy,
+    result:result.state.result,
+    winnerPlayerId:result.state.winnerPlayerId,
+    endReason:result.state.endReason,
+    endedAt:result.state.endedAt
+  };
+  const applied = applySpectatorMovePatch(initial, {move:result.move,patch});
+  assert.equal(applied.status, "applied");
+  assert.equal(applied.roomStatus, "active");
+  assert.equal(applied.match.board[112], 1);
+  assert.equal(applied.match.moves.length, 1);
+  assert.equal(applied.match.moves[0].thinkMs, 1500);
+  assert.deepEqual(applied.match.clocksMs, result.state.clocksMs);
+  assert.equal(applied.match.turnPlayerId, "guest-id");
+
+  assert.equal(applySpectatorMovePatch(applied.match, {move:result.move,patch}).status, "duplicate");
+  assert.equal(applySpectatorMovePatch(initial, {move:result.move,patch:{...patch,revision:3}}).status, "resync");
+  assert.equal(applySpectatorMovePatch(initial, {move:{...result.move,cellIndex:112},patch}).status, "resync");
+});
+
 test("spectator presence is deduplicated and never counted as a player connection", () => {
   const makeSocket = (readyState, attachment) => ({
     readyState, deserializeAttachment: () => attachment
@@ -92,6 +129,8 @@ test("PVP spectator tickets are invite-code scoped and cannot acquire player pri
   assert.match(room, /SPECTATOR_READ_ONLY/);
   assert.match(room, /type: "spectators_updated"/);
   assert.match(room, /const encodedPayloads = new Map\(\)/);
+  assert.match(room, /type: "spectator_move"/);
+  assert.match(room, /message\.type === "move_accepted"/);
   assert.match(room, /publicMatchState\(this\.room\.match, viewerPlayerId, \{spectator: !isPlayer\}\)/);
 });
 
