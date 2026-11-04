@@ -23,7 +23,7 @@ jobs:
         run: |
           mkdir -p release-assets
           cd offline
-          zip -qr "../release-assets/Gomoku_Offline_PWA_\${GITHUB_REF_NAME}.zip" dist
+          zip -qr "../release-assets/Gomoku_Offline_PWA_${GITHUB_REF_NAME}.zip" dist
       - uses: actions/upload-artifact@v4
         with:
           name: release-web-pwa
@@ -65,7 +65,7 @@ jobs:
       - name: Stage APK
         run: |
           mkdir -p release-assets
-          cp offline/android/app/build/outputs/apk/debug/*.apk "release-assets/Gomoku_Offline_Android_Debug_\${GITHUB_REF_NAME}.apk"
+          cp offline/android/app/build/outputs/apk/debug/*.apk "release-assets/Gomoku_Offline_Android_Debug_${GITHUB_REF_NAME}.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: release-android
@@ -103,7 +103,7 @@ jobs:
         run: |
           mkdir -p release-assets
           cd "$RUNNER_TEMP/gomoku-ios-build/Build/Products/Debug-iphonesimulator"
-          ditto -c -k --sequesterRsrc --keepParent App.app "$GITHUB_WORKSPACE/release-assets/Gomoku_Offline_iOS_Simulator_\${GITHUB_REF_NAME}.zip"
+          ditto -c -k --sequesterRsrc --keepParent App.app "$GITHUB_WORKSPACE/release-assets/Gomoku_Offline_iOS_Simulator_${GITHUB_REF_NAME}.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: release-ios-simulator
@@ -246,8 +246,8 @@ jobs:
       - name: Create GitHub prerelease and attach all installers
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: \${{ github.ref_name }}
-          name: 猫猫棋局离线版 \${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          name: 猫猫棋局离线版 ${{ github.ref_name }}
           body_path: release-notes.md
           draft: false
           prerelease: true
@@ -255,4 +255,4 @@ jobs:
           fail_on_unmatched_files: true
           files: release-assets/*
         env:
-          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
