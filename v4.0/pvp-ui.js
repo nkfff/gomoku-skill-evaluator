@@ -18,6 +18,7 @@ let drawModalRequestKey = "";
 let idleModalRequestKey = "";
 let socket = null;
 let reconnectTimer = null;
+let reconnectAttempts = 0;
 let heartbeatTimer = null;
 let lastPongAt = 0;
 let intentionalClose = false;
@@ -147,6 +148,18 @@ function closeSocket() {
   lastPongAt = 0;
 }
 
+function scheduleSocketReconnect(){
+  if(intentionalClose||!roomId||reconnectTimer||!navigator.onLine)return;
+  const delay=Math.min(15000,1500*Math.pow(2,Math.min(reconnectAttempts++,4)));
+  reconnectTimer=setTimeout(()=>{
+    reconnectTimer=null;
+    if(intentionalClose||!roomId||!navigator.onLine)return;
+    connectSocket(roomId).catch(error=>{
+      notice("好友对战连接恢复失败，将继续重试：" + error.message,true);
+      scheduleSocketReconnect();
+    });
+  },delay);
+}
 async function connectSocket(id, suppliedTicket = "") {
   if (!id) return;
   closeSocket();
@@ -163,6 +176,7 @@ async function connectSocket(id, suppliedTicket = "") {
   const ws = new WebSocket(wsBase + "/api/pvp/rooms/" + encodeURIComponent(id) + "/ws?ticket=" + encodeURIComponent(ticketResult.ticket));
   socket = ws;
   ws.onopen = () => {
+    reconnectAttempts = 0;
     lastPongAt = Date.now();
     if ($("pvpIdleModal") && !$("pvpIdleModal").hidden) {
       $("pvpIdleContinue").disabled = false;
@@ -196,7 +210,7 @@ async function connectSocket(id, suppliedTicket = "") {
     }
     if (!intentionalClose && roomId) {
       notice("连接中断，正在自动重连；已确认的棋盘状态不会丢失。", true);
-      reconnectTimer = setTimeout(() => connectSocket(roomId).catch(error => notice(error.message, true)), 1500);
+      scheduleSocketReconnect();
     }
   };
 }
@@ -1325,7 +1339,7 @@ async function restorePvpRoomOnLoad() {
   try {
     await waitForAuthReady();
     await tokenOrThrow();
-    if (restoredPlayerId === playerId && roomId && roomState) return;
+    if (restoredPlayerId === playerId && roomId && roomState && socket?.readyState === WebSocket.OPEN) return;
 
     const saved = loadRoomSession();
     const shouldRestoreSpectator = initialWatch || saved?.role === "spectator";
@@ -1395,6 +1409,7 @@ async function restorePvpRoomOnLoad() {
       $("pvpRoom").hidden = true;
       $("pvpLobby").hidden = false;
     }
+    if(roomId && !intentionalClose && navigator.onLine && ![403,404,410].includes(error.status))scheduleSocketReconnect();
     notice("恢复好友房间失败：" + error.message, true);
   } finally {
     roomRestoreInProgress = false;
@@ -1425,6 +1440,8 @@ window.addEventListener("offline", () => {
 });
 window.addEventListener("online", () => {
   intentionalClose = false;
+  restoredPlayerId = "";
+  reconnectAttempts = 0;
   notice("网络已恢复，正在检查好友房间…");
   refreshLeaderboard();
   if (loggedIn()) restorePvpRoomOnLoad();
