@@ -77,6 +77,7 @@ function restoreCurrentGame(){
     game.turnStart=performance.now()-Math.max(0,snapshot.turnElapsedMs);
     game.aiProgress=null;game.aiError=null;
     endedAt=game.result?game.started+Math.max(0,snapshot.elapsedMs):0;
+    if(game.result)game.ended=endedAt;
     $("difficulty").value=game.level;
     $("firstMoveChoice").value=String(game.humanColor);
     $("firstMoveChoice").disabled=true;
