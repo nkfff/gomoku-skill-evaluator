@@ -384,7 +384,7 @@ function scheduleAI(){
    if(!choice||!Number.isInteger(choice.index)||choice.index<0||choice.index>=CELLS||game.b[choice.index])throw Error("AI返回了非法落点");
    game.aiProgress=null;const prior=game.b.slice();drop(choice.index,aiColor,(performance.now()-t0)/1000,{...advice(prior,aiColor,choice.index),reason:choice.reason,nodes:choice.nodes,depth:choice.depth});
    if(!game.result){game.turn=game.humanColor;game.turnStart=performance.now();}persistCurrentGame();render();
-  }catch(error){if(current===turnToken&&game&&game.id===aiGameId&&!game.result){if(game.level==="gunuce"){game.aiProgress=null;game.aiError=error.message;render();}else{game.aiError=error.message;game.aiProgress=null;$("status").textContent="AI 思考失败，请重试："+error.message;render();persistCurrentGame();}}}
+  }catch(error){if(current===turnToken&&game&&game.id===aiGameId&&!game.result){if(game.level==="gunuce"){game.aiProgress=null;game.aiError=error.message;persistCurrentGame();render();}else{game.aiError=error.message;game.aiProgress=null;$("status").textContent="AI 思考失败，请重试："+error.message;render();persistCurrentGame();}}}
  },120);
 }
 async function human(i){
@@ -543,10 +543,10 @@ function render(){
     :({1:"胜利！获得 "+LEVELS[game.level].reward+" 积分",2:"AI 获胜",3:"平局彩蛋 · 获得 "+game.drawReward+" 积分"}[game.result]))
   :!game.startedGame?"准备就绪 · 你执"+humanStone+"，AI执"+aiStone:game.turn===game.humanColor?"轮到你（"+humanStone+"）":"AI 思考中（"+aiStone+"）";
  if(game.aiProgress&&!game.result)$("status").textContent=game.aiProgress;
- if(game.aiError&&!game.result)$("status").textContent="Gunuce暂未落子："+game.aiError;
+ if(game.aiError&&!game.result)$("status").textContent="AI 暂未落子："+game.aiError;
  if(reviewing){const selected=game.moves[replayStep-1];$("status").textContent=selected?"第 "+replayStep+" 手 · "+(selected.p===1?"黑棋":"白棋")+" · "+(selected.p===game.humanColor?"你":"AI")+" 落子 "+selected.coord:"开局前 · 黑棋先手";}
  $("gameControls").hidden=reviewing;$("actionRow").hidden=reviewing;$("reviewToolbar").hidden=!reviewing;$("reviewTimeline").hidden=!reviewing;
- $("retryAI").hidden=!(game.level==="gunuce"&&game.aiError&&!game.result);
+ $("retryAI").hidden=!(game.aiError&&!game.result&&game.turn===game.aiColor);
  $("startGame").disabled=reviewing||!!game.result||game.startedGame;
  $("startGame").textContent=game.result?"本局已结束":game.startedGame?"计时已开始":"开始下棋";
  $("firstMoveChoice").disabled=reviewing||game.startedGame&&!game.result;
