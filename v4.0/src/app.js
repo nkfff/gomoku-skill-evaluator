@@ -42,6 +42,54 @@ function applyRemoteProfile(p){if(!p)return;
 const freshProfile=()=>({id:crypto.randomUUID(),name:"匿名棋手",points:0,earnedPoints:0,owned:["classic","board:classic","piece:classic"],skin:"classic",boardSkin:"classic",pieceSkin:"classic",wins:0,losses:0,draws:0,claimed:[]});
 function loadProfile(){try{const s=JSON.parse(localStorage.getItem(STORE));if(s&&typeof s.id==="string"&&Array.isArray(s.owned))return {...freshProfile(),...s,boardSkin:s.boardSkin||s.skin||"classic",pieceSkin:s.pieceSkin||"classic"};}catch{}return freshProfile();}
 let profile=loadProfile(),game,task=null,turnToken=0,activeTab="game",endedAt=0,replayStep=0,lastResult=null,cloudEnabled=false;
+const ACTIVE_GAME_STORE="gomoku-v4-active-ai-game";
+function persistCurrentGame(){
+  if(!game?.startedGame)return;
+  try{
+    const now=performance.now();
+    localStorage.setItem(ACTIVE_GAME_STORE,JSON.stringify({
+      version:1, game,
+      elapsedMs:Math.max(0,now-game.started),
+      turnElapsedMs:Math.max(0,now-game.turnStart),
+      savedAt:Date.now()
+    }));
+  }catch(error){console.warn("Unable to save AI match:",error);}
+}
+function restoreCurrentGame(){
+  try{
+    const raw=localStorage.getItem(ACTIVE_GAME_STORE);
+    if(!raw)return false;
+    const snapshot=JSON.parse(raw),old=snapshot?.game;
+    if(snapshot.version!==1||!old?.startedGame||!Array.isArray(old.b)||old.b.length!==CELLS||
+       !Array.isArray(old.moves)||old.moves.length>CELLS||!LEVELS[old.level]||
+       ![1,2].includes(old.humanColor)||old.aiColor!==3-old.humanColor||
+       ![0,1,2,3].includes(old.result)||!Number.isFinite(snapshot.elapsedMs)||
+       !Number.isFinite(snapshot.turnElapsedMs))throw Error("Invalid saved match");
+    const board=Array(CELLS).fill(0);
+    for(const move of old.moves){
+      if(!Number.isInteger(move.i)||move.i<0||move.i>=CELLS||board[move.i]||
+         ![1,2].includes(move.p))throw Error("Invalid move history");
+      board[move.i]=move.p;
+    }
+    if(board.some((value,i)=>value!==old.b[i]))throw Error("Board does not match move history");
+    game={...old,b:board};
+    game.started=performance.now()-Math.max(0,snapshot.elapsedMs);
+    game.turnStart=performance.now()-Math.max(0,snapshot.turnElapsedMs);
+    game.aiProgress=null;game.aiError=null;
+    endedAt=game.result?game.started+Math.max(0,snapshot.elapsedMs):0;
+    $("difficulty").value=game.level;
+    $("firstMoveChoice").value=String(game.humanColor);
+    $("firstMoveChoice").disabled=true;
+    $("review").disabled=!game.moves.length;
+    activeTab="game";
+    activate("game");
+    if(!game.result&&game.turn===game.aiColor)scheduleAI();
+    return true;
+  }catch(error){
+    console.warn("Discarding invalid AI game backup:",error);
+    return false;
+  }
+}
 let reviewCandidates=[],currentReviewTopic="五子棋实战棋形";
 let reviewCoachAbort=null,reviewCoachRequest=0,reviewCoachContext="",reviewCoachCache=new Map();
 
@@ -264,8 +312,9 @@ async function submitFinishedGame(g){
  $("retrySync").hidden=false;
  await syncPendingSubmissions();
 }
-async function newGame(){
+async function newGame({preserveSave=false}={}){
  if(activeTab==="replay")return;
+ if(!preserveSave)try{localStorage.removeItem(ACTIVE_GAME_STORE);}catch{}
  reviewCandidates=[];
  cancelGunuce();clearTimeout(task);task=null;turnToken++;
  const humanColor=Number($("firstMoveChoice")?.value||1)===2?2:1;
@@ -285,13 +334,14 @@ function startGame(){
  game.aiProgress=null;game.aiError=null;game.started=now;game.turnStart=now;game.startedGame=true;game.turn=1;remoteGame=null;remoteBusy=false;$("firstMoveChoice").disabled=true;
  $("cloudBanner").textContent=game.level==="gunuce"?"Gunuce":game.cloudSession?"本地即时对局 · 云端会话后台准备中":"游客模式 · 对局在本地运行";
  if(game.cloudSession){const gameId=game.id,level=game.level,playerColor=game.humanColor;api("start",{level,gameId,playerColor}).catch(e=>{if(game&&game.id===gameId){game.startSyncError=e.message;$("cloudBanner").textContent="本地对局不受网络影响；终局同步时将重试云端会话。";}});}
- render();formatTime();if(game.turn===game.aiColor)scheduleAI();
+ render();formatTime();persistCurrentGame();if(game.turn===game.aiColor)scheduleAI();
 }
 function drop(i,p,elapsed,analysis=null){
  const before=game.b.slice();hints=[];hintVisible=false;hintRequest++;$("hintPanel").hidden=true;
  game.b[i]=p;playMoveSound(p);
  const record={id:crypto.randomUUID(),i,p,coord:coord(i),seconds:+elapsed.toFixed(2),at:new Date().toISOString(),analysis,quality:null};
  game.moves.push(record);game.events.push({type:"move",id:record.id,i,p,coord:record.coord,seconds:record.seconds,at:record.at,analysis});
+ persistCurrentGame();
  requestAnalysis(before,record);
  if(winLine(game.b,i,p).length){finish(p===game.humanColor?1:2);return;}
  if(game.moves.length===225)finish(3);
@@ -320,7 +370,7 @@ function finish(result){
    $("cloudBanner").textContent="成绩已暂存本地，稍后可重试："+e.message;$("retrySync").hidden=false;render();
   });
  }
- render();localRank();
+ persistCurrentGame();render();localRank();
 }
 function scheduleAI(){
  if(!game||!game.startedGame||game.result||game.turn!==game.aiColor)return;
@@ -333,15 +383,15 @@ function scheduleAI(){
    if(current!==turnToken||!game||game.id!==aiGameId||game.turn!==aiColor||game.result)return;
    if(!choice||!Number.isInteger(choice.index)||choice.index<0||choice.index>=CELLS||game.b[choice.index])throw Error("AI返回了非法落点");
    game.aiProgress=null;const prior=game.b.slice();drop(choice.index,aiColor,(performance.now()-t0)/1000,{...advice(prior,aiColor,choice.index),reason:choice.reason,nodes:choice.nodes,depth:choice.depth});
-   if(!game.result){game.turn=game.humanColor;game.turnStart=performance.now();}render();
-  }catch(error){if(current===turnToken&&game&&game.id===aiGameId&&!game.result){if(game.level==="gunuce"){game.aiProgress=null;game.aiError=error.message;render();}else{game.turn=game.humanColor;game.turnStart=performance.now();$("status").textContent="AI 思考失败，请稍后重试："+error.message;render();}}}
+   if(!game.result){game.turn=game.humanColor;game.turnStart=performance.now();}persistCurrentGame();render();
+  }catch(error){if(current===turnToken&&game&&game.id===aiGameId&&!game.result){if(game.level==="gunuce"){game.aiProgress=null;game.aiError=error.message;render();}else{game.aiError=error.message;game.aiProgress=null;$("status").textContent="AI 思考失败，请重试："+error.message;render();persistCurrentGame();}}}
  },120);
 }
 async function human(i){
  if(!game.startedGame||game.turn!==game.humanColor||game.b[i]||game.result||remoteBusy)return;
  const before=game.b.slice(),evaluation=advice(before,game.humanColor,i);
  drop(i,game.humanColor,(performance.now()-game.turnStart)/1000,evaluation);
- if(!game.result){game.turn=game.aiColor;scheduleAI();}render();
+ if(!game.result){game.turn=game.aiColor;scheduleAI();}persistCurrentGame();render();
 }
 async function undo(){
  if(activeTab!=="game"||!game.startedGame||game.moves.length<2||game.result||game.turn!==game.humanColor||remoteBusy||!game.moves.some(m=>m.p===game.humanColor))return;
@@ -352,7 +402,7 @@ async function undo(){
  const removed=game.moves.splice(-2);for(const m of removed)game.b[m.i]=0;game.undo++;
  if(paid&&!game.cloudSession){profile.points-=10;save();}
  game.events.push({type:"undo",paid,cost:paid?10:0,removed:removed.map(m=>m.coord),at:new Date().toISOString()});
- game.turn=game.humanColor;game.turnStart=performance.now();render();
+ game.turn=game.humanColor;game.turnStart=performance.now();persistCurrentGame();render();
 }
 async function hintMove(){
  if(!game||!game.startedGame||game.turn!==game.humanColor||game.result||remoteBusy||activeTab!=="game")return;
@@ -696,7 +746,7 @@ $("board").addEventListener("click",e=>{
  const c=Math.round((x-32)/40),r=Math.round((y-32)/40);
  if(inside(r,c)&&Math.hypot(x-(32+c*40),y-(32+r*40))<19)human(spot(r,c));
 });
-$("newGame").onclick=newGame;
+$("newGame").onclick=()=>{if(game?.startedGame&&!game.result&&!confirm("当前对局尚未结束，确定放弃本局并重新开始吗？"))return;newGame();};
 $("startGame").onclick=startGame;
 $("soundToggle").onclick=()=>{
  soundEnabled=!soundEnabled;localStorage.setItem(SOUND_STORE,soundEnabled?"on":"off");
@@ -721,20 +771,22 @@ $("export").onclick=download;
 $("firstMoveChoice").onchange=()=>{if(game&&!game.startedGame){game.humanColor=Number($("firstMoveChoice").value)===2?2:1;game.aiColor=3-game.humanColor;render();}};
 $("drawEggClose").onclick=()=>{$("drawEasterEgg").hidden=true;};
 $("setName").onclick=setName;
-$("retryAI").onclick=()=>{if(game?.level==="gunuce"&&game.aiError&&!game.result&&game.turn===game.aiColor){game.aiError=null;scheduleAI();render();}};
+$("retryAI").onclick=()=>{if(game?.aiError&&!game.result&&game.turn===game.aiColor){game.aiError=null;scheduleAI();render();}};
 $("difficulty").onchange=()=>{if(game.startedGame&&!game.result){$("difficulty").value=game.level;alert("请先结束或新开一局再更改难度。");}};
 $("cloudBanner").textContent=cloudConfigured()?"账号服务可连接，未登录时使用游客模式":"游客模式 · 账号服务尚未配置";
-newGame();updateSoundToggle();
+newGame({preserveSave:true});restoreCurrentGame();updateSoundToggle();
 initAccount(async signedIn=>{
  if(signedIn&&cloudConfigured()){
   try{const v=await api("profile",{});applyRemoteProfile(v.profile);$("cloudBanner").textContent="云端账号已连接";}
   catch(e){$("cloudBanner").textContent="云端身份验证失败："+e.message;}
  }else {profile=loadProfile();$("cloudBanner").textContent="游客模式 · 数据保存在此浏览器";}
  reviewQuota=null;quotaError="";quotaFetchedAt=0;quotaSeq++;
- await newGame();await localRank();render();window.dispatchEvent(new Event("gomoku:profile-updated"));
+ await localRank();render();window.dispatchEvent(new Event("gomoku:profile-updated"));
  if(activeTab==="replay")void loadReviewQuota(true);
  if(signedIn)await syncPendingSubmissions();
 },remoteProfile=>{applyRemoteProfile(remoteProfile);if(document.activeElement!==$("nickname"))$("nickname").value=remoteProfile.name||"";render();localRank();}).catch(e=>$("cloudBanner").textContent="账号组件错误："+e.message);
+window.addEventListener("pagehide",persistCurrentGame);
+document.addEventListener("visibilitychange",()=>{if(document.hidden)persistCurrentGame();});
 localRank();setInterval(formatTime,150);
 
 installOfflineCache();
