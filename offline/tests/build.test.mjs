@@ -70,3 +70,18 @@ test("native builds use the bundled app and mobile safe areas",()=>{
  assert.match(css,/safe-area-inset-bottom/);
  assert.match(css,/min-height:44px/);
 });
+
+test("beta.5 bundles AI persistence and PVP retry instead of stale web assets",()=>{
+ const game=read("src/app.js");
+ const room=read("pvp-ui.js");
+ const build=readFileSync(path.join(root,"build.mjs"),"utf8");
+ assert.match(build,/0\.1\.0-beta\.5/);
+ assert.match(game,/gomoku-v4-active-ai-game/);
+ assert.match(game,/function restoreCurrentGame\(/);
+ assert.match(game,/window\.addEventListener\("pagehide",persistCurrentGame\)/);
+ assert.match(game,/newGame\(\{preserveSave:true\}\);restoreCurrentGame\(\)/);
+ const auth=game.slice(game.indexOf("initAccount(async signedIn"),game.indexOf("localRank();setInterval(formatTime",game.indexOf("initAccount(async signedIn")));
+ assert.doesNotMatch(auth,/await newGame\(/);
+ assert.match(room,/function scheduleSocketReconnect\(/);
+ assert.match(room,/roomState && socket\?\.readyState === WebSocket\.OPEN/);
+});
