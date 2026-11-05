@@ -1,6 +1,6 @@
 {
   "name": "cat-gomoku-offline-desktop",
-  "version": "0.1.0-beta.4",
+  "version": "0.1.0-beta.5",
   "private": true,
   "description": "Cat Gomoku Offline desktop installers",
   "main": "main.cjs",
