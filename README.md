@@ -42,7 +42,9 @@
 
 技术架构：前端使用 HTML/CSS/JavaScript，部署于 GitHub Pages；账号认证使用 Supabase；云端业务使用 Cloudflare Workers、D1 与 Durable Objects。
 
-- **Hybrid App 配色修复（beta.4）**：统一浅色 App 外壳的高对比语义色，修复夜间/金色棋盘主题导致的浅底浅字、浅色主按钮白字不清等问题；增加 36 种棋盘/棋子皮肤组合的 WCAG AA 对比度测试。\n\n## 离线原生 App · Hybrid Edition
+- **Hybrid App 配色修复（beta.4）**：统一浅色 App 外壳的高对比语义色，修复夜间/金色棋盘主题导致的浅底浅字、浅色主按钮白字不清等问题；增加 36 种棋盘/棋子皮肤组合的 WCAG AA 对比度测试。
+
+## 离线原生 App · Hybrid Edition
 
 **当前版本：** [offline-v0.1.0-beta.5 · 下载全部平台]( https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.5 )
 
