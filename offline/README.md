@@ -90,6 +90,7 @@ Android / iOS 原生工程：
 - macOS Apple Silicon arm64 与 Intel x64 DMG 已通过 CodeResources、签名结构及架构验证；当前 ad-hoc 签名未经过 Apple Developer ID 公证，Gatekeeper 仍可能提示风险。免提示发行需要 Developer ID + Apple Notarization。
 - Windows / Linux 当前为测试安装包，正式签名与实体设备验收仍待完成。
 
+**beta.5（已发布）**：https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.5  
 **beta.2**：https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.2  
 **beta.3（已发布）**：Hybrid 联网/离线 App，包含账号、好友 PVP、AI 复盘入口与五项移动导航：https://github.com/nkfff/gomoku-skill-evaluator/releases/tag/offline-v0.1.0-beta.3
 
