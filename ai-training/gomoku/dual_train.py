@@ -12,6 +12,7 @@ import torch
 
 from .encoding import encode_state
 from .game import BLACK, WHITE, GomokuGame
+from .gunuce import GunuceONNXOpponent
 from .diagnostics import append_jsonl, make_ply_record
 from .legacy_opponent import LegacyEngineOpponent
 from .league import TacticalRuleOpponent, load_opponent_league
@@ -462,18 +463,20 @@ def _load_initial_model(
     model: torch.nn.Module,
     self_play_replay: ReplayBuffer,
     device: torch.device,
-) -> None:
+) -> int:
     checkpoint = torch.load(path, map_location=device, weights_only=False)
     if "model_state_dict" not in checkpoint:
         raise ValueError(f"checkpoint has no model_state_dict: {path}")
     model.load_state_dict(checkpoint["model_state_dict"])
 
-    # Import the completed V4.1.4 self-play replay as the starting experience.
+    # A model-only champion snapshot intentionally starts with fresh optimizer
+    # and replay state. Full checkpoints may contribute their self-play replay.
     existing = checkpoint.get(
         "self_play_replay_samples",
         checkpoint.get("replay_samples", []),
     )
     self_play_replay.add_many(existing)
+    return int(checkpoint.get("round_index", 0))
 
 
 def _append_dual_log(path: Path, row: dict[str, object]) -> None:
@@ -504,10 +507,12 @@ def _build_dual_scheduler(
     schedule and restore its scheduler state.
     """
     if checkpoint_run_config is None:
-        schedule_start_round = 0
+        schedule_start_round = int(start_round)
         schedule_base_lr = float(args.learning_rate)
         schedule_warmup_steps = int(args.warmup_steps)
-        total_steps = max(1, int(args.rounds) * int(args.updates_per_round))
+        total_steps = max(
+            1, (int(args.rounds) - schedule_start_round) * int(args.updates_per_round)
+        )
         schedule_mode = "initial"
         restore_scheduler_state = False
     else:
@@ -669,13 +674,20 @@ def run_training(args: argparse.Namespace) -> Path:
     else:
         if not args.init_checkpoint:
             raise SystemExit("provide --init-checkpoint or --resume")
-        _load_initial_model(
+        start_round = _load_initial_model(
             Path(args.init_checkpoint),
             model,
             self_play_replay,
             device,
         )
-        print(f"Initialized from: {args.init_checkpoint}")
+        if args.rounds <= start_round:
+            raise SystemExit(
+                f"--rounds ({args.rounds}) must exceed initial checkpoint round ({start_round})"
+            )
+        print(
+            f"Initialized from: {args.init_checkpoint} | "
+            f"starting round={start_round}"
+        )
         print(f"Imported self-play positions: {len(self_play_replay)}")
 
     scheduler, schedule_config = _build_dual_scheduler(
@@ -700,8 +712,8 @@ def run_training(args: argparse.Namespace) -> Path:
     run_config["device_resolved"] = str(device)
     run_config["model"] = "TEBA-Net-S"
     run_config["parameter_count"] = model.trainable_parameter_count
-    run_config["champion"] = "V4.0 hard / iterative-deepening alpha-beta"
-    run_config["champion_source"] = "v4.0/src/engine.js"
+    run_config["champion"] = "Gunuce ONNX + V4.0 alpha-beta + historical TEBA league"
+    run_config["champion_source"] = "v4.0/models/gunuce.onnx and v4.0/src/engine.js"
 
     search_config = PUCTConfig(
         simulations=args.simulations,
@@ -718,6 +730,19 @@ def run_training(args: argparse.Namespace) -> Path:
     )
     print(f"Loaded historical TEBA opponents: {len(league_opponents)}")
     tactical_opponent = TacticalRuleOpponent()
+    gunuce_opponent = None
+    if args.gunuce_fraction > 0:
+        gunuce_opponent = GunuceONNXOpponent(
+            model_path=args.gunuce_model,
+            simulations=args.gunuce_simulations,
+            c_puct=args.gunuce_c_puct,
+            fpu_reduction=args.gunuce_fpu_reduction,
+            intra_op_threads=args.gunuce_threads,
+        )
+        print(
+            f"Loaded frozen Gunuce opponent: {gunuce_opponent.name} | "
+            f"sha256={gunuce_opponent.model_sha256}"
+        )
 
     run_rounds = args.run_rounds if args.run_rounds is not None else args.rounds - start_round
     if run_rounds < 1:
@@ -727,6 +752,10 @@ def run_training(args: argparse.Namespace) -> Path:
         raise ValueError("checkpoint interval must be positive and snapshot interval non-negative")
     if not 0.0 <= args.league_fraction <= 1.0:
         raise ValueError("--league-fraction must be in [0, 1]")
+    if not 0.0 <= args.gunuce_fraction <= 1.0:
+        raise ValueError("--gunuce-fraction must be in [0, 1]")
+    if args.gunuce_fraction + args.league_fraction > 1.0:
+        raise ValueError("gunuce-fraction + league-fraction must not exceed 1")
     if not 0.0 <= args.tactical_opponent_fraction <= 1.0:
         raise ValueError("--tactical-opponent-fraction must be in [0, 1]")
 
@@ -777,7 +806,10 @@ def run_training(args: argparse.Namespace) -> Path:
                 learner_player = BLACK if global_game_index % 2 == 0 else WHITE
                 game_record = {}
                 opponent = champion
-                if rng.random() < args.league_fraction:
+                opponent_draw = rng.random()
+                if gunuce_opponent is not None and opponent_draw < args.gunuce_fraction:
+                    opponent = gunuce_opponent
+                elif opponent_draw < args.gunuce_fraction + args.league_fraction:
                     if rng.random() < args.tactical_opponent_fraction:
                         opponent = tactical_opponent
                     elif league_opponents:
@@ -982,6 +1014,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--league-fraction", type=float, default=0.0)
     parser.add_argument("--league-max-opponents", type=int, default=8)
     parser.add_argument("--tactical-opponent-fraction", type=float, default=0.2)
+    parser.add_argument("--gunuce-fraction", type=float, default=0.0)
+    parser.add_argument("--gunuce-model", default=None)
+    parser.add_argument("--gunuce-simulations", type=int, default=64)
+    parser.add_argument("--gunuce-c-puct", type=float, default=1.5)
+    parser.add_argument("--gunuce-fpu-reduction", type=float, default=0.2)
+    parser.add_argument("--gunuce-threads", type=int, default=1)
     parser.add_argument("--d4-augmentation", action="store_true")
 
     parser.add_argument("--learning-rate", type=float, default=1e-4)
@@ -1007,9 +1045,15 @@ def main() -> None:
     if (
         args.league_max_opponents < 1
         or not 0.0 <= args.league_fraction <= 1.0
+        or not 0.0 <= args.gunuce_fraction <= 1.0
+        or args.gunuce_fraction + args.league_fraction > 1.0
         or not 0.0 <= args.tactical_opponent_fraction <= 1.0
     ):
         raise SystemExit("invalid opponent league settings")
+    if args.gunuce_simulations < 1 or args.gunuce_threads < 1:
+        raise SystemExit("Gunuce simulations and threads must be positive")
+    if args.gunuce_c_puct <= 0 or args.gunuce_fpu_reduction < 0:
+        raise SystemExit("invalid Gunuce PUCT parameters")
     if args.rebase_learning_rate is not None and args.rebase_learning_rate <= 0:
         raise SystemExit("--rebase-learning-rate must be positive")
     if args.champion_width < 1 or args.champion_time_ms < 0 or args.champion_max_depth < 1:
