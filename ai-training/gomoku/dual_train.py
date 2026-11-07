@@ -794,7 +794,13 @@ def run_training(args: argparse.Namespace) -> Path:
                     game_record=game_record,
                     game_id=f"round-{round_index:04d}-selfplay-{game_index + 1:03d}",
                 )
-                append_jsonl(training_games_path, game_record)
+                diagnostic_index = (
+                    (round_index - 1)
+                    * (args.self_play_games_per_round + args.champion_games_per_round)
+                    + game_index
+                )
+                if diagnostic_index % args.diagnostics_every == 0:
+                    append_jsonl(training_games_path, game_record)
                 self_play_replay.add_many(samples)
                 self_play_positions += len(samples)
                 print(
@@ -830,7 +836,14 @@ def run_training(args: argparse.Namespace) -> Path:
                     game_record=game_record,
                     game_id=f"round-{round_index:04d}-champion-{game_index + 1:03d}",
                 )
-                append_jsonl(training_games_path, game_record)
+                diagnostic_index = (
+                    (round_index - 1)
+                    * (args.self_play_games_per_round + args.champion_games_per_round)
+                    + args.self_play_games_per_round
+                    + game_index
+                )
+                if diagnostic_index % args.diagnostics_every == 0:
+                    append_jsonl(training_games_path, game_record)
                 sparring_replay.add_many(learner_samples)
                 teacher_replay.add_many(teacher_samples)
                 sparring_positions += len(learner_samples)
@@ -992,6 +1005,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rounds", type=int, default=30, help="target total round count")
     parser.add_argument("--run-rounds", type=int, default=None, help="maximum rounds to execute in this process")
     parser.add_argument("--checkpoint-interval", type=int, default=1)
+    parser.add_argument("--diagnostics-every", type=int, default=1)
     parser.add_argument("--snapshot-interval", type=int, default=1, help="0 disables model-only snapshots")
     parser.add_argument("--self-play-games-per-round", type=int, default=8)
     parser.add_argument("--champion-games-per-round", type=int, default=8)
@@ -1046,6 +1060,8 @@ def main() -> None:
         raise SystemExit("--run-rounds must be positive")
     if args.checkpoint_interval < 1 or args.snapshot_interval < 0:
         raise SystemExit("checkpoint interval must be positive and snapshot interval non-negative")
+    if args.diagnostics_every < 1:
+        raise SystemExit("--diagnostics-every must be positive")
     if (
         args.league_max_opponents < 1
         or not 0.0 <= args.league_fraction <= 1.0
