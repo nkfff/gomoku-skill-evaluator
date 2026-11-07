@@ -1,0 +1,36 @@
+from gomoku.long_train_gunuce import (
+    _gunuce_promotion_decision,
+    _quick_pass,
+)
+
+
+def test_gunuce_quick_gate_requires_score_and_both_colors():
+    strong = {
+        "pair_score": 0.60,
+        "black_score": 0.55,
+        "white_score": 0.52,
+    }
+    assert _quick_pass(strong, min_score=0.55)
+    assert not _quick_pass({**strong, "white_score": 0.49}, min_score=0.55)
+    assert not _quick_pass({**strong, "pair_score": 0.54}, min_score=0.55)
+
+
+def test_gunuce_promotion_gate_requires_confidence_and_both_colors():
+    strong = {
+        "pair_score": 0.62,
+        "pair_ci_low": 0.53,
+        "pair_ci_high": 0.71,
+        "black_score": 0.58,
+        "white_score": 0.55,
+    }
+    assert _gunuce_promotion_decision(strong, min_score=0.55, ci_lower=0.50)
+    assert not _gunuce_promotion_decision(
+        {**strong, "pair_ci_low": 0.49},
+        min_score=0.55,
+        ci_lower=0.50,
+    )
+    assert not _gunuce_promotion_decision(
+        {**strong, "black_score": 0.47},
+        min_score=0.55,
+        ci_lower=0.50,
+    )
