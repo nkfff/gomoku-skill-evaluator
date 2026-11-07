@@ -15,6 +15,7 @@ from .evaluate import _replay_opening, generate_opening_moves, load_model
 from .game import BLACK, WHITE, GomokuGame
 from .gunuce import GunuceONNXOpponent
 from .mcts import PUCTConfig, PUCTSearch, TorchEvaluator
+from .train import resolve_device
 
 
 def _bootstrap_pair_interval(
@@ -135,11 +136,7 @@ def evaluate_match(
     if max_plies <= opening_plies or max_plies > 225:
         raise ValueError("max_plies must exceed opening_plies and be <= 225")
 
-    torch_device = torch.device(device)
-    if torch_device.type == "mps" and not torch.backends.mps.is_available():
-        raise RuntimeError("MPS was requested but is not available")
-    if torch_device.type == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("CUDA was requested but is not available")
+    torch_device = resolve_device(device)
 
     model, payload = load_model(Path(checkpoint), torch_device)
     search = PUCTSearch(
