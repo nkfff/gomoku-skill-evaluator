@@ -16,13 +16,13 @@ def test_gunuce_encoding_matches_four_plane_contract():
     board[112] = BLACK
     board[113] = WHITE
 
-    encoded = encode_gunuce_state(board, WHITE, 113)
+    encoded = encode_gunuce_state(board, WHITE, 112)
 
     assert encoded.shape == (1, 4, 15, 15)
     assert encoded.dtype == np.float32
     assert encoded[0, 0].reshape(-1)[113] == 1.0
     assert encoded[0, 1].reshape(-1)[112] == 1.0
-    assert encoded[0, 2].reshape(-1)[113] == 1.0
+    assert encoded[0, 2].reshape(-1)[112] == 1.0
     assert np.all(encoded[0, 3] == 0.0)
 
 
@@ -55,7 +55,7 @@ def test_gunuce_search_blocks_unique_immediate_loss():
     board[7 * 15 + 3] = BLACK
 
     search = GunuceSearch(_dummy_infer, simulations=8)
-    result = search.search(board, BLACK, last_move=7 * 15 + 3)
+    result = search.search(board, BLACK, last_move=7 * 15 + 7)
 
     assert result["index"] == 7 * 15 + 8
 
