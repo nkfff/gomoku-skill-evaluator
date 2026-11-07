@@ -39,6 +39,8 @@ Defaults in gomoku.long_train_gunuce:
 | Evaluation simulations | 128 for both models |
 | Updates / round | 100 |
 | Batch size | 64 |
+| Full checkpoint interval | 10 rounds (stage end is always saved) |
+| Game diagnostics | 1 in every 20 games |
 | Learning rate | 2e-5 |
 | Self-play / sparring loss weights | 0.5 / 0.5 |
 | D4 augmentation | enabled |
@@ -51,6 +53,10 @@ A fresh optimizer and fresh sparring/teacher buffers are used when starting
 from the model-only Round 1060 snapshot. The old Round 1560 optimizer/replay
 state is deliberately not resumed. The candidate learner still evolves from
 stage to stage; the champion file remains unchanged unless promotion succeeds.
+To control disk writes, the full replay/optimizer checkpoint is saved every 10
+rounds (and at every stage boundary); up to nine rounds may need to be replayed
+after an abrupt power loss. Game-level move diagnostics are sampled at one in
+every 20 games; all positions are still retained in the training replay buffers.
 
 ## Promotion gates
 
