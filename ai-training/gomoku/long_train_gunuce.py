@@ -411,7 +411,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--eval-games", type=int, default=40)
     parser.add_argument("--confirm-games", type=int, default=100)
-    parser.add_argument("--baseline-eval-games", type=int, default=100)
+    parser.add_argument("--baseline-eval-games", type=int, default=40)
     parser.add_argument("--gunuce-eval-games", type=int, default=40)
     parser.add_argument("--gunuce-confirm-games", type=int, default=100)
     parser.add_argument("--eval-simulations", type=int, default=128)
