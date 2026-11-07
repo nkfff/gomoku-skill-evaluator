@@ -86,6 +86,7 @@ def _training_command(
         "--batch-size", str(args.batch_size),
         "--replay-capacity", str(args.replay_capacity),
         "--checkpoint-interval", str(args.checkpoint_interval),
+        "--diagnostics-every", str(args.diagnostics_every),
         "--snapshot-interval", str(args.snapshot_interval),
         "--league-fraction", str(args.league_fraction),
         "--league-max-opponents", str(args.league_max_opponents),
@@ -396,7 +397,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--updates-per-round", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--replay-capacity", type=int, default=50_000)
-    parser.add_argument("--checkpoint-interval", type=int, default=1)
+    parser.add_argument("--checkpoint-interval", type=int, default=10)
+    parser.add_argument("--diagnostics-every", type=int, default=20)
     parser.add_argument("--snapshot-interval", type=int, default=500)
 
     parser.add_argument("--league-fraction", type=float, default=0.25)
@@ -450,6 +452,8 @@ def main() -> None:
         raise SystemExit("target-rounds and stage-rounds must be positive")
     if args.updates_per_round < 1 or args.simulations < 1:
         raise SystemExit("updates-per-round and simulations must be positive")
+    if args.checkpoint_interval < 1 or args.diagnostics_every < 1:
+        raise SystemExit("checkpoint-interval and diagnostics-every must be positive")
     if args.gunuce_simulations < 1 or args.eval_gunuce_simulations < 1:
         raise SystemExit("Gunuce simulation budgets must be positive")
     if args.gunuce_fraction < 0 or args.league_fraction < 0:
