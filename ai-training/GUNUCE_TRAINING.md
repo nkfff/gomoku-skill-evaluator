@@ -49,6 +49,11 @@ The league's 25% allocation is further split by the tactical-opponent fraction
 (default 20% of league games) between historical TEBA opponents and the
 rule-based tactical opponent.
 
+Gunuce's search considers the full board, while TEBA training normally uses a
+radius-2 candidate set. The sparring pipeline explicitly adds a legal Gunuce
+move to that sample's TEBA teacher mask when it falls outside the local set;
+this prevents valid full-board Gunuce moves from aborting training.
+
 A fresh optimizer and fresh sparring/teacher buffers are used when starting
 from the model-only Round 1060 snapshot. The old Round 1560 optimizer/replay
 state is deliberately not resumed. The candidate learner still evolves from
