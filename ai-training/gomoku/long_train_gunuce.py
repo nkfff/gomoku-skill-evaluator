@@ -63,6 +63,15 @@ def _gunuce_promotion_decision(
     )
 
 
+def _all_benchmarks_pass(
+    incumbent_pass: bool,
+    v40_pass: bool,
+    gunuce_pass: bool,
+) -> bool:
+    """Require progress over own champion and both independent opponents."""
+    return bool(incumbent_pass and v40_pass and gunuce_pass)
+
+
 def _training_command(
     args: argparse.Namespace,
     latest: Path,
@@ -365,7 +374,11 @@ def run_long_training(args: argparse.Namespace) -> Path:
         )
         # Promotion is deliberately strict: a new champion must improve on
         # the previous TEBA champion and pass independent V4.0 and Gunuce gates.
-        promoted = bool(incumbent_pass and v40_pass and gunuce_pass)
+        promoted = _all_benchmarks_pass(
+            incumbent_pass,
+            v40_pass,
+            gunuce_pass,
+        )
 
         if promoted:
             _write_model_checkpoint(candidate_snapshot, best_path, current_round)
