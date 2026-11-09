@@ -50,6 +50,27 @@ def _sample(
     )
 
 
+def _opponent_teacher_mask(game: GomokuGame, move: int, opponent_name: str) -> np.ndarray:
+    """Build a TEBA target mask that includes the opponent's legal move.
+
+    TEBA search normally uses radius-2 candidates. Full-board opponents such as
+    Gunuce may legally choose outside that set; retain that move as a valid
+    one-hot teacher target instead of aborting the training game.
+    """
+    move = int(move)
+    if move not in game.legal_moves():
+        raise RuntimeError(f"{opponent_name} selected an illegal move: {move}")
+    actions = game.get_candidates(radius=2)
+    if move not in actions:
+        actions.append(move)
+    legal_mask = _candidate_mask(actions)
+    if not legal_mask[move]:
+        raise RuntimeError(
+            f"{opponent_name} selected a move outside the legal target mask: {move}"
+        )
+    return legal_mask
+
+
 def play_champion_game(
     model: torch.nn.Module,
     device: torch.device,
@@ -145,21 +166,9 @@ def play_champion_game(
                 opponent_name = "V4.0_CHAMPION"
             move = int(move)
             search_ms = (time.perf_counter() - started) * 1000.0
-            if move not in game.legal_moves():
-                raise RuntimeError(
-                    f"{opponent_name} selected an illegal move: {move}"
-                )
-            # Gunuce searches the full board, whereas TEBA normally restricts
-            # its policy support to radius-2 candidates. Preserve the opponent's
-            # legal demonstration even when it lies outside that local set.
-            actions = game.get_candidates(radius=2)
-            if move not in actions:
-                actions.append(move)
-            legal_mask = _candidate_mask(actions)
-            if not legal_mask[move]:
-                raise RuntimeError(
-                    f"{opponent_name} selected a move outside the legal target mask: {move}"
-                )
+            # Gunuce searches the full board, while TEBA normally uses local
+            # radius-2 candidates. Include any legal teacher move in the target.
+            legal_mask = _opponent_teacher_mask(game, move, opponent_name)
 
             teacher_policy = np.zeros(225, dtype=np.float32)
             teacher_policy[move] = 1.0
