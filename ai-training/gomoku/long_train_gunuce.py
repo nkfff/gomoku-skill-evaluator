@@ -10,6 +10,7 @@ from pathlib import Path
 import torch
 
 from .evaluate_gunuce import evaluate_match
+from .evaluate_v40 import evaluate_v40_match
 from .gunuce import GunuceONNXOpponent
 from .long_train import (
     _append_jsonl,
@@ -192,6 +193,30 @@ def run_long_training(args: argparse.Namespace) -> Path:
             "gunuce": {key: value for key, value in baseline.items() if key != "results"},
         })
 
+    baseline_v40_path = evaluation_dir / f"baseline_round_{best_round:05d}_vs_v40.csv"
+    if not baseline_v40_path.exists():
+        print("\n===== BASELINE: current best TEBA vs V4.0 =====")
+        baseline_v40 = evaluate_v40_match(
+            best_path,
+            device=args.eval_device,
+            games=args.baseline_eval_games,
+            simulations=args.eval_simulations,
+            c_puct=args.eval_c_puct,
+            opening_plies=args.opening_plies,
+            max_plies=args.max_plies,
+            seed=args.seed + 77_778,
+            node_executable=args.node_executable,
+            champion_width=args.champion_width,
+            champion_time_ms=args.champion_time_ms,
+            champion_max_depth=args.champion_max_depth,
+            output=baseline_v40_path,
+        )
+        _append_jsonl(evaluation_log, {
+            "type": "baseline",
+            "round": best_round,
+            "v40": baseline_v40,
+        })
+
     previous_round = current_round
     first_stage = not _is_full_dual_checkpoint(latest)
 
@@ -234,6 +259,23 @@ def run_long_training(args: argparse.Namespace) -> Path:
             args.seed + current_round,
         )
 
+        print("\n===== QUICK EVALUATION: candidate vs V4.0 =====")
+        quick_v40 = evaluate_v40_match(
+            candidate_snapshot,
+            device=args.eval_device,
+            games=args.eval_games,
+            simulations=args.eval_simulations,
+            c_puct=args.eval_c_puct,
+            opening_plies=args.opening_plies,
+            max_plies=args.max_plies,
+            seed=args.seed + current_round + 50_020,
+            node_executable=args.node_executable,
+            champion_width=args.champion_width,
+            champion_time_ms=args.champion_time_ms,
+            champion_max_depth=args.champion_max_depth,
+            output=evaluation_dir / f"round_{current_round:05d}_quick_vs_v40.csv",
+        )
+
         print("\n===== QUICK EVALUATION: candidate vs Gunuce =====")
         quick_gunuce = evaluate_match(
             candidate_snapshot,
@@ -249,6 +291,7 @@ def run_long_training(args: argparse.Namespace) -> Path:
         )
 
         confirmation_incumbent = None
+        confirmation_v40 = None
         confirmation_gunuce = None
         if _quick_pass(quick_incumbent, args.promotion_min_score):
             print("\n===== CONFIRMATION: candidate vs best TEBA =====")
@@ -259,6 +302,24 @@ def run_long_training(args: argparse.Namespace) -> Path:
                 args.confirm_games,
                 args.eval_simulations,
                 args.seed + current_round + 100_003,
+            )
+
+        if _quick_pass(quick_v40, args.promotion_min_score):
+            print("\n===== CONFIRMATION: candidate vs V4.0 =====")
+            confirmation_v40 = evaluate_v40_match(
+                candidate_snapshot,
+                device=args.eval_device,
+                games=args.confirm_games,
+                simulations=args.eval_simulations,
+                c_puct=args.eval_c_puct,
+                opening_plies=args.opening_plies,
+                max_plies=args.max_plies,
+                seed=args.seed + current_round + 150_036,
+                node_executable=args.node_executable,
+                champion_width=args.champion_width,
+                champion_time_ms=args.champion_time_ms,
+                champion_max_depth=args.champion_max_depth,
+                output=evaluation_dir / f"round_{current_round:05d}_confirmation_vs_v40.csv",
             )
 
         if _quick_pass(quick_gunuce, args.promotion_min_score):
@@ -284,6 +345,14 @@ def run_long_training(args: argparse.Namespace) -> Path:
                 ci_lower=args.promotion_ci_lower,
             )
         )
+        v40_pass = (
+            confirmation_v40 is not None
+            and promotion_decision(
+                confirmation_v40,
+                min_score=args.promotion_min_score,
+                ci_lower=args.promotion_ci_lower,
+            )
+        )
         gunuce_pass = (
             confirmation_gunuce is not None
             and _gunuce_promotion_decision(
@@ -292,7 +361,9 @@ def run_long_training(args: argparse.Namespace) -> Path:
                 ci_lower=args.promotion_ci_lower,
             )
         )
-        promoted = bool(incumbent_pass and gunuce_pass)
+        # Promotion is deliberately strict: a new champion must improve on
+        # the previous TEBA champion and pass independent V4.0 and Gunuce gates.
+        promoted = bool(incumbent_pass and v40_pass and gunuce_pass)
 
         if promoted:
             _write_model_checkpoint(candidate_snapshot, best_path, current_round)
@@ -305,16 +376,17 @@ def run_long_training(args: argparse.Namespace) -> Path:
             best_round = current_round
             plateau_evaluations = 0
             print(
-                f"PROMOTED: round {best_round} passed both gates. "
-                f"Gunuce paired score={confirmation_gunuce['pair_score']:.3f}, "
-                f"95% CI=[{confirmation_gunuce['pair_ci_low']:.3f}, "
-                f"{confirmation_gunuce['pair_ci_high']:.3f}]"
+                f"PROMOTED: round {best_round} passed all three gates. "
+                f"TEBA-incumbent={confirmation_incumbent['pair_score']:.3f}, "
+                f"V4.0={confirmation_v40['pair_score']:.3f}, "
+                f"Gunuce={confirmation_gunuce['pair_score']:.3f}"
             )
         else:
             plateau_evaluations += 1
             print(
                 f"NOT PROMOTED: incumbent_pass={incumbent_pass}, "
-                f"gunuce_pass={gunuce_pass}; best remains round {best_round}; "
+                f"v40_pass={v40_pass}, gunuce_pass={gunuce_pass}; "
+                f"best remains round {best_round}; "
                 f"plateau={plateau_evaluations}/{args.early_stop_patience}"
             )
 
@@ -322,11 +394,13 @@ def run_long_training(args: argparse.Namespace) -> Path:
             "type": "stage",
             "round": current_round,
             "quick_vs_incumbent": quick_incumbent,
+            "quick_vs_v40": quick_v40,
             "quick_vs_gunuce": {
                 key: value for key, value in quick_gunuce.items()
                 if key != "results"
             },
             "confirmation_vs_incumbent": confirmation_incumbent,
+            "confirmation_vs_v40": confirmation_v40,
             "confirmation_vs_gunuce": (
                 {
                     key: value for key, value in confirmation_gunuce.items()
@@ -335,6 +409,7 @@ def run_long_training(args: argparse.Namespace) -> Path:
                 if confirmation_gunuce is not None else None
             ),
             "incumbent_pass": bool(incumbent_pass),
+            "v40_pass": bool(v40_pass),
             "gunuce_pass": bool(gunuce_pass),
             "promoted": promoted,
             "best_round": best_round,
@@ -350,6 +425,12 @@ def run_long_training(args: argparse.Namespace) -> Path:
             "best_checkpoint": str(best_path),
             "gunuce_model_sha256": gunuce.model_sha256,
             "gunuce_model": str(gunuce.model_path),
+            "v40_opponent": {
+                "level": "hard",
+                "width": args.champion_width,
+                "time_ms": args.champion_time_ms,
+                "max_depth": args.champion_max_depth,
+            },
         })
 
         if (
@@ -374,8 +455,8 @@ def run_long_training(args: argparse.Namespace) -> Path:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Large-scale TEBA self-improvement with Gunuce ONNX sparring "
-            "and paired-opening promotion gates."
+            "Large-scale TEBA self-improvement with self-play, historical TEBA "
+            "league, V4.0 and Gunuce sparring plus three-way promotion gates."
         )
     )
     parser.add_argument("--device", choices=("auto", "mps", "cpu", "cuda"), default="mps")
@@ -401,10 +482,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--diagnostics-every", type=int, default=20)
     parser.add_argument("--snapshot-interval", type=int, default=500)
 
-    parser.add_argument("--league-fraction", type=float, default=0.25)
+    parser.add_argument("--league-fraction", type=float, default=0.30)
     parser.add_argument("--league-max-opponents", type=int, default=8)
     parser.add_argument("--tactical-opponent-fraction", type=float, default=0.2)
-    parser.add_argument("--gunuce-fraction", type=float, default=0.50)
+    parser.add_argument("--gunuce-fraction", type=float, default=0.40)
     parser.add_argument("--gunuce-simulations", type=int, default=64)
     parser.add_argument("--gunuce-c-puct", type=float, default=1.5)
     parser.add_argument("--gunuce-fpu-reduction", type=float, default=0.2)
@@ -416,6 +497,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--baseline-eval-games", type=int, default=40)
     parser.add_argument("--gunuce-eval-games", type=int, default=40)
     parser.add_argument("--gunuce-confirm-games", type=int, default=100)
+    parser.add_argument("--node-executable", default="node")
     parser.add_argument("--eval-simulations", type=int, default=128)
     parser.add_argument("--eval-c-puct", type=float, default=1.25)
     parser.add_argument("--eval-gunuce-simulations", type=int, default=128)
