@@ -31,9 +31,9 @@ Defaults in gomoku.long_train_gunuce:
 | Stage size | 500 rounds |
 | Self-play games / round | 8 |
 | Sparring games / round | 8 |
-| Gunuce share of sparring games | 50% |
-| Historical TEBA league share | 25% |
-| V4.0 alpha-beta share | 25% |
+| Gunuce share of sparring games | 40% |
+| Historical TEBA league share | 30% |
+| V4.0 alpha-beta share | 30% |
 | Gunuce sparring simulations | 64 |
 | TEBA training simulations | 64 |
 | Evaluation simulations | 128 for both models |
@@ -45,9 +45,12 @@ Defaults in gomoku.long_train_gunuce:
 | Self-play / sparring loss weights | 0.5 / 0.5 |
 | D4 augmentation | enabled |
 
-The league's 25% allocation is further split by the tactical-opponent fraction
-(default 20% of league games) between historical TEBA opponents and the
-rule-based tactical opponent.
+The historical league's 30% allocation is further split by the
+tactical-opponent fraction (default 20% of league games) between historical
+TEBA snapshots (including the initial Round-1060 champion) and the rule-based
+tactical opponent. The remaining 30% is the actual V4.0 hard/王者 alpha-beta
+engine. Thus the learner sees three distinct frozen opponent families:
+historical TEBA, V4.0, and Gunuce, in addition to self-play.
 
 Gunuce's search considers the full board, while TEBA training normally uses a
 radius-2 candidate set. The sparring pipeline explicitly adds a legal Gunuce
@@ -68,18 +71,25 @@ every 20 games; all positions are still retained in the training replay buffers.
 Every 500 rounds:
 
 1. Quick paired-opening comparison against the current best TEBA checkpoint.
-2. Quick paired-opening comparison against frozen Gunuce.
-3. A candidate only enters the corresponding 100-game confirmation if its
+2. Quick paired-opening comparison against the actual V4.0 hard/王者
+   alpha-beta engine (width 14, 500 ms, max depth 10).
+3. Quick paired-opening comparison against frozen Gunuce.
+4. Each benchmark independently enters its 100-game confirmation only if its
    40-game quick result reaches 55% paired score and scores at least 50% as
    both BLACK and WHITE.
-4. Promotion requires both 100-game confirmations to pass:
+5. Promotion requires all three 100-game confirmations (current best TEBA,
+   V4.0, and Gunuce) to pass independently:
    - paired score >= 55%;
    - paired bootstrap 95% CI lower bound > 50%;
    - BLACK score >= 50%;
    - WHITE score >= 50%.
 
 The two color-swapped games in each pair use the same opening. This controls
-opening variance. Win-rate promotion is independent of inference latency.
+opening variance. The current-best comparison measures improvement over the
+learner's own previous champion; the V4.0 and Gunuce matches are independent
+external benchmarks. A candidate is promoted only when it improves over its
+own incumbent and clears both external benchmarks. Win-rate promotion is
+independent of inference latency.
 Latency is reported descriptively; TEBA may run on MPS while ONNX Runtime
 Gunuce runs on CPU, so those latency values are not a hardware-normalized
 benchmark.
@@ -138,3 +148,25 @@ Important files:
 
 The result reports W/D/L, game score, paired score, paired bootstrap 95% CI,
 pair W/D/L, BLACK/WHITE scores, and per-move search latency.
+
+
+## Three-way progress reporting
+
+For each 500-round stage, the evaluation folder contains independent
+color-swapped results:
+
+- `round_NNNNN_quick_vs_incumbent`: candidate versus the previous best TEBA.
+- `round_NNNNN_quick_vs_v40`: candidate versus the V4.0 hard/王者 engine.
+- `round_NNNNN_quick_vs_gunuce`: candidate versus the frozen Gunuce ONNX model.
+- Matching `confirmation` files are generated only when the corresponding
+  quick test passes.
+
+The JSONL history records all three quick metrics, all available confirmation
+metrics, each gate result, and the final promotion decision. Initial baseline
+files record the starting Round-1060 champion against V4.0 and Gunuce.
+Subsequent stages compare each candidate directly with the then-current best
+TEBA, which measures improvement over the learner's own previous champion.
+
+The Python Gunuce value check now matches the deployed browser implementation:
+finite ONNX values are forwarded without clipping or a [-1, 1] assertion;
+NaN and infinite outputs are still rejected.
