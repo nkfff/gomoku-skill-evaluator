@@ -1,6 +1,8 @@
 from gomoku.long_train_gunuce import (
+    _all_benchmarks_pass,
     _gunuce_promotion_decision,
     _quick_pass,
+    build_parser,
 )
 
 
@@ -34,3 +36,20 @@ def test_gunuce_promotion_gate_requires_confidence_and_both_colors():
         min_score=0.55,
         ci_lower=0.50,
     )
+
+
+
+def test_three_way_promotion_requires_all_benchmarks():
+    assert _all_benchmarks_pass(True, True, True)
+    assert not _all_benchmarks_pass(False, True, True)
+    assert not _all_benchmarks_pass(True, False, True)
+    assert not _all_benchmarks_pass(True, True, False)
+
+
+def test_training_mix_reserves_slots_for_gunuce_league_and_v40():
+    args = build_parser().parse_args([])
+
+    assert args.gunuce_fraction == 0.40
+    assert args.league_fraction == 0.30
+    assert args.gunuce_fraction + args.league_fraction == 0.70
+    # dual_train assigns the remaining 30% to its V4.0 alpha-beta engine.
