@@ -145,11 +145,20 @@ def play_champion_game(
                 opponent_name = "V4.0_CHAMPION"
             move = int(move)
             search_ms = (time.perf_counter() - started) * 1000.0
+            if move not in game.legal_moves():
+                raise RuntimeError(
+                    f"{opponent_name} selected an illegal move: {move}"
+                )
+            # Gunuce searches the full board, whereas TEBA normally restricts
+            # its policy support to radius-2 candidates. Preserve the opponent's
+            # legal demonstration even when it lies outside that local set.
             actions = game.get_candidates(radius=2)
+            if move not in actions:
+                actions.append(move)
             legal_mask = _candidate_mask(actions)
             if not legal_mask[move]:
                 raise RuntimeError(
-                    f"{opponent_name} selected a move outside the candidate set: {move}"
+                    f"{opponent_name} selected a move outside the legal target mask: {move}"
                 )
 
             teacher_policy = np.zeros(225, dtype=np.float32)
