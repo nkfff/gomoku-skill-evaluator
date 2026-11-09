@@ -277,8 +277,11 @@ class GunuceSearch:
         state = encode_gunuce_state(node.board, node.player, node.last)
         output = self.infer(state)
         value = float(output["value"])
-        if not math.isfinite(value) or not -1.0 <= value <= 1.0:
-            raise ValueError("Gunuce value output must be finite and in [-1, 1]")
+        # Match v4.0/src/gunuce-search.js: the deployed browser runtime
+        # forwards the ONNX value directly into PUCT without clipping or
+        # imposing a [-1, 1] range check. Only reject non-finite model output.
+        if not math.isfinite(value):
+            raise ValueError("Gunuce value output must be finite")
         proof = node.expand(np.asarray(output["policy"], dtype=np.float32))
         node.value = float(proof) if proof is not None else value
         return node.value
