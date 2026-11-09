@@ -68,3 +68,30 @@ def test_gunuce_search_uses_network_policy_on_empty_board():
     assert result["index"] == 112
     assert result["simulations"] == 16
     assert np.isclose(result["policy"].sum(), 1.0)
+
+
+
+def test_gunuce_value_matches_browser_for_finite_values_outside_unit_interval():
+    def infer(state):
+        assert state.shape == (1, 4, 15, 15)
+        return {
+            "policy": np.zeros(225, dtype=np.float32),
+            "value": 1.25,
+        }
+
+    search = GunuceSearch(infer, simulations=1)
+    result = search.search(np.zeros(225, dtype=np.int8), BLACK)
+
+    assert result["root_value"] == 1.25
+
+
+def test_gunuce_search_rejects_non_finite_value_output():
+    def infer(state):
+        return {
+            "policy": np.zeros(225, dtype=np.float32),
+            "value": float("nan"),
+        }
+
+    search = GunuceSearch(infer, simulations=1)
+    with np.testing.assert_raises_regex(ValueError, "must be finite"):
+        search.search(np.zeros(225, dtype=np.int8), BLACK)
