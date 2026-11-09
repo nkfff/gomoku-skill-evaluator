@@ -257,6 +257,7 @@ def run_long_training(args: argparse.Namespace) -> Path:
             args.eval_games,
             args.eval_simulations,
             args.seed + current_round,
+            opening_plies=args.opening_plies,
         )
 
         print("\n===== QUICK EVALUATION: candidate vs V4.0 =====")
@@ -302,6 +303,7 @@ def run_long_training(args: argparse.Namespace) -> Path:
                 args.confirm_games,
                 args.eval_simulations,
                 args.seed + current_round + 100_003,
+                opening_plies=args.opening_plies,
             )
 
         if _quick_pass(quick_v40, args.promotion_min_score):
@@ -448,7 +450,7 @@ def run_long_training(args: argparse.Namespace) -> Path:
     print(f"\nLong-run learner checkpoint: {latest}")
     print(f"Best promoted checkpoint: {best_path} (round {best_round})")
     print(f"Opponent league: {league_dir}")
-    print(f"Gunuce evaluation history: {evaluation_log}")
+    print(f"Three-way evaluation history: {evaluation_log}")
     return latest
 
 
