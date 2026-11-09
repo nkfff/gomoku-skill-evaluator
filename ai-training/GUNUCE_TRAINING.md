@@ -1,4 +1,4 @@
-# TEBA-Net-S large-scale training against Gunuce
+# TEBA-Net-S three-way large-scale training: self, V4.0 and Gunuce
 
 This experiment starts from the frozen TEBA champion snapshot (Round 1060), not
 from the regressed Round 1560 learner. It keeps Gunuce frozen and uses it both
@@ -32,11 +32,12 @@ Defaults in gomoku.long_train_gunuce:
 | Self-play games / round | 8 |
 | Sparring games / round | 8 |
 | Gunuce share of sparring games | 40% |
-| Historical TEBA league share | 30% |
+| Historical TEBA / tactical league bucket | 30% (24% / 6%) |
 | V4.0 alpha-beta share | 30% |
 | Gunuce sparring simulations | 64 |
 | TEBA training simulations | 64 |
-| Evaluation simulations | 128 for both models |
+| TEBA / Gunuce evaluation simulations | 128 / 128 |
+| V4.0 evaluation budget | width 14, 500 ms, max depth 10 |
 | Updates / round | 100 |
 | Batch size | 64 |
 | Full checkpoint interval | 10 rounds (stage end is always saved) |
@@ -129,9 +130,10 @@ Important files:
 - latest.pt: full resumable learner state (large; includes replay buffers).
 - best.pt: compact promoted TEBA champion model.
 - round_NNNNN_model.pt: stage model snapshots.
-- evaluation/baseline_round_NNNNN_vs_gunuce.csv: starting baseline.
-- evaluation/round_NNNNN_quick_vs_gunuce.csv: stage quick test.
-- evaluation/round_NNNNN_confirmation_vs_gunuce.csv: stage confirmation.
+- evaluation/baseline_round_NNNNN_vs_gunuce.csv: starting Gunuce baseline.
+- evaluation/baseline_round_NNNNN_vs_v40.csv: starting V4.0 baseline.
+- evaluation/round_NNNNN_quick_vs_gunuce.csv and *_vs_v40.csv: stage quick tests.
+- evaluation/round_NNNNN_confirmation_vs_gunuce.csv and *_vs_v40.csv: confirmations.
 - evaluation/gunuce_long_run_evaluations.jsonl: promotion and metric history.
 
 ## Standalone 100-game comparison
@@ -148,6 +150,21 @@ Important files:
 
 The result reports W/D/L, game score, paired score, paired bootstrap 95% CI,
 pair W/D/L, BLACK/WHITE scores, and per-move search latency.
+
+
+V4.0 can also be evaluated independently:
+
+    python -m gomoku.evaluate_v40 \
+      --checkpoint checkpoints_longrun/best.pt \
+      --device mps \
+      --games 100 \
+      --simulations 128 \
+      --opening-plies 6 \
+      --champion-width 14 \
+      --champion-time-ms 500 \
+      --champion-max-depth 10 \
+      --seed 2033 \
+      --output evaluation/round1060_vs_v40.csv
 
 
 ## Three-way progress reporting
